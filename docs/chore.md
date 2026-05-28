@@ -1,0 +1,1 @@
+docker compose up -d中donet容易超时等着就行， 裸连可构建
