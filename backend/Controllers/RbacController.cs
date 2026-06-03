@@ -230,6 +230,24 @@ public class RbacController : ControllerBase
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
+        // 检查是否要分配管理员角色
+        var adminRole = await _db.Roles.FirstOrDefaultAsync(r => r.RoleName == "Admin" || r.RoleName == "Manager");
+        var wantToAssignAdminRole = request.RoleIds.Any(roleId => roleId == adminRole?.RoleID);
+
+        if (wantToAssignAdminRole)
+        {
+            // 检查当前用户是否有 admin.add 权限
+            var userPermissions = User.Claims
+                .Where(c => c.Type == "Permission")
+                .Select(c => c.Value)
+                .ToList();
+
+            if (!userPermissions.Contains("admin.add"))
+            {
+                return Forbid("您没有添加管理员的权限，只有主管理员(Admin)可以添加管理员");
+            }
+        }
+
         var existingRoles = await _db.UserRoles
             .Where(ur => ur.UserID == userId)
             .ToListAsync();

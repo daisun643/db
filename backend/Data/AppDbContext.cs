@@ -36,6 +36,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserCode).HasColumnName("userCode");
             e.Property(x => x.Credit).HasColumnName("credit");
             e.Property(x => x.Status).HasColumnName("status");
+            e.Property(x => x.UserLevel).HasColumnName("userLevel");
+            e.Property(x => x.TotalCredit).HasColumnName("totalCredit");
         });
 
         modelBuilder.Entity<Role>(e =>
