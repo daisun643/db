@@ -117,7 +117,9 @@ public class AuthService : IAuthService
             PasswordHash = passwordHash,
             Credit = 100,
             Status = "Active",
-            UserCode = GenerateUserCode()
+            UserCode = GenerateUserCode(),
+            UserLevel = 1,
+            TotalCredit = 0
         };
 
         _db.Users.Add(user);

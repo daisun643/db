@@ -19,6 +19,8 @@ CREATE TABLE "User" (
     "userCode"     VARCHAR2(50),
     "credit"       NUMBER,
     "status"       VARCHAR2(20),
+    "userLevel"    NUMBER DEFAULT 1,
+    "totalCredit"  NUMBER DEFAULT 0,
     CONSTRAINT "PK_User" PRIMARY KEY ("userId")
 );
 

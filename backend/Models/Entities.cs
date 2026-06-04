@@ -19,6 +19,8 @@ public class User
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
+    public int UserLevel { get; set; } = 1;
+    public int TotalCredit { get; set; } = 0;
     
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
