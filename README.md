@@ -5,7 +5,7 @@
 ## 快速启动
 
 ```bash
-bash ./scripts/restrat.sh
+bash ./scripts/restart.sh
 ```
 
 ## 访问地址
@@ -22,5 +22,5 @@ bash ./scripts/restrat.sh
 |------|------|------|
 | HTTPS 代理 | Caddy | 8443 |
 | 前端 | Vue 3 + Vite + Vue Router + Pinia | 5173 |
-| 后端 | ASP.NET 8 + EF Core + BCrypt + MailKit | 8080 |
+| 后端 | ASP.NET 8 + EF Core + MailKit | 8080 |
 | 数据库 | Oracle 18c XE | 1521 |

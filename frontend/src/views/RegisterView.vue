@@ -98,6 +98,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { sendCode } from '../api'
+import { hashPassword } from '../utils/passwordHash'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -188,7 +189,7 @@ const handleRegister = async () => {
     const result = await authStore.register({
       email: form.value.email,
       username: form.value.username,
-      password: form.value.password,
+      password: await hashPassword(form.value.password),
       code: form.value.code,
     })
 

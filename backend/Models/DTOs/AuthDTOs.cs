@@ -12,8 +12,9 @@ public class RegisterRequest
     [StringLength(50, MinimumLength = 2, ErrorMessage = "用户名长度必须在2-50个字符之间")]
     public string Username { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "密码不能为空")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "密码长度必须在8-100个字符之间")]
+    [Required(ErrorMessage = "密码摘要不能为空")]
+    [StringLength(64, MinimumLength = 64, ErrorMessage = "密码摘要必须是64位SHA-256十六进制字符串")]
+    [RegularExpression("^[a-f0-9]{64}$", ErrorMessage = "密码摘要格式不正确")]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "验证码不能为空")]
@@ -27,7 +28,9 @@ public class LoginRequest
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "密码不能为空")]
+    [Required(ErrorMessage = "密码摘要不能为空")]
+    [StringLength(64, MinimumLength = 64, ErrorMessage = "密码摘要必须是64位SHA-256十六进制字符串")]
+    [RegularExpression("^[a-f0-9]{64}$", ErrorMessage = "密码摘要格式不正确")]
     public string Password { get; set; } = string.Empty;
 }
 
@@ -55,8 +58,9 @@ public class ResetPasswordRequest
     [StringLength(6, MinimumLength = 6, ErrorMessage = "验证码必须是6位数字")]
     public string Code { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "新密码不能为空")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "密码长度必须在8-100个字符之间")]
+    [Required(ErrorMessage = "新密码摘要不能为空")]
+    [StringLength(64, MinimumLength = 64, ErrorMessage = "新密码摘要必须是64位SHA-256十六进制字符串")]
+    [RegularExpression("^[a-f0-9]{64}$", ErrorMessage = "新密码摘要格式不正确")]
     public string NewPassword { get; set; } = string.Empty;
 }
 

@@ -4,7 +4,6 @@ using Backend.Models;
 using Backend.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using BCrypt.Net;
 
 namespace Backend.Services;
 
@@ -103,18 +102,16 @@ public class AuthService : IAuthService
             return (false, "验证码已过期", null);
         }
 
-        if (!ValidatePassword(request.Password))
+        if (!ValidatePasswordDigest(request.Password))
         {
-            return (false, "密码必须包含大小写字母和数字", null);
+            return (false, "密码摘要格式不正确", null);
         }
-
-        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
         var user = new User
         {
             Email = request.Email,
             Username = request.Username,
-            PasswordHash = passwordHash,
+            PasswordHash = request.Password,
             Credit = 100,
             Status = "Active",
             UserCode = GenerateUserCode()
@@ -167,7 +164,9 @@ public class AuthService : IAuthService
             return (false, "账号已被禁用", null, null, null);
         }
 
-        if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        if (!ValidatePasswordDigest(request.Password) ||
+            string.IsNullOrEmpty(user.PasswordHash) ||
+            !string.Equals(request.Password, user.PasswordHash, StringComparison.Ordinal))
         {
             return (false, "邮箱或密码错误", null, null, null);
         }
@@ -252,12 +251,12 @@ public class AuthService : IAuthService
             return (false, "验证码已过期");
         }
 
-        if (!ValidatePassword(request.NewPassword))
+        if (!ValidatePasswordDigest(request.NewPassword))
         {
-            return (false, "密码必须包含大小写字母和数字");
+            return (false, "新密码摘要格式不正确");
         }
 
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.PasswordHash = request.NewPassword;
         emailCode.IsUsed = "1";
         
         await _db.SaveChangesAsync();
@@ -277,14 +276,8 @@ public class AuthService : IAuthService
         return Guid.NewGuid().ToString("N").Substring(0, 10).ToUpper();
     }
 
-    private bool ValidatePassword(string password)
+    private bool ValidatePasswordDigest(string password)
     {
-        if (password.Length < _authSettings.PasswordMinLength) return false;
-        
-        bool hasUpper = password.Any(char.IsUpper);
-        bool hasLower = password.Any(char.IsLower);
-        bool hasDigit = password.Any(char.IsDigit);
-        
-        return hasUpper && hasLower && hasDigit;
+        return password.Length == 64 && password.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     }
 }

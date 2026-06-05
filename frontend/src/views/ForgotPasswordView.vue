@@ -84,6 +84,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { forgotPassword, resetPassword } from '../api'
+import { hashPassword } from '../utils/passwordHash'
 
 const router = useRouter()
 
@@ -158,7 +159,7 @@ const handleResetPassword = async () => {
     const response = await resetPassword({
       email: form.value.email,
       code: form.value.code,
-      newPassword: form.value.newPassword,
+      newPassword: await hashPassword(form.value.newPassword),
     })
 
     if (response.data.success) {

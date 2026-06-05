@@ -52,6 +52,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { hashPassword } from '../utils/passwordHash'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -69,7 +70,10 @@ const handleLogin = async () => {
     loading.value = true
     error.value = ''
 
-    const result = await authStore.login(form.value)
+    const result = await authStore.login({
+      email: form.value.email,
+      password: await hashPassword(form.value.password),
+    })
     
     if (result.success) {
       router.push('/')
