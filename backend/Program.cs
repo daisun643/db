@@ -21,6 +21,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICreditService, CreditService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -46,7 +47,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("Moderator", policy => policy.RequireRole("Admin", "Moderator"));
+    options.AddPolicy("Manager", policy => policy.RequireRole("Admin", "Manager"));
+    options.AddPolicy("Moderator", policy => policy.RequireRole("Admin", "Manager", "Moderator"));
+    options.AddPolicy("Dashboard", policy => policy.Requirements.Add(new PermissionRequirement("dashboard.view")));
 });
 
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
