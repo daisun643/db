@@ -47,6 +47,16 @@ body {
   margin-bottom: 0;
 }
 
+.page-header-tabs {
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.page-header-tabs .tabs {
+  margin-bottom: 0;
+}
+
 .card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -235,4 +245,17 @@ th {
 
 .empty-state p {
   font-size: 1rem;
+}
+
+@media (max-width: 640px) {
+  .page-header-tabs {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .page-header-tabs .tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
 }

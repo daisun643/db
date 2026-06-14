@@ -1,22 +1,24 @@
 <template>
   <div class="page-container">
-    <h1 class="page-title">消息中心</h1>
+    <div class="page-header page-header-tabs">
+      <h1 class="page-title">消息中心</h1>
 
-    <div class="tabs">
-      <button 
-        :class="['tab', { active: activeTab === 'messages' }]" 
-        @click="activeTab = 'messages'"
-      >
-        私信
-        <span class="badge badge-red" v-if="unreadMessages > 0">{{ unreadMessages }}</span>
-      </button>
-      <button 
-        :class="['tab', { active: activeTab === 'notifications' }]" 
-        @click="activeTab = 'notifications'"
-      >
-        通知
-        <span class="badge badge-red" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
-      </button>
+      <div class="tabs">
+        <button 
+          :class="['tab', { active: activeTab === 'messages' }]" 
+          @click="activeTab = 'messages'"
+        >
+          私信
+          <span class="badge badge-red" v-if="unreadMessages > 0">{{ unreadMessages }}</span>
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'notifications' }]" 
+          @click="activeTab = 'notifications'"
+        >
+          通知
+          <span class="badge badge-red" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
+        </button>
+      </div>
     </div>
 
     <div v-if="activeTab === 'messages'" class="tab-content">

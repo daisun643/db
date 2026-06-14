@@ -1,26 +1,28 @@
 <template>
   <div class="page-container">
-    <h1 class="page-title">论坛</h1>
+    <div class="page-header page-header-tabs">
+      <h1 class="page-title">论坛</h1>
 
-    <div class="tabs">
-      <button 
-        :class="['tab', { active: activeTab === 'all' }]" 
-        @click="activeTab = 'all'"
-      >
-        所有论坛
-      </button>
-      <button 
-        :class="['tab', { active: activeTab === 'my-posts' }]" 
-        @click="activeTab = 'my-posts'"
-      >
-        我的帖子
-      </button>
-      <button 
-        :class="['tab', { active: activeTab === 'favorites' }]" 
-        @click="activeTab = 'favorites'"
-      >
-        收藏夹
-      </button>
+      <div class="tabs">
+        <button 
+          :class="['tab', { active: activeTab === 'all' }]" 
+          @click="activeTab = 'all'"
+        >
+          所有论坛
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'my-posts' }]" 
+          @click="activeTab = 'my-posts'"
+        >
+          我的帖子
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'favorites' }]" 
+          @click="activeTab = 'favorites'"
+        >
+          收藏夹
+        </button>
+      </div>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -85,4 +87,3 @@ onMounted(async () => {
   }
 })
 </script>
-

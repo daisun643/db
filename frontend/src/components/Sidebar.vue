@@ -40,6 +40,14 @@
           </svg>
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
+
+        <router-link v-if="canViewSystemStatus" to="/system-status" class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          <span class="nav-label" v-if="!isCollapsed">系统状态</span>
+        </router-link>
       </div>
 
       <div class="user-section">
@@ -69,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 
@@ -77,15 +85,35 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const isCollapsed = ref(false)
+const canViewSystemStatus = ref(false)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
+const updateSystemStatusAccess = async () => {
+  if (!authStore.isAuthenticated) {
+    canViewSystemStatus.value = false
+    return
+  }
+
+  canViewSystemStatus.value = await authStore.checkRouteAccess('/system-status')
+}
+
 const handleLogout = async () => {
   await authStore.logout()
+  canViewSystemStatus.value = false
   router.push('/login')
 }
+
+onMounted(updateSystemStatusAccess)
+
+watch(
+  () => authStore.isAuthenticated,
+  () => {
+    updateSystemStatusAccess()
+  }
+)
 </script>
 
 <style scoped>

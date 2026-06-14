@@ -31,6 +31,7 @@ export const useAuthStore = defineStore('auth', {
       if (response.data.success) {
         this.user = response.data.user
         this.isAuthenticated = true
+        this.routeAccessCache = {}
       }
       return response.data
     },
@@ -40,6 +41,7 @@ export const useAuthStore = defineStore('auth', {
       if (response.data.success) {
         this.user = response.data.user
         this.isAuthenticated = true
+        this.routeAccessCache = {}
       }
       return response.data
     },

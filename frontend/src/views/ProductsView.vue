@@ -1,26 +1,28 @@
 <template>
   <div class="page-container">
-    <h1 class="page-title">交易</h1>
+    <div class="page-header page-header-tabs">
+      <h1 class="page-title">交易</h1>
 
-    <div class="tabs">
-      <button 
-        :class="['tab', { active: activeTab === 'all' }]" 
-        @click="activeTab = 'all'"
-      >
-        商品列表
-      </button>
-      <button 
-        :class="['tab', { active: activeTab === 'my-products' }]" 
-        @click="activeTab = 'my-products'"
-      >
-        我的商品
-      </button>
-      <button 
-        :class="['tab', { active: activeTab === 'orders' }]" 
-        @click="activeTab = 'orders'"
-      >
-        我的订单
-      </button>
+      <div class="tabs">
+        <button 
+          :class="['tab', { active: activeTab === 'all' }]" 
+          @click="activeTab = 'all'"
+        >
+          商品列表
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'my-products' }]" 
+          @click="activeTab = 'my-products'"
+        >
+          我的商品
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'orders' }]" 
+          @click="activeTab = 'orders'"
+        >
+          我的订单
+        </button>
+      </div>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -89,4 +91,3 @@ onMounted(async () => {
   }
 })
 </script>
-
