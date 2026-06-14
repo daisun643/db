@@ -30,7 +30,7 @@ VALUES ('Moderator User', '3@tongji.edu.cn', '$2b$11$fsSnnoWtn6PnZRFRMTyNz.NiXNR
 
 -- 用户4 - User (密码: Password4)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "userLevel", "totalCredit") 
-VALUES ('Normal User', '4@tongji.edu.cn', '$2b$11$ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234YZ5', 'USER000004', 100, 'Active', 1, 0);
+VALUES ('Normal User', '4@tongji.edu.cn', '$2b$11$R.r9c/kvZb8d5rFhyFW6oe8lDnzk9bWjS9MdFrSDuZ6bpRErYGaUO', 'USER000004', 100, 'Active', 1, 0);
 -- 分配角色给用户
 -- ============================================================
 -- 用户1 分配 Admin 角色

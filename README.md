@@ -5,7 +5,7 @@
 ## 快速启动
 
 ```bash
-bash ./scripts/restrat.sh
+bash ./scripts/restart.sh
 ```
 
 ## 访问地址
