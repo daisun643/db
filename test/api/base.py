@@ -17,5 +17,13 @@ class BaseAPIClient:
         kwargs.setdefault("timeout", self.timeout)
         return self.session.post(f"{self.base_url}{path}", **kwargs)
 
+    def put(self, path: str, **kwargs) -> requests.Response:
+        kwargs.setdefault("timeout", self.timeout)
+        return self.session.put(f"{self.base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        kwargs.setdefault("timeout", self.timeout)
+        return self.session.delete(f"{self.base_url}{path}", **kwargs)
+
     def close(self):
         self.session.close()
