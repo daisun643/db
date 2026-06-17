@@ -10,6 +10,7 @@ public interface ICreditService
     /// 添加积分并检查升级
     /// </summary>
     Task AddCreditAsync(int userId, int credit, string reason);
+    Task<bool> CanPerformAsync(int userId, string operation);
     
     /// <summary>
     /// 获取用户当前等级
@@ -62,8 +63,9 @@ public class CreditService : ICreditService
             return;
         }
 
-        // 添加积分
-        user.TotalCredit += credit;
+        user.Credit = Math.Clamp((user.Credit ?? 100) + credit, 0, 1000);
+        if (credit > 0)
+            user.TotalCredit += credit;
         
         // 检查是否升级
         int newLevel = CalculateLevelFromCredit(user.TotalCredit);
@@ -73,9 +75,34 @@ public class CreditService : ICreditService
             _logger.LogInformation("用户 {UserId} 升级到 Lv.{Level}，原因：{Reason}", userId, newLevel, reason);
         }
 
+        _db.CreditAdjustments.Add(new CreditAdjustment
+        {
+            UserID = userId,
+            Description = reason,
+            ChangePoints = credit,
+            AdjustTime = DateTime.Now
+        });
+
         await _db.SaveChangesAsync();
-        _logger.LogInformation("用户 {UserId} 添加积分 +{Credit}，原因：{Reason}，总积分：{TotalCredit}", 
-            userId, credit, reason, user.TotalCredit);
+        _logger.LogInformation("用户 {UserId} 信用变更 {Credit}，原因：{Reason}，当前信用：{CurrentCredit}，总积分：{TotalCredit}", 
+            userId, credit, reason, user.Credit, user.TotalCredit);
+    }
+
+    public async Task<bool> CanPerformAsync(int userId, string operation)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null || user.Status != "Active")
+            return false;
+
+        var credit = user.Credit ?? 0;
+        return operation switch
+        {
+            "post" => credit >= 60,
+            "comment" => credit >= 40,
+            "product.publish" => credit >= 50,
+            "order.create" => credit >= 50,
+            _ => credit > 0
+        };
     }
 
     public async Task<int> GetUserLevelAsync(int userId)

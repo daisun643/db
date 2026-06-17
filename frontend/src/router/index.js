@@ -25,22 +25,22 @@ const routes = [
   { 
     path: '/forums', 
     component: () => import('../views/ForumsView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
   },
   { 
     path: '/products', 
     component: () => import('../views/ProductsView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
   },
   { 
     path: '/messages', 
     component: () => import('../views/MessagesView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
   },
   { 
     path: '/profile', 
     component: () => import('../views/ProfileView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
   },
   { 
     path: '/system-status', 

@@ -1,5 +1,6 @@
 using Backend.Data;
 using Backend.Models;
+using Backend.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "Admin")]
+[Authorize]
 public class RbacController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -21,6 +22,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpGet("roles")]
+    [RequirePermission("roles.manage", "permissions.manage", "dashboard.view")]
     public async Task<ActionResult<List<Role>>> GetAllRoles()
     {
         var roles = await _db.Roles
@@ -31,6 +33,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpGet("roles/{id}")]
+    [RequirePermission("roles.manage", "permissions.manage")]
     public async Task<ActionResult<Role>> GetRoleById(int id)
     {
         var role = await _db.Roles
@@ -45,6 +48,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPost("roles")]
+    [RequirePermission("roles.manage")]
     public async Task<ActionResult<Role>> CreateRole([FromBody] CreateRoleRequest request)
     {
         if (await _db.Roles.AnyAsync(r => r.RoleName == request.RoleName))
@@ -65,6 +69,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPut("roles/{id}")]
+    [RequirePermission("roles.manage")]
     public async Task<ActionResult<Role>> UpdateRole(int id, [FromBody] UpdateRoleRequest request)
     {
         var role = await _db.Roles.FindAsync(id);
@@ -85,6 +90,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpDelete("roles/{id}")]
+    [RequirePermission("roles.manage")]
     public async Task<ActionResult> DeleteRole(int id)
     {
         var role = await _db.Roles.FindAsync(id);
@@ -103,6 +109,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpGet("permissions")]
+    [RequirePermission("permissions.manage", "roles.manage", "dashboard.view")]
     public async Task<ActionResult<List<Permission>>> GetAllPermissions()
     {
         var permissions = await _db.Permissions.ToListAsync();
@@ -110,6 +117,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpGet("permissions/{id}")]
+    [RequirePermission("permissions.manage")]
     public async Task<ActionResult<Permission>> GetPermissionById(int id)
     {
         var permission = await _db.Permissions.FindAsync(id);
@@ -120,6 +128,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPost("permissions")]
+    [RequirePermission("permissions.manage")]
     public async Task<ActionResult<Permission>> CreatePermission([FromBody] CreatePermissionRequest request)
     {
         if (await _db.Permissions.AnyAsync(p => p.PermissionName == request.PermissionName))
@@ -141,6 +150,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPut("permissions/{id}")]
+    [RequirePermission("permissions.manage")]
     public async Task<ActionResult<Permission>> UpdatePermission(int id, [FromBody] UpdatePermissionRequest request)
     {
         var permission = await _db.Permissions.FindAsync(id);
@@ -163,6 +173,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpDelete("permissions/{id}")]
+    [RequirePermission("permissions.manage")]
     public async Task<ActionResult> DeletePermission(int id)
     {
         var permission = await _db.Permissions.FindAsync(id);
@@ -177,6 +188,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPost("roles/{roleId}/permissions")]
+    [RequirePermission("permissions.manage")]
     public async Task<ActionResult> AssignPermissionsToRole(int roleId, [FromBody] AssignPermissionsRequest request)
     {
         var role = await _db.Roles.FindAsync(roleId);
@@ -208,6 +220,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpGet("users/{userId}/roles")]
+    [RequirePermission("roles.manage", "admin.add", "admin.delete", "dashboard.view")]
     public async Task<ActionResult<List<Role>>> GetUserRoles(int userId)
     {
         var user = await _db.Users.FindAsync(userId);
@@ -224,6 +237,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpPost("users/{userId}/roles")]
+    [RequirePermission("roles.manage", "admin.add")]
     public async Task<ActionResult> AssignRolesToUser(int userId, [FromBody] AssignRolesRequest request)
     {
         var user = await _db.Users.FindAsync(userId);
@@ -274,6 +288,7 @@ public class RbacController : ControllerBase
     }
 
     [HttpDelete("users/{userId}/roles/{roleId}")]
+    [RequirePermission("roles.manage", "admin.delete")]
     public async Task<ActionResult> RemoveRoleFromUser(int userId, int roleId)
     {
         var userRole = await _db.UserRoles

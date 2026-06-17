@@ -17,14 +17,14 @@
           <span class="nav-label" v-if="!isCollapsed">首页</span>
         </router-link>
 
-        <router-link to="/forums" class="nav-item">
+        <router-link v-if="canAccess('/forums')" to="/forums" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span class="nav-label" v-if="!isCollapsed">论坛</span>
         </router-link>
 
-        <router-link to="/products" class="nav-item">
+        <router-link v-if="canAccess('/products')" to="/products" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1" />
             <circle cx="20" cy="21" r="1" />
@@ -33,7 +33,7 @@
           <span class="nav-label" v-if="!isCollapsed">交易</span>
         </router-link>
 
-        <router-link to="/messages" class="nav-item">
+        <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
             <polyline points="22,6 12,13 2,6" />
@@ -41,7 +41,7 @@
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
 
-        <router-link v-if="canViewSystemStatus" to="/system-status" class="nav-item">
+        <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -85,33 +85,39 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const isCollapsed = ref(false)
-const canViewSystemStatus = ref(false)
+const protectedMenuPaths = ['/forums', '/products', '/messages', '/system-status']
+const routeAccess = ref({})
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
-const updateSystemStatusAccess = async () => {
+const canAccess = (path) => routeAccess.value[path] === true
+
+const updateRouteAccess = async () => {
   if (!authStore.isAuthenticated) {
-    canViewSystemStatus.value = false
+    routeAccess.value = {}
     return
   }
 
-  canViewSystemStatus.value = await authStore.checkRouteAccess('/system-status')
+  const entries = await Promise.all(
+    protectedMenuPaths.map(async (path) => [path, await authStore.checkRouteAccess(path)])
+  )
+  routeAccess.value = Object.fromEntries(entries)
 }
 
 const handleLogout = async () => {
   await authStore.logout()
-  canViewSystemStatus.value = false
+  routeAccess.value = {}
   router.push('/login')
 }
 
-onMounted(updateSystemStatusAccess)
+onMounted(updateRouteAccess)
 
 watch(
   () => authStore.isAuthenticated,
   () => {
-    updateSystemStatusAccess()
+    updateRouteAccess()
   }
 )
 </script>
