@@ -6,6 +6,9 @@ obj/
 *.user
 *.suo
 .env
+
+__pycache__
+
 .*
 !.gitignore
 !.dockerignore
