@@ -91,18 +91,39 @@
               <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
             </div>
             <div class="post-actions">
-              <span>热度 {{ post.heatScore || 0 }}</span>
-              <span>浏览 {{ post.viewCount || 0 }}</span>
-              <span>点赞 {{ post.likeCount || 0 }}</span>
-              <span>评论 {{ post.commentCount || 0 }}</span>
-              <button class="link-button" @click.stop="handleLike(post)">
-                {{ post.isLiked ? '取消点赞' : '点赞' }}
+              <span
+                v-for="metric in postMetricItems(post)"
+                :key="metric.key"
+                class="post-metric"
+                :title="metric.label"
+                :aria-label="`${metric.label} ${metric.value}`"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+                <span>{{ metric.value }}</span>
+              </span>
+              <button
+                :class="['post-icon-action', { liked: post.isLiked }]"
+                @click.stop="handleLike(post)"
+                :title="post.isLiked ? '取消点赞' : '点赞'"
+                :aria-label="post.isLiked ? '取消点赞' : '点赞'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button" @click.stop="openPostDetail(post)">查看详情</button>
-              <button class="link-button" @click.stop="handleFavorite(post)" :disabled="favoriteFolders.length === 0">
-                收藏
+              <button class="post-icon-action" @click.stop="openPostDetail(post)" title="查看详情" aria-label="查看详情">
+                <span class="post-action-svg" :style="iconMaskStyle(openIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button danger" @click.stop="openReport(post)">举报</button>
+              <button
+                class="post-icon-action"
+                @click.stop="handleFavorite(post)"
+                :disabled="favoriteFolders.length === 0"
+                title="收藏"
+                aria-label="收藏"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
+              </button>
+              <button class="post-icon-action danger" @click.stop="openReport(post)" title="举报" aria-label="举报">
+                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+              </button>
             </div>
           </article>
           <div v-if="posts.length === 0" class="empty-state">
@@ -253,20 +274,45 @@
               <span v-for="tag in selectedPost.tags" :key="tag" class="tag">#{{ tag }}</span>
             </div>
             <div class="post-actions">
-              <span>热度 {{ selectedPost.heatScore || 0 }}</span>
-              <span>浏览 {{ selectedPost.viewCount || 0 }}</span>
-              <span>点赞 {{ selectedPost.likeCount || 0 }}</span>
-              <span>评论 {{ selectedPost.commentCount || 0 }}</span>
-              <button class="link-button" @click="handleLike(selectedPost)">
-                {{ selectedPost.isLiked ? '取消点赞' : '点赞' }}
+              <span
+                v-for="metric in postMetricItems(selectedPost)"
+                :key="metric.key"
+                class="post-metric"
+                :title="metric.label"
+                :aria-label="`${metric.label} ${metric.value}`"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+                <span>{{ metric.value }}</span>
+              </span>
+              <button
+                :class="['post-icon-action', { liked: selectedPost.isLiked }]"
+                @click="handleLike(selectedPost)"
+                :title="selectedPost.isLiked ? '取消点赞' : '点赞'"
+                :aria-label="selectedPost.isLiked ? '取消点赞' : '点赞'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button" @click="handleFavorite(selectedPost)" :disabled="favoriteFolders.length === 0">
-                收藏
+              <button
+                class="post-icon-action"
+                @click="handleFavorite(selectedPost)"
+                :disabled="favoriteFolders.length === 0"
+                title="收藏"
+                aria-label="收藏"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
-              <button v-if="canEditPost(selectedPost)" class="link-button" @click="openEditPost(selectedPost)">
-                编辑
+              <button
+                v-if="canEditPost(selectedPost)"
+                class="post-icon-action"
+                @click="openEditPost(selectedPost)"
+                title="编辑"
+                aria-label="编辑"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button danger" @click="openReport(selectedPost)">举报</button>
+              <button class="post-icon-action danger" @click="openReport(selectedPost)" title="举报" aria-label="举报">
+                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+              </button>
             </div>
           </article>
 
@@ -339,6 +385,14 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import bookmarkIcon from '../assets/icons/bookmark.svg'
+import commentIcon from '../assets/icons/comment.svg'
+import editIcon from '../assets/icons/edit.svg'
+import eyeIcon from '../assets/icons/eye.svg'
+import flagIcon from '../assets/icons/flag.svg'
+import flameIcon from '../assets/icons/flame.svg'
+import heartIcon from '../assets/icons/heart.svg'
+import openIcon from '../assets/icons/open.svg'
 import {
   addPostToFavoriteFolder,
   createComment,
@@ -397,6 +451,17 @@ const editImageText = ref('')
 const reportTarget = ref(null)
 const reportReason = ref('')
 const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
+
+const postMetricItems = (post) => [
+  { key: 'heat', label: '热度', value: post?.heatScore || 0, icon: flameIcon },
+  { key: 'views', label: '浏览', value: post?.viewCount || 0, icon: eyeIcon },
+  { key: 'likes', label: '点赞', value: post?.likeCount || 0, icon: heartIcon },
+  { key: 'comments', label: '评论', value: post?.commentCount || 0, icon: commentIcon },
+]
+
+const iconMaskStyle = (icon) => ({
+  '--icon-url': `url("${icon}")`,
+})
 
 const filters = ref({
   forumId: null,
@@ -1085,7 +1150,67 @@ onMounted(async () => {
 .post-actions {
   margin-top: 0.75rem;
   justify-content: space-between;
-  max-width: 520px;
+  max-width: 560px;
+}
+
+.post-metric,
+.post-icon-action {
+  align-items: center;
+  border-radius: 9999px;
+  color: #536471;
+  display: inline-flex;
+  gap: 0.375rem;
+  min-height: 32px;
+}
+
+.post-metric {
+  padding: 0.125rem 0.375rem;
+}
+
+.post-icon-action {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  justify-content: center;
+  min-width: 32px;
+  padding: 0.25rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.post-action-svg {
+  background: currentColor;
+  display: block;
+  height: 18px;
+  mask: var(--icon-url) center / contain no-repeat;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  width: 18px;
+}
+
+.post-icon-action:hover,
+.post-icon-action:focus-visible {
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+  outline: none;
+}
+
+.post-icon-action.liked {
+  color: #f91880;
+}
+
+.post-icon-action.liked:hover,
+.post-icon-action.liked:focus-visible {
+  background: rgba(249, 24, 128, 0.1);
+}
+
+.post-icon-action.danger:hover,
+.post-icon-action.danger:focus-visible {
+  background: rgba(244, 33, 46, 0.1);
+  color: #f4212e;
+}
+
+.post-icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .tag {
