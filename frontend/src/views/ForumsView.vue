@@ -48,40 +48,30 @@
       </aside>
 
       <main class="forum-main">
-        <div class="toolbar">
-          <input v-model="filters.keyword" type="search" placeholder="搜索标题或内容" @keyup.enter="loadPosts" />
-          <input v-model="filters.tag" type="search" placeholder="标签" @keyup.enter="loadPosts" />
-          <select v-model="filters.sort" @change="loadPosts">
-            <option value="latest">最新</option>
-            <option value="hot">热度</option>
-          </select>
-          <button class="btn btn-primary" @click="loadPosts">筛选</button>
-        </div>
-
-        <form class="composer" @submit.prevent="handleCreatePost">
-          <div class="composer-row">
-            <select v-model.number="postForm.forumID" required>
-              <option disabled value="">选择版块</option>
-              <option v-for="forum in forums" :key="forum.forumID" :value="forum.forumID">
-                {{ forum.forumName }}
-              </option>
+        <div class="feed-toolbar">
+          <div class="toolbar">
+            <input v-model="filters.keyword" type="search" placeholder="搜索标题或内容" @keyup.enter="loadPosts" />
+            <input v-model="filters.tag" type="search" placeholder="标签" @keyup.enter="loadPosts" />
+            <select v-model="filters.sort" @change="loadPosts">
+              <option value="latest">最新</option>
+              <option value="hot">热度</option>
             </select>
-            <input v-model="postForm.title" type="text" placeholder="帖子标题" required />
+            <button class="btn btn-primary" @click="loadPosts">筛选</button>
           </div>
-          <textarea v-model="postForm.content" placeholder="分享你的内容" required></textarea>
-          <div class="composer-row">
-            <input v-model="tagText" type="text" placeholder="标签，用逗号分隔" />
-            <input v-model="imageText" type="text" placeholder="图片 URL，用逗号分隔" />
-            <button class="btn" type="button" @click="handleSuggestTags">推荐标签</button>
-            <button class="btn btn-primary" type="submit" :disabled="submitting">
-              {{ submitting ? '发布中...' : '发布' }}
-            </button>
-          </div>
-        </form>
+          <button class="compose-trigger" @click="openComposer">发布帖子</button>
+        </div>
 
         <div v-if="loading" class="loading">加载中...</div>
         <div v-else class="post-list">
-          <article v-for="post in posts" :key="post.postID" class="post-item">
+          <article
+            v-for="post in posts"
+            :key="post.postID"
+            class="post-item"
+            role="button"
+            tabindex="0"
+            @click="openPostDetail(post)"
+            @keydown.enter="openPostDetail(post)"
+          >
             <div class="post-meta">
               <span>{{ post.forumName || '未分区' }}</span>
               <span>{{ post.username || '匿名用户' }}</span>
@@ -90,7 +80,7 @@
                 {{ post.status }}
               </span>
             </div>
-            <button class="post-title-button" @click="openPostDetail(post)">
+            <button class="post-title-button" @click.stop="openPostDetail(post)">
               {{ post.title }}
             </button>
             <p>{{ post.contentPreview }}</p>
@@ -101,18 +91,39 @@
               <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
             </div>
             <div class="post-actions">
-              <span>热度 {{ post.heatScore || 0 }}</span>
-              <span>浏览 {{ post.viewCount || 0 }}</span>
-              <span>点赞 {{ post.likeCount || 0 }}</span>
-              <span>评论 {{ post.commentCount || 0 }}</span>
-              <button class="link-button" @click="handleLike(post)">
-                {{ post.isLiked ? '取消点赞' : '点赞' }}
+              <span
+                v-for="metric in postMetricItems(post)"
+                :key="metric.key"
+                class="post-metric"
+                :title="metric.label"
+                :aria-label="`${metric.label} ${metric.value}`"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+                <span>{{ metric.value }}</span>
+              </span>
+              <button
+                :class="['post-icon-action', { liked: post.isLiked }]"
+                @click.stop="handleLike(post)"
+                :title="post.isLiked ? '取消点赞' : '点赞'"
+                :aria-label="post.isLiked ? '取消点赞' : '点赞'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button" @click="openPostDetail(post)">查看详情</button>
-              <button class="link-button" @click="handleFavorite(post)" :disabled="favoriteFolders.length === 0">
-                收藏
+              <button class="post-icon-action" @click.stop="openPostDetail(post)" title="查看详情" aria-label="查看详情">
+                <span class="post-action-svg" :style="iconMaskStyle(openIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button danger" @click="openReport(post)">举报</button>
+              <button
+                class="post-icon-action"
+                @click.stop="handleFavorite(post)"
+                :disabled="favoriteFolders.length === 0"
+                title="收藏"
+                aria-label="收藏"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
+              </button>
+              <button class="post-icon-action danger" @click.stop="openReport(post)" title="举报" aria-label="举报">
+                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+              </button>
             </div>
           </article>
           <div v-if="posts.length === 0" class="empty-state">
@@ -125,7 +136,15 @@
     <div v-else-if="activeTab === 'my-posts'" class="tab-content">
       <div v-if="loadingMyPosts" class="loading">加载中...</div>
       <div v-else class="post-list">
-        <article v-for="post in myPosts" :key="post.postID" class="post-item">
+        <article
+          v-for="post in myPosts"
+          :key="post.postID"
+          class="post-item"
+          role="button"
+          tabindex="0"
+          @click="openPostDetail(post)"
+          @keydown.enter="openPostDetail(post)"
+        >
           <div class="post-meta">
             <span>{{ post.forumName || '未分区' }}</span>
             <span>{{ formatDate(post.createTime) }}</span>
@@ -133,13 +152,13 @@
               {{ post.status }}
             </span>
           </div>
-          <button class="post-title-button" @click="openPostDetail(post)">
+          <button class="post-title-button" @click.stop="openPostDetail(post)">
             {{ post.title }}
           </button>
           <p>{{ post.contentPreview }}</p>
           <div class="post-actions">
-            <button class="link-button" @click="openEditPost(post)">编辑</button>
-            <button class="link-button danger" @click="handleDeletePost(post)">删除</button>
+            <button class="link-button" @click.stop="openEditPost(post)">编辑</button>
+            <button class="link-button danger" @click.stop="handleDeletePost(post)">删除</button>
           </div>
         </article>
         <div v-if="myPosts.length === 0" class="empty-state">
@@ -169,16 +188,24 @@
 
       <div v-if="loadingFavorites" class="loading">加载中...</div>
       <div v-else class="post-list">
-        <article v-for="post in favoritePosts" :key="post.postID" class="post-item">
+        <article
+          v-for="post in favoritePosts"
+          :key="post.postID"
+          class="post-item"
+          role="button"
+          tabindex="0"
+          @click="openPostDetail(post)"
+          @keydown.enter="openPostDetail(post)"
+        >
           <div class="post-meta">
             <span>{{ post.forumName || '未分区' }}</span>
             <span>{{ post.username || '匿名用户' }}</span>
           </div>
-          <button class="post-title-button" @click="openPostDetail(post)">
+          <button class="post-title-button" @click.stop="openPostDetail(post)">
             {{ post.title }}
           </button>
           <p>{{ post.contentPreview }}</p>
-          <button class="link-button danger" @click="handleRemoveFavorite(post)">取消收藏</button>
+          <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
         </article>
         <div v-if="favoritePosts.length === 0" class="empty-state">
           <p>暂无收藏</p>
@@ -186,10 +213,45 @@
       </div>
     </div>
 
+    <div v-if="composerOpen" class="detail-backdrop" @click.self="closeComposer">
+      <form class="post-detail-panel composer-modal" @submit.prevent="handleCreatePost">
+        <div class="modal-header">
+          <button class="icon-button" type="button" @click="closeComposer" aria-label="关闭发布窗口">
+            <span>×</span>
+          </button>
+          <button class="compose-submit" type="submit" :disabled="submitting">
+            {{ submitting ? '发布中...' : '发布' }}
+          </button>
+        </div>
+        <div class="composer-shell">
+          <div class="composer-avatar">{{ userInitial }}</div>
+          <div class="composer-fields">
+            <select v-model.number="postForm.forumID" required>
+              <option disabled value="">选择版块</option>
+              <option v-for="forum in forums" :key="forum.forumID" :value="forum.forumID">
+                {{ forum.forumName }}
+              </option>
+            </select>
+            <input v-model="postForm.title" type="text" placeholder="帖子标题" required />
+            <textarea v-model="postForm.content" placeholder="有什么新鲜事？" required autofocus></textarea>
+            <div class="composer-row">
+              <input v-model="tagText" type="text" placeholder="标签，用逗号分隔" />
+              <input v-model="imageText" type="text" placeholder="图片 URL，用逗号分隔" />
+            </div>
+            <div class="composer-tools">
+              <button class="link-button" type="button" @click="handleSuggestTags">推荐标签</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
     <div v-if="detailOpen" class="detail-backdrop" @click.self="closePostDetail">
       <section class="post-detail-panel">
-        <div class="detail-header">
-          <button class="link-button" @click="closePostDetail">返回列表</button>
+        <div class="modal-header">
+          <button class="icon-button" @click="closePostDetail" aria-label="关闭帖子详情">
+            <span>×</span>
+          </button>
           <span v-if="selectedPost" class="muted">{{ selectedPost.forumName || '未分区' }}</span>
         </div>
 
@@ -212,20 +274,45 @@
               <span v-for="tag in selectedPost.tags" :key="tag" class="tag">#{{ tag }}</span>
             </div>
             <div class="post-actions">
-              <span>热度 {{ selectedPost.heatScore || 0 }}</span>
-              <span>浏览 {{ selectedPost.viewCount || 0 }}</span>
-              <span>点赞 {{ selectedPost.likeCount || 0 }}</span>
-              <span>评论 {{ selectedPost.commentCount || 0 }}</span>
-              <button class="link-button" @click="handleLike(selectedPost)">
-                {{ selectedPost.isLiked ? '取消点赞' : '点赞' }}
+              <span
+                v-for="metric in postMetricItems(selectedPost)"
+                :key="metric.key"
+                class="post-metric"
+                :title="metric.label"
+                :aria-label="`${metric.label} ${metric.value}`"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+                <span>{{ metric.value }}</span>
+              </span>
+              <button
+                :class="['post-icon-action', { liked: selectedPost.isLiked }]"
+                @click="handleLike(selectedPost)"
+                :title="selectedPost.isLiked ? '取消点赞' : '点赞'"
+                :aria-label="selectedPost.isLiked ? '取消点赞' : '点赞'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button" @click="handleFavorite(selectedPost)" :disabled="favoriteFolders.length === 0">
-                收藏
+              <button
+                class="post-icon-action"
+                @click="handleFavorite(selectedPost)"
+                :disabled="favoriteFolders.length === 0"
+                title="收藏"
+                aria-label="收藏"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
-              <button v-if="canEditPost(selectedPost)" class="link-button" @click="openEditPost(selectedPost)">
-                编辑
+              <button
+                v-if="canEditPost(selectedPost)"
+                class="post-icon-action"
+                @click="openEditPost(selectedPost)"
+                title="编辑"
+                aria-label="编辑"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
               </button>
-              <button class="link-button danger" @click="openReport(selectedPost)">举报</button>
+              <button class="post-icon-action danger" @click="openReport(selectedPost)" title="举报" aria-label="举报">
+                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+              </button>
             </div>
           </article>
 
@@ -296,8 +383,16 @@
 </template>
 
 <script setup>
-import { defineComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import bookmarkIcon from '../assets/icons/bookmark.svg'
+import commentIcon from '../assets/icons/comment.svg'
+import editIcon from '../assets/icons/edit.svg'
+import eyeIcon from '../assets/icons/eye.svg'
+import flagIcon from '../assets/icons/flag.svg'
+import flameIcon from '../assets/icons/flame.svg'
+import heartIcon from '../assets/icons/heart.svg'
+import openIcon from '../assets/icons/open.svg'
 import {
   addPostToFavoriteFolder,
   createComment,
@@ -336,6 +431,7 @@ const detailLoading = ref(false)
 const commentsLoading = ref(false)
 const submitting = ref(false)
 const commentSubmitting = ref(false)
+const composerOpen = ref(false)
 const error = ref(null)
 const tagText = ref('')
 const imageText = ref('')
@@ -354,6 +450,18 @@ const editTagText = ref('')
 const editImageText = ref('')
 const reportTarget = ref(null)
 const reportReason = ref('')
+const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
+
+const postMetricItems = (post) => [
+  { key: 'heat', label: '热度', value: post?.heatScore || 0, icon: flameIcon },
+  { key: 'views', label: '浏览', value: post?.viewCount || 0, icon: eyeIcon },
+  { key: 'likes', label: '点赞', value: post?.likeCount || 0, icon: heartIcon },
+  { key: 'comments', label: '评论', value: post?.commentCount || 0, icon: commentIcon },
+]
+
+const iconMaskStyle = (icon) => ({
+  '--icon-url': `url("${icon}")`,
+})
 
 const filters = ref({
   forumId: null,
@@ -445,6 +553,16 @@ const selectForum = async (forumId) => {
   await loadPosts()
 }
 
+const openComposer = () => {
+  error.value = null
+  composerOpen.value = true
+}
+
+const closeComposer = () => {
+  if (submitting.value) return
+  composerOpen.value = false
+}
+
 const handleCreatePost = async () => {
   try {
     submitting.value = true
@@ -460,6 +578,7 @@ const handleCreatePost = async () => {
     postForm.value.content = ''
     tagText.value = ''
     imageText.value = ''
+    composerOpen.value = false
     await Promise.all([loadPosts(), loadMyPosts()])
   } catch (e) {
     error.value = '发布失败: ' + (e.response?.data?.message || e.message)
@@ -733,24 +852,36 @@ const CommentNode = defineComponent({
       return props.comment.userID && authStore.user?.userId && props.comment.userID === authStore.user.userId
     }
 
+    const initial = (name) => (name || '?')[0]?.toUpperCase() || '?'
+
     const renderNode = () => h('article', { class: 'comment-node' }, [
-      h('div', { class: 'comment-main' }, [
-        h('div', { class: 'post-meta' }, [
-          h('strong', props.comment.username || '用户'),
-          h('span', formatDate(props.comment.createTime)),
-          h('span', props.comment.status || ''),
+      h('div', { class: 'comment-avatar' }, [
+        h('span', initial(props.comment.username)),
+      ]),
+      h('div', { class: 'comment-body' }, [
+        h('div', { class: 'comment-header' }, [
+          h('span', { class: 'comment-author' }, props.comment.username || '用户'),
+          h('span', { class: 'comment-time' }, formatDate(props.comment.createTime)),
+          props.comment.status && props.comment.status !== 'Active'
+            ? h('span', { class: 'comment-status' }, props.comment.status)
+            : null,
         ]),
-        h('p', props.comment.content || ''),
+        h('div', { class: 'comment-content' }, props.comment.content || ''),
         h('div', { class: 'comment-actions' }, [
-          h('button', { class: 'link-button', onClick: () => emit('reply', props.comment) }, '回复'),
-          h('button', { class: 'link-button danger', onClick: () => emit('report', props.comment) }, '举报'),
+          h('button', { class: 'comment-action-btn', onClick: () => emit('reply', props.comment) }, [
+            h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', class: 'action-icon' }, [
+              h('path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' }),
+            ]),
+            '回复',
+          ]),
+          h('button', { class: 'comment-action-btn danger', onClick: () => emit('report', props.comment) }, '举报'),
           canDelete()
-            ? h('button', { class: 'link-button danger', onClick: () => emit('delete', props.comment) }, '删除')
+            ? h('button', { class: 'comment-action-btn danger', onClick: () => emit('delete', props.comment) }, '删除')
             : null,
         ]),
         props.replyingTo === props.comment.commentID
           ? h('form', {
-              class: 'comment-form reply-form',
+              class: 'reply-form',
               onSubmit: (event) => {
                 event.preventDefault()
                 emit('submit-reply', props.comment.commentID)
@@ -759,12 +890,12 @@ const CommentNode = defineComponent({
               h('textarea', {
                 value: props.replyText,
                 required: true,
-                placeholder: '写下回复',
+                placeholder: '写下回复...',
                 onInput: (event) => emit('update-reply', event.target.value),
               }),
-              h('div', { class: 'composer-row' }, [
-                h('button', { class: 'btn btn-primary', type: 'submit' }, '发送回复'),
-                h('button', { class: 'btn', type: 'button', onClick: () => emit('cancel-reply') }, '取消'),
+              h('div', { class: 'reply-actions' }, [
+                h('button', { class: 'btn btn-primary btn-sm', type: 'submit' }, '发送'),
+                h('button', { class: 'btn btn-sm', type: 'button', onClick: () => emit('cancel-reply') }, '取消'),
               ]),
             ])
           : null,
@@ -812,16 +943,19 @@ onMounted(async () => {
 <style scoped>
 .forum-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: 240px minmax(0, 760px);
+  gap: 0;
   align-items: start;
+  justify-content: center;
 }
 
 .forum-sidebar {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0;
   padding: 0.75rem;
+  position: sticky;
+  top: 1rem;
 }
 
 .section-title {
@@ -858,16 +992,27 @@ onMounted(async () => {
 .post-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0;
+}
+
+.feed-toolbar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: none;
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .toolbar,
-.composer,
 .favorite-header {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .toolbar,
@@ -879,11 +1024,16 @@ onMounted(async () => {
   align-items: center;
 }
 
+.toolbar {
+  flex: 1;
+  min-width: 0;
+}
+
 .toolbar input,
 .toolbar select,
-.composer input,
-.composer select,
-.composer textarea,
+.composer-fields input,
+.composer-fields select,
+.composer-fields textarea,
 .favorite-header input,
 .favorite-header select {
   border: 1px solid var(--border);
@@ -893,8 +1043,8 @@ onMounted(async () => {
 }
 
 .toolbar input,
-.composer input,
-.composer select,
+.composer-fields input,
+.composer-fields select,
 .favorite-header input,
 .favorite-header select {
   min-width: 0;
@@ -904,26 +1054,58 @@ onMounted(async () => {
   flex: 1;
 }
 
-.composer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
 .composer-row input {
   flex: 1;
 }
 
-.composer textarea {
-  min-height: 120px;
-  resize: vertical;
+.compose-trigger,
+.compose-submit {
+  align-items: center;
+  background: #0f1419;
+  border: none;
+  border-radius: 9999px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  justify-content: center;
+  padding: 0.625rem 1.25rem;
+  white-space: nowrap;
+}
+
+.compose-trigger:hover,
+.compose-submit:hover {
+  background: #272c30;
+}
+
+.compose-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .post-item {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
+  border-left: none;
+  border-radius: 0;
+  cursor: pointer;
+  padding: 1rem 1.25rem;
+  transition: background 0.15s;
+}
+
+.post-item + .post-item {
+  border-top: none;
+}
+
+.post-item:hover,
+.post-item:focus-visible {
+  background: #f7f9f9;
+}
+
+.post-item:focus-visible {
+  outline: 2px solid #1d9bf0;
+  outline-offset: -2px;
 }
 
 .post-item h2 {
@@ -934,7 +1116,7 @@ onMounted(async () => {
 .post-title-button {
   background: transparent;
   border: none;
-  color: var(--text);
+  color: #0f1419;
   cursor: pointer;
   display: block;
   font: inherit;
@@ -947,11 +1129,11 @@ onMounted(async () => {
 }
 
 .post-title-button:hover {
-  color: var(--primary);
+  text-decoration: underline;
 }
 
 .post-item p {
-  color: var(--text-secondary);
+  color: #536471;
 }
 
 .post-meta,
@@ -967,11 +1149,73 @@ onMounted(async () => {
 
 .post-actions {
   margin-top: 0.75rem;
+  justify-content: space-between;
+  max-width: 560px;
+}
+
+.post-metric,
+.post-icon-action {
+  align-items: center;
+  border-radius: 9999px;
+  color: #536471;
+  display: inline-flex;
+  gap: 0.375rem;
+  min-height: 32px;
+}
+
+.post-metric {
+  padding: 0.125rem 0.375rem;
+}
+
+.post-icon-action {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  justify-content: center;
+  min-width: 32px;
+  padding: 0.25rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.post-action-svg {
+  background: currentColor;
+  display: block;
+  height: 18px;
+  mask: var(--icon-url) center / contain no-repeat;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  width: 18px;
+}
+
+.post-icon-action:hover,
+.post-icon-action:focus-visible {
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+  outline: none;
+}
+
+.post-icon-action.liked {
+  color: #f91880;
+}
+
+.post-icon-action.liked:hover,
+.post-icon-action.liked:focus-visible {
+  background: rgba(249, 24, 128, 0.1);
+}
+
+.post-icon-action.danger:hover,
+.post-icon-action.danger:focus-visible {
+  background: rgba(244, 33, 46, 0.1);
+  color: #f4212e;
+}
+
+.post-icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .tag {
-  color: var(--primary);
-  background: var(--bg);
+  color: #1d9bf0;
+  background: #eff6ff;
   border-radius: 9999px;
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
@@ -1012,9 +1256,14 @@ onMounted(async () => {
 .link-button {
   border: none;
   background: transparent;
-  color: var(--primary);
+  color: #536471;
   cursor: pointer;
   font: inherit;
+  padding: 0.125rem 0;
+}
+
+.link-button:hover {
+  color: #1d9bf0;
 }
 
 .link-button.danger {
@@ -1022,11 +1271,13 @@ onMounted(async () => {
 }
 
 .detail-backdrop {
-  background: rgba(15, 23, 42, 0.36);
+  align-items: flex-start;
+  background: rgba(91, 112, 131, 0.4);
   bottom: 0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   left: 0;
+  padding: 3rem 1rem;
   position: fixed;
   right: 0;
   top: 0;
@@ -1034,35 +1285,47 @@ onMounted(async () => {
 }
 
 .post-detail-panel {
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.16);
-  height: 100vh;
-  max-width: 860px;
-  overflow-y: auto;
-  padding: 1rem;
-  width: min(860px, 100vw);
-}
-
-.detail-header,
-.post-detail,
-.comment-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
+  max-height: calc(100vh - 6rem);
+  max-width: 680px;
+  overflow-y: auto;
+  padding: 0;
+  width: min(680px, 100vw);
+}
+
+.modal-header,
+.post-detail,
+.comment-section,
+.composer-shell {
+  background: var(--surface);
   padding: 1rem;
 }
 
-.detail-header {
+.modal-header {
   align-items: center;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
 }
 
 .post-detail {
-  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .post-detail h2 {
@@ -1079,13 +1342,94 @@ onMounted(async () => {
 .comment-section h3 {
   font-size: 1rem;
   margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.icon-button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: #0f1419;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 1.5rem;
+  height: 36px;
+  justify-content: center;
+  line-height: 1;
+  width: 36px;
+}
+
+.icon-button:hover {
+  background: #eff3f4;
+}
+
+.composer-modal {
+  max-width: 620px;
+}
+
+.composer-shell {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.composer-avatar {
+  align-items: center;
+  background: #1d9bf0;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  flex: 0 0 44px;
+  font-weight: 800;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.composer-fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.composer-fields textarea {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 1.125rem;
+  min-height: 160px;
+  padding: 0.5rem 0;
+  resize: vertical;
+}
+
+.composer-fields textarea:focus,
+.composer-fields input:focus,
+.composer-fields select:focus,
+.toolbar input:focus,
+.toolbar select:focus {
+  border-color: #1d9bf0;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+
+.composer-fields textarea:focus {
+  box-shadow: none;
+}
+
+.composer-tools {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .comment-form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .comment-form textarea {
@@ -1093,47 +1437,175 @@ onMounted(async () => {
   border-radius: var(--radius);
   font: inherit;
   min-height: 88px;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 1rem;
   resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.comment-form textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .comment-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
 }
 
 .comment-node {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.comment-main p {
+.comment-node:last-child {
+  border-bottom: none;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #6366f1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.comment-author {
+  font-weight: 600;
+  font-size: 0.875rem;
   color: var(--text);
-  line-height: 1.6;
-  margin: 0.5rem 0;
+}
+
+.comment-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.comment-status {
+  font-size: 0.6875rem;
+  color: #d97706;
+  background: #fef3c7;
+  border-radius: 9999px;
+  padding: 0.0625rem 0.5rem;
+}
+
+.comment-content {
+  color: var(--text);
+  line-height: 1.65;
+  font-size: 0.9375rem;
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .comment-actions {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.comment-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius);
+  transition: all 0.15s;
+}
+
+.comment-action-btn:hover {
+  background: var(--bg);
+  color: var(--primary);
+}
+
+.comment-action-btn.danger:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.action-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .comment-children {
+  width: 100%;
+  margin-left: calc(36px + 0.75rem);
+  padding-left: 1rem;
   border-left: 2px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-left: 0.5rem;
-  margin-top: 0.75rem;
-  padding-left: 0.75rem;
+}
+
+.comment-children .comment-node {
+  padding: 0.75rem 0;
+}
+
+.comment-children .comment-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 0.75rem;
 }
 
 .reply-form {
-  margin: 0.75rem 0 0;
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reply-form textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 64px;
+  padding: 0.5rem 0.75rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.reply-form textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.reply-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .compact {
@@ -1150,6 +1622,16 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
+  .forum-sidebar {
+    position: static;
+  }
+
+  .feed-toolbar {
+    border-left: 1px solid var(--border);
+    flex-direction: column;
+    position: static;
+  }
+
   .toolbar,
   .composer-row,
   .favorite-header,
@@ -1160,16 +1642,18 @@ onMounted(async () => {
 
   .detail-backdrop {
     display: block;
+    padding: 0;
   }
 
   .post-detail-panel {
-    border-left: none;
+    border: none;
+    border-radius: 0;
+    max-height: 100vh;
     width: 100vw;
   }
 
-  .detail-header {
+  .modal-header {
     align-items: flex-start;
-    flex-direction: column;
   }
 }
 </style>
