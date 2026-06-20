@@ -326,6 +326,121 @@ class TestPostLike:
         assert detail["isLiked"] is True
 
 
+class TestFavoriteFolders:
+
+    def _create_folder(self, client, name="测试收藏夹"):
+        resp = client.create_favorite_folder(name)
+        assert resp.status_code == 200
+        return resp.json()
+
+    def _get_seed_post_id(self, client):
+        return client.get_posts().json()[0]["postID"]
+
+    def test_unauthenticated_cannot_list_favorite_folders(self, forum_client):
+        forum_client.post("/api/auth/logout")
+        resp = forum_client.get_favorite_folders()
+        assert resp.status_code == 401
+
+    def test_user_can_create_and_list_favorite_folder(self, forum_client):
+        folder = self._create_folder(forum_client, "接口测试收藏夹")
+
+        resp = forum_client.get_favorite_folders()
+        assert resp.status_code == 200
+        folders = resp.json()
+        folder_ids = [f["folderID"] for f in folders]
+        assert folder["folderID"] in folder_ids
+
+        created = next(f for f in folders if f["folderID"] == folder["folderID"])
+        assert created["folderName"] == "接口测试收藏夹"
+        assert created["postCount"] == 0
+        assert "createTime" in created
+
+    def test_create_favorite_folder_trims_name(self, forum_client):
+        resp = forum_client.create_favorite_folder("  去空格收藏夹  ")
+        assert resp.status_code == 200
+        assert resp.json()["folderName"] == "去空格收藏夹"
+
+    def test_create_favorite_folder_empty_name_rejected(self, forum_client):
+        resp = forum_client.create_favorite_folder("")
+        assert resp.status_code == 400
+
+    def test_user_can_update_favorite_folder(self, forum_client):
+        folder = self._create_folder(forum_client, "待改名收藏夹")
+        resp = forum_client.update_favorite_folder(folder["folderID"], "改名后收藏夹")
+        assert resp.status_code == 200
+        assert resp.json()["folderID"] == folder["folderID"]
+        assert resp.json()["folderName"] == "改名后收藏夹"
+
+    def test_update_nonexistent_favorite_folder_returns_404(self, forum_client):
+        resp = forum_client.update_favorite_folder(99999, "不存在收藏夹")
+        assert resp.status_code == 404
+
+    def test_user_can_delete_favorite_folder(self, forum_client):
+        folder = self._create_folder(forum_client, "待删除收藏夹")
+        resp = forum_client.delete_favorite_folder(folder["folderID"])
+        assert resp.status_code == 200
+
+        folders = forum_client.get_favorite_folders().json()
+        folder_ids = [f["folderID"] for f in folders]
+        assert folder["folderID"] not in folder_ids
+
+    def test_user_can_add_and_list_post_in_favorite_folder(self, forum_client):
+        folder = self._create_folder(forum_client, "帖子收藏夹")
+        post_id = self._get_seed_post_id(forum_client)
+
+        add_resp = forum_client.add_post_to_favorite_folder(folder["folderID"], post_id)
+        assert add_resp.status_code == 200
+
+        posts_resp = forum_client.get_favorite_folder_posts(folder["folderID"])
+        assert posts_resp.status_code == 200
+        posts = posts_resp.json()
+        post_ids = [p["postID"] for p in posts]
+        assert post_id in post_ids
+
+        folders = forum_client.get_favorite_folders().json()
+        created = next(f for f in folders if f["folderID"] == folder["folderID"])
+        assert created["postCount"] == 1
+
+    def test_adding_same_post_twice_keeps_single_favorite(self, forum_client):
+        folder = self._create_folder(forum_client, "去重收藏夹")
+        post_id = self._get_seed_post_id(forum_client)
+
+        first = forum_client.add_post_to_favorite_folder(folder["folderID"], post_id)
+        second = forum_client.add_post_to_favorite_folder(folder["folderID"], post_id)
+        assert first.status_code == 200
+        assert second.status_code == 200
+
+        posts = forum_client.get_favorite_folder_posts(folder["folderID"]).json()
+        assert [p["postID"] for p in posts].count(post_id) == 1
+
+    def test_user_can_remove_post_from_favorite_folder(self, forum_client):
+        folder = self._create_folder(forum_client, "移除帖子收藏夹")
+        post_id = self._get_seed_post_id(forum_client)
+        forum_client.add_post_to_favorite_folder(folder["folderID"], post_id)
+
+        resp = forum_client.remove_post_from_favorite_folder(folder["folderID"], post_id)
+        assert resp.status_code == 200
+
+        posts = forum_client.get_favorite_folder_posts(folder["folderID"]).json()
+        assert post_id not in [p["postID"] for p in posts]
+
+    def test_add_nonexistent_post_to_favorite_folder_returns_404(self, forum_client):
+        folder = self._create_folder(forum_client, "不存在帖子收藏夹")
+        resp = forum_client.add_post_to_favorite_folder(folder["folderID"], 99999)
+        assert resp.status_code == 404
+
+    def test_users_cannot_access_each_others_favorite_folders(self, forum_client, admin_forum_client):
+        admin_folder = self._create_folder(admin_forum_client, "管理员收藏夹")
+        admin_post_id = self._get_seed_post_id(admin_forum_client)
+        admin_forum_client.add_post_to_favorite_folder(admin_folder["folderID"], admin_post_id)
+
+        folders = forum_client.get_favorite_folders().json()
+        assert admin_folder["folderID"] not in [f["folderID"] for f in folders]
+        assert forum_client.get_favorite_folder_posts(admin_folder["folderID"]).status_code == 404
+        assert forum_client.update_favorite_folder(admin_folder["folderID"], "越权改名").status_code == 404
+        assert forum_client.delete_favorite_folder(admin_folder["folderID"]).status_code == 404
+
+
 class TestComments:
 
     def _get_seed_post_id(self, client):
