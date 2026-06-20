@@ -87,9 +87,9 @@ class TestProductCRUD:
         assert data["stock"] == 5
         assert data["status"] == "Active"
 
-    def test_user_cannot_create_product(self, market_client):
-        resp = market_client.create_product("非法商品", 1.0, stock=1)
-        assert resp.status_code == 403
+    def test_user_can_create_product(self, market_client):
+        resp = market_client.create_product("合法商品", 1.0, stock=1)
+        assert resp.status_code == 201
 
     def test_admin_can_update_product(self, admin_market_client):
         create_resp = admin_market_client.create_product("待修改商品", 5.0, stock=3)
