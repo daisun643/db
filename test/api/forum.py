@@ -90,6 +90,33 @@ class ForumAPI(BaseAPIClient):
     def get_my_posts(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/posts/me")
 
+    # ---- Favorite folders ----
+
+    def get_favorite_folders(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/favorite-folders")
+
+    def create_favorite_folder(self, folder_name: str) -> requests.Response:
+        return self.post(f"{self.PREFIX}/favorite-folders", json={
+            "folderName": folder_name,
+        })
+
+    def update_favorite_folder(self, folder_id: int, folder_name: str) -> requests.Response:
+        return self.put(f"{self.PREFIX}/favorite-folders/{folder_id}", json={
+            "folderName": folder_name,
+        })
+
+    def delete_favorite_folder(self, folder_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/favorite-folders/{folder_id}")
+
+    def get_favorite_folder_posts(self, folder_id: int) -> requests.Response:
+        return self.get(f"{self.PREFIX}/favorite-folders/{folder_id}/posts")
+
+    def add_post_to_favorite_folder(self, folder_id: int, post_id: int) -> requests.Response:
+        return self.post(f"{self.PREFIX}/favorite-folders/{folder_id}/posts/{post_id}")
+
+    def remove_post_from_favorite_folder(self, folder_id: int, post_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/favorite-folders/{folder_id}/posts/{post_id}")
+
     # ---- Comments ----
 
     def get_comments(self, post_id: int) -> requests.Response:
