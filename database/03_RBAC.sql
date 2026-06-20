@@ -108,8 +108,8 @@ FROM "Role" r, "Permission" p
 WHERE r."roleName" = 'User'
 AND p."permissionName" IN (
     'forums.view',
-    'posts.view', 'posts.create', 'posts.edit',
-    'products.view', 'products.create', 'products.edit'
+    'posts.view', 'posts.create',
+    'products.view', 'products.create'
 );
 
 COMMIT;

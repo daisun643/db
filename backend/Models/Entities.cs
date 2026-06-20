@@ -23,6 +23,10 @@ public class User
     public int TotalCredit { get; set; } = 0;
     
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+    public ICollection<PostLike> PostLikes { get; set; } = new List<PostLike>();
+    public ICollection<FavoriteFolder> FavoriteFolders { get; set; } = new List<FavoriteFolder>();
+    public ICollection<FriendShip> FriendShips { get; set; } = new List<FriendShip>();
+    public ICollection<CreditAdjustment> CreditAdjustments { get; set; } = new List<CreditAdjustment>();
 }
 
 [Table("Role")]
@@ -106,6 +110,8 @@ public class PostTag
     [MaxLength(50)]
     public string? TagName { get; set; }
     public DateTime? CreateTime { get; set; }
+
+    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
 }
 
 [Table("Wallet")]
@@ -136,6 +142,9 @@ public class Forum
     public int? CreatorID { get; set; }
     [ForeignKey("CreatorID")]
     public User? Creator { get; set; }
+
+    public ICollection<Post> Posts { get; set; } = new List<Post>();
+    public ICollection<ForumManager> ForumManagers { get; set; } = new List<ForumManager>();
 }
 
 [Table("Post")]
@@ -146,6 +155,7 @@ public class Post
     [MaxLength(200)]
     public string? Title { get; set; }
     public string? Content { get; set; }
+    public string? ImageUrls { get; set; }
     public int? HeatScore { get; set; }
     public int? LikeCount { get; set; }
     public int? ViewCount { get; set; }
@@ -159,6 +169,11 @@ public class Post
     public int? ForumID { get; set; }
     [ForeignKey("ForumID")]
     public Forum? Forum { get; set; }
+
+    public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
+    public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
+    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
+    public ICollection<FolderPost> FolderPosts { get; set; } = new List<FolderPost>();
 }
 
 [Table("PostComment")]
@@ -180,6 +195,91 @@ public class PostComment
     public int? ParentCommentID { get; set; }
     [ForeignKey("ParentCommentID")]
     public PostComment? ParentComment { get; set; }
+
+    public ICollection<PostComment> Replies { get; set; } = new List<PostComment>();
+}
+
+[Table("FavoriteFolder")]
+public class FavoriteFolder
+{
+    [Key]
+    public int FolderID { get; set; }
+    [MaxLength(100)]
+    public string? FolderName { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public int? UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+
+    public ICollection<FolderPost> FolderPosts { get; set; } = new List<FolderPost>();
+}
+
+[Table("AuditRecord")]
+public class AuditRecord
+{
+    [Key]
+    public int AuditID { get; set; }
+    [MaxLength(50)]
+    public string? TargetType { get; set; }
+    public int? TargetID { get; set; }
+    [MaxLength(200)]
+    public string? TriggerWord { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public int? AuditorID { get; set; }
+    [ForeignKey("AuditorID")]
+    public User? Auditor { get; set; }
+}
+
+[Table("ForumManager")]
+public class ForumManager
+{
+    public int ForumID { get; set; }
+    [ForeignKey("ForumID")]
+    public Forum? Forum { get; set; }
+
+    public int UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+}
+
+[Table("PostLike")]
+public class PostLike
+{
+    [Key]
+    public int LikeID { get; set; }
+    public int? PostID { get; set; }
+    [ForeignKey("PostID")]
+    public Post? Post { get; set; }
+    public int? UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+    public DateTime? CreateTime { get; set; }
+}
+
+[Table("TagPost")]
+public class TagPost
+{
+    public int PostID { get; set; }
+    [ForeignKey("PostID")]
+    public Post? Post { get; set; }
+
+    public int TagID { get; set; }
+    [ForeignKey("TagID")]
+    public PostTag? Tag { get; set; }
+}
+
+[Table("FolderPost")]
+public class FolderPost
+{
+    public int FolderID { get; set; }
+    [ForeignKey("FolderID")]
+    public FavoriteFolder? Folder { get; set; }
+
+    public int PostID { get; set; }
+    [ForeignKey("PostID")]
+    public Post? Post { get; set; }
 }
 
 [Table("Product")]
@@ -191,6 +291,7 @@ public class Product
     public string? Title { get; set; }
     [MaxLength(4000)]
     public string? Description { get; set; }
+    public string? ImageUrls { get; set; }
     public decimal? Price { get; set; }
     public int? Stock { get; set; }
     [MaxLength(20)]
@@ -217,6 +318,92 @@ public class Transaction
     public int? ProductID { get; set; }
     [ForeignKey("ProductID")]
     public Product? Product { get; set; }
+
+    public ICollection<DisputeTicket> DisputeTickets { get; set; } = new List<DisputeTicket>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public ICollection<OrderMessage> OrderMessages { get; set; } = new List<OrderMessage>();
+}
+
+[Table("DisputeTicket")]
+public class DisputeTicket
+{
+    [Key]
+    public int TicketID { get; set; }
+    [MaxLength(500)]
+    public string? Reason { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public DateTime? AssignTime { get; set; }
+    public int? TransactionID { get; set; }
+    [ForeignKey("TransactionID")]
+    public Transaction? Transaction { get; set; }
+    public int? UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+    public int? ArbitratorID { get; set; }
+    [ForeignKey("ArbitratorID")]
+    public User? Arbitrator { get; set; }
+    public ICollection<ArbitrationResult> ArbitrationResults { get; set; } = new List<ArbitrationResult>();
+}
+
+[Table("ArbitrationResult")]
+public class ArbitrationResult
+{
+    [Key]
+    public int ResultID { get; set; }
+    [MaxLength(500)]
+    public string? Decision { get; set; }
+    public decimal? RefundAmount { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public int? DisputeTicketID { get; set; }
+    [ForeignKey("DisputeTicketID")]
+    public DisputeTicket? DisputeTicket { get; set; }
+    public int? WalletID { get; set; }
+    [ForeignKey("WalletID")]
+    public Wallet? Wallet { get; set; }
+}
+
+[Table("OrderMessage")]
+public class OrderMessage
+{
+    [Key]
+    public int OrderMessageID { get; set; }
+    [MaxLength(4000)]
+    public string? Content { get; set; }
+    public DateTime? SendTime { get; set; }
+    [MaxLength(1)]
+    public string? IsArchived { get; set; }
+    public int? TransactionID { get; set; }
+    [ForeignKey("TransactionID")]
+    public Transaction? Transaction { get; set; }
+    public int? SenderID { get; set; }
+    [ForeignKey("SenderID")]
+    public User? Sender { get; set; }
+}
+
+[Table("ReportTicket")]
+public class ReportTicket
+{
+    [Key]
+    public int ReportID { get; set; }
+    [MaxLength(50)]
+    public string? TargetType { get; set; }
+    public int? TargetID { get; set; }
+    [MaxLength(500)]
+    public string? Reason { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public DateTime? ReviewTime { get; set; }
+    [MaxLength(500)]
+    public string? Result { get; set; }
+    public int? ReporterID { get; set; }
+    [ForeignKey("ReporterID")]
+    public User? Reporter { get; set; }
+    public int? ReviewerID { get; set; }
+    [ForeignKey("ReviewerID")]
+    public User? Reviewer { get; set; }
 }
 
 [Table("PrivateMessage")]
@@ -235,6 +422,37 @@ public class PrivateMessage
     public int? SenderID { get; set; }
     [ForeignKey("SenderID")]
     public User? Sender { get; set; }
+}
+
+[Table("FriendShip")]
+public class FriendShip
+{
+    [Key]
+    public int FriendshipID { get; set; }
+    public int? UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+    public int? FriendID { get; set; }
+    [ForeignKey("FriendID")]
+    public User? Friend { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public DateTime? UpdateTime { get; set; }
+}
+
+[Table("CreditAdjustment")]
+public class CreditAdjustment
+{
+    [Key]
+    public int CreditAdjustmentID { get; set; }
+    public int? UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+    [MaxLength(500)]
+    public string? Description { get; set; }
+    public int? ChangePoints { get; set; }
+    public DateTime? AdjustTime { get; set; }
 }
 
 [Table("Notification")]

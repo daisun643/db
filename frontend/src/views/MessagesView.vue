@@ -4,106 +4,346 @@
       <h1 class="page-title">消息中心</h1>
 
       <div class="tabs">
-        <button 
-          :class="['tab', { active: activeTab === 'messages' }]" 
-          @click="activeTab = 'messages'"
-        >
+        <button :class="['tab', { active: activeTab === 'messages' }]" @click="activeTab = 'messages'">
           私信
           <span class="badge badge-red" v-if="unreadMessages > 0">{{ unreadMessages }}</span>
         </button>
-        <button 
-          :class="['tab', { active: activeTab === 'notifications' }]" 
-          @click="activeTab = 'notifications'"
-        >
+        <button :class="['tab', { active: activeTab === 'notifications' }]" @click="activeTab = 'notifications'">
           通知
-          <span class="badge badge-red" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
+          <span class="badge badge-red" v-if="notifications.length > 0">{{ notifications.length }}</span>
         </button>
       </div>
     </div>
 
-    <div v-if="activeTab === 'messages'" class="tab-content">
-      <div v-if="loading" class="loading">加载中...</div>
-      <div v-else-if="messages.length === 0" class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-          <polyline points="22,6 12,13 2,6" />
-        </svg>
-        <p>暂无私信</p>
-      </div>
-      <div v-else class="message-list">
-        <div 
-          v-for="message in messages" 
-          :key="message.id" 
-          :class="['message-item', { unread: !message.isRead }]"
-        >
-          <div class="message-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-          <div class="message-content">
-            <div class="message-header">
-              <span class="message-sender">{{ message.sender }}</span>
-              <span class="message-time">{{ message.time }}</span>
+    <div v-if="error" class="error-message">{{ error }}</div>
+
+    <div v-if="activeTab === 'messages'" class="messages-layout">
+      <aside class="friends-panel">
+        <form class="friend-form" @submit.prevent="handleAddFriend">
+          <input v-model="friendEmail" type="email" placeholder="好友邮箱" required />
+          <button class="btn" type="submit">添加</button>
+        </form>
+
+        <section v-if="friendRequests.length > 0" class="request-list">
+          <h2>好友申请</h2>
+          <div v-for="request in friendRequests" :key="request.friendshipID" class="request-item">
+            <span>{{ request.username || request.email }}</span>
+            <div>
+              <button class="link-button" @click="handleAccept(request)">接受</button>
+              <button class="link-button danger" @click="handleReject(request)">拒绝</button>
             </div>
-            <p class="message-text">{{ message.content }}</p>
           </div>
+        </section>
+
+        <section class="friend-list">
+          <h2>好友</h2>
+          <button
+            v-for="friend in friends"
+            :key="friend.friendshipID"
+            :class="['friend-item', { active: selectedFriend?.userID === friend.userID }]"
+            @click="selectFriend(friend)"
+          >
+            <span>{{ friend.username || friend.email }}</span>
+            <small>{{ friend.email }}</small>
+          </button>
+          <div v-if="friends.length === 0" class="empty-inline">暂无好友</div>
+        </section>
+      </aside>
+
+      <main class="conversation-panel">
+        <div v-if="!selectedFriend" class="empty-state">
+          <p>选择一个好友开始私信</p>
         </div>
-      </div>
+        <template v-else>
+          <div class="conversation-header">
+            <h2>{{ selectedFriend.username || selectedFriend.email }}</h2>
+            <button class="btn" @click="handleMarkAllRead">全部已读</button>
+          </div>
+
+          <div v-if="loading" class="loading">加载中...</div>
+          <div v-else class="message-list">
+            <article
+              v-for="message in messages"
+              :key="message.messageID"
+              :class="['message-item', { unread: !message.isRead, mine: message.senderID !== selectedFriend.userID }]"
+            >
+              <div class="message-content">
+                <div class="message-header">
+                  <span class="message-sender">{{ message.senderName || '用户' }}</span>
+                  <span class="message-time">{{ formatDate(message.sendTime) }}</span>
+                </div>
+                <p class="message-text">{{ message.content }}</p>
+              </div>
+              <button v-if="!message.isRead && message.receiverID !== selectedFriend.userID" class="link-button" @click="handleRead(message)">
+                标为已读
+              </button>
+            </article>
+            <div v-if="messages.length === 0" class="empty-state compact">
+              <p>暂无私信</p>
+            </div>
+          </div>
+
+          <form class="message-form" @submit.prevent="handleSendMessage">
+            <input v-model="messageText" type="text" placeholder="输入私信内容" required />
+            <button class="btn btn-primary" type="submit">发送</button>
+          </form>
+        </template>
+      </main>
     </div>
 
     <div v-if="activeTab === 'notifications'" class="tab-content">
       <div v-if="loading" class="loading">加载中...</div>
       <div v-else-if="notifications.length === 0" class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
         <p>暂无通知</p>
       </div>
       <div v-else class="notification-list">
-        <div 
-          v-for="notification in notifications" 
-          :key="notification.id" 
-          class="notification-item"
-        >
-          <div class="notification-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </div>
+        <article v-for="notification in notifications" :key="notification.notificationID" class="notification-item">
+          <div class="notification-icon">!</div>
           <div class="notification-content">
             <h4>{{ notification.title }}</h4>
             <p>{{ notification.content }}</p>
-            <span class="notification-time">{{ notification.time }}</span>
+            <span class="notification-time">{{ formatDate(notification.createTime) }}</span>
           </div>
-        </div>
+          <button class="link-button danger" @click="handleDeleteNotification(notification)">删除</button>
+        </article>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import {
+  acceptFriendRequest,
+  createFriendRequest,
+  deleteNotification,
+  getFriendRequests,
+  getFriends,
+  getMessages,
+  getNotifications,
+  getUnreadMessageCount,
+  markAllMessagesRead,
+  markMessageRead,
+  rejectFriendRequest,
+  sendMessage,
+} from '../api'
 
 const activeTab = ref('messages')
 const loading = ref(false)
 const unreadMessages = ref(0)
-const unreadNotifications = ref(0)
-
+const friends = ref([])
+const friendRequests = ref([])
 const messages = ref([])
 const notifications = ref([])
+const selectedFriend = ref(null)
+const friendEmail = ref('')
+const messageText = ref('')
+const error = ref(null)
+
+const loadFriends = async () => {
+  const [friendsRes, requestsRes] = await Promise.all([getFriends(), getFriendRequests()])
+  friends.value = friendsRes.data
+  friendRequests.value = requestsRes.data
+}
+
+const loadMessages = async () => {
+  if (!selectedFriend.value) {
+    messages.value = []
+    return
+  }
+
+  try {
+    loading.value = true
+    const res = await getMessages({ userId: selectedFriend.value.userID })
+    messages.value = res.data.reverse()
+  } catch (e) {
+    error.value = '无法加载私信: ' + (e.response?.data?.message || e.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadNotifications = async () => {
+  try {
+    loading.value = true
+    const res = await getNotifications()
+    notifications.value = res.data
+  } catch (e) {
+    error.value = '无法加载通知: ' + (e.response?.data?.message || e.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadUnreadCount = async () => {
+  const res = await getUnreadMessageCount()
+  unreadMessages.value = res.data.count || 0
+}
+
+const selectFriend = async (friend) => {
+  selectedFriend.value = friend
+  await loadMessages()
+}
+
+const handleAddFriend = async () => {
+  try {
+    await createFriendRequest({ email: friendEmail.value })
+    friendEmail.value = ''
+    await loadFriends()
+  } catch (e) {
+    error.value = '好友申请失败: ' + (e.response?.data?.message || e.message)
+  }
+}
+
+const handleAccept = async (request) => {
+  await acceptFriendRequest(request.friendshipID)
+  await loadFriends()
+}
+
+const handleReject = async (request) => {
+  await rejectFriendRequest(request.friendshipID)
+  await loadFriends()
+}
+
+const handleSendMessage = async () => {
+  if (!selectedFriend.value) return
+  await sendMessage({
+    receiverID: selectedFriend.value.userID,
+    content: messageText.value,
+  })
+  messageText.value = ''
+  await loadMessages()
+}
+
+const handleRead = async (message) => {
+  await markMessageRead(message.messageID)
+  await Promise.all([loadMessages(), loadUnreadCount()])
+}
+
+const handleMarkAllRead = async () => {
+  await markAllMessagesRead()
+  await Promise.all([loadMessages(), loadUnreadCount()])
+}
+
+const handleDeleteNotification = async (notification) => {
+  await deleteNotification(notification.notificationID)
+  await loadNotifications()
+}
+
+const formatDate = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+watch(activeTab, async (tab) => {
+  if (tab === 'messages') {
+    await Promise.all([loadFriends(), loadUnreadCount()])
+    await loadMessages()
+  }
+  if (tab === 'notifications') {
+    await loadNotifications()
+  }
+})
+
+onMounted(async () => {
+  await Promise.all([loadFriends(), loadUnreadCount(), loadNotifications()])
+})
 </script>
 
 <style scoped>
+.messages-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.friends-panel,
+.conversation-panel,
+.notification-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.friends-panel,
+.conversation-panel {
+  padding: 1rem;
+}
+
+.friend-form,
+.message-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.friend-form input,
+.message-form input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.625rem 0.75rem;
+  font: inherit;
+}
+
+.request-list,
+.friend-list {
+  margin-top: 1rem;
+}
+
+.request-list h2,
+.friend-list h2,
+.conversation-header h2 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.request-item,
+.friend-item,
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.request-item {
+  padding: 0.5rem 0;
+}
+
+.friend-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+}
+
+.friend-item:hover,
+.friend-item.active {
+  background: var(--bg);
+  color: var(--primary);
+}
+
+.friend-item small {
+  color: var(--text-secondary);
+}
+
 .message-list,
 .notification-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .message-item {
@@ -113,34 +353,14 @@ const notifications = ref([])
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
-.message-item:hover {
-  background: var(--bg);
+.message-item.mine {
+  background: #f8fafc;
 }
 
 .message-item.unread {
-  background: #f0f9ff;
   border-color: var(--primary);
-}
-
-.message-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.message-avatar svg {
-  width: 24px;
-  height: 24px;
 }
 
 .message-content {
@@ -151,40 +371,38 @@ const notifications = ref([])
 .message-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  gap: 1rem;
   margin-bottom: 0.5rem;
 }
 
 .message-sender {
   font-weight: 600;
-  color: var(--text);
 }
 
-.message-time {
-  font-size: 0.75rem;
+.message-time,
+.notification-time,
+.empty-inline {
   color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 .message-text {
   color: var(--text-secondary);
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.message-form {
+  margin-top: 1rem;
 }
 
 .notification-item {
   display: flex;
   gap: 1rem;
   padding: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
 }
 
 .notification-icon {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--bg);
   color: var(--primary);
@@ -192,11 +410,7 @@ const notifications = ref([])
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.notification-icon svg {
-  width: 20px;
-  height: 20px;
+  font-weight: 700;
 }
 
 .notification-content {
@@ -205,19 +419,42 @@ const notifications = ref([])
 
 .notification-content h4 {
   font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
 .notification-content p {
-  font-size: 0.875rem;
   color: var(--text-secondary);
+  font-size: 0.875rem;
   margin-bottom: 0.5rem;
 }
 
-.notification-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.link-button.danger {
+  color: #dc2626;
+}
+
+.compact {
+  min-height: auto;
+  padding: 1.5rem;
+}
+
+@media (max-width: 800px) {
+  .messages-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .friend-form,
+  .message-form,
+  .conversation-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

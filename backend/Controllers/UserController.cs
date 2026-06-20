@@ -1,3 +1,4 @@
+using Backend.Authorization;
 using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
@@ -5,6 +6,7 @@ using Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Backend.Controllers;
 
@@ -87,10 +89,36 @@ public class UserController : ControllerBase
         return Ok(user);
     }
 
+    [Authorize]
+    [HttpGet("credit-adjustments")]
+    public async Task<ActionResult<List<CreditAdjustmentResponse>>> GetMyCreditAdjustments()
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        var adjustments = await _db.CreditAdjustments
+            .Where(a => a.UserID == currentUserId)
+            .OrderByDescending(a => a.AdjustTime)
+            .Take(50)
+            .Select(a => new CreditAdjustmentResponse
+            {
+                CreditAdjustmentId = a.CreditAdjustmentID,
+                UserId = a.UserID,
+                Description = a.Description ?? "",
+                ChangePoints = a.ChangePoints ?? 0,
+                AdjustTime = a.AdjustTime
+            })
+            .ToListAsync();
+
+        return Ok(adjustments);
+    }
+
     /// <summary>
     /// 添加用户积分（需要管理员权限）
     /// </summary>
     [Authorize]
+    [RequirePermission("users.edit", "users.ban", "dashboard.view")]
     [HttpPost("credit/add")]
     public async Task<ActionResult> AddCredit([FromBody] AddCreditRequest request)
     {
@@ -113,16 +141,16 @@ public class UserController : ControllerBase
     [HttpGet("profile")]
     public async Task<ActionResult> GetProfile()
     {
-        var emailClaim = User.Claims.FirstOrDefault(c => c.Type == "Email")?.Value;
-        if (string.IsNullOrEmpty(emailClaim))
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
 
         var user = await _db.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
-            .ThenInclude(r => r.RolePermissions)
+            .ThenInclude(r => r!.RolePermissions)
             .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(u => u.Email == emailClaim);
+            .FirstOrDefaultAsync(u => u.UserID == currentUserId);
 
         if (user == null)
             return NotFound(new { message = "用户不存在" });
@@ -157,5 +185,85 @@ public class UserController : ControllerBase
             roles = roles,
             permissions = permissions
         });
+    }
+
+    /// <summary>
+    /// 更新当前登录用户的基本资料
+    /// </summary>
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        var username = request.Username.Trim();
+        if (username.Length < 2 || username.Length > 50)
+            return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
+
+        var user = await _db.Users.FindAsync(currentUserId);
+        if (user == null)
+            return NotFound(new { message = "用户不存在" });
+
+        user.Username = username;
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "资料已更新",
+            userId = user.UserID,
+            username = user.Username,
+            email = user.Email,
+            userLevel = user.UserLevel,
+            totalCredit = user.TotalCredit,
+            credit = user.Credit,
+            status = user.Status
+        });
+    }
+
+    /// <summary>
+    /// 修改当前登录用户密码
+    /// </summary>
+    [Authorize]
+    [HttpPost("password")]
+    public async Task<ActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        var user = await _db.Users.FindAsync(currentUserId);
+        if (user == null)
+            return NotFound(new { message = "用户不存在" });
+
+        if (string.IsNullOrEmpty(user.PasswordHash) ||
+            !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            return BadRequest(new { message = "当前密码错误" });
+        }
+
+        if (!IsValidPassword(request.NewPassword))
+            return BadRequest(new { message = "新密码必须至少8位，包含大小写字母和数字" });
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "密码已修改" });
+    }
+
+    private int GetCurrentUserId()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(userId, out var id) ? id : 0;
+    }
+
+    private static bool IsValidPassword(string password)
+    {
+        if (password.Length < 8) return false;
+
+        return password.Any(char.IsUpper) &&
+               password.Any(char.IsLower) &&
+               password.Any(char.IsDigit);
     }
 }

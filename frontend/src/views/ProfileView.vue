@@ -2,6 +2,9 @@
   <div class="page-container">
     <h1 class="page-title">个人资料</h1>
 
+    <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="success" class="success-message">{{ success }}</div>
+
     <div class="card">
       <div class="profile-header">
         <div class="profile-avatar">
@@ -11,70 +14,195 @@
           </svg>
         </div>
         <div class="profile-info">
-          <h2>{{ authStore.user?.username || '用户' }}</h2>
-          <p class="profile-email">{{ authStore.user?.email }}</p>
+          <h2>{{ profile?.username || '用户' }}</h2>
+          <p class="profile-email">{{ profile?.email }}</p>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <h3 style="margin-bottom: 1rem;">基本信息</h3>
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">用户代码</span>
-          <span class="info-value">{{ authStore.user?.userCode || '-' }}</span>
+    <div v-if="loading" class="loading">加载中...</div>
+    <template v-else>
+      <div class="card">
+        <h3>基本信息</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">用户 ID</span>
+            <span class="info-value">{{ profile?.userId || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">信用分</span>
+            <span class="info-value">{{ profile?.credit ?? 0 }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">等级积分</span>
+            <span class="info-value">Lv.{{ profile?.userLevel || 1 }} / {{ profile?.totalCredit || 0 }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">账号状态</span>
+            <span :class="['badge', profile?.status === 'Active' ? 'badge-green' : 'badge-yellow']">
+              {{ profile?.status || '未知' }}
+            </span>
+          </div>
         </div>
-        <div class="info-item">
-          <span class="info-label">信用分</span>
-          <span class="info-value">{{ authStore.user?.credit || 0 }}</span>
+      </div>
+
+      <div class="settings-grid">
+        <form class="card settings-card" @submit.prevent="handleUpdateProfile">
+          <h3>资料维护</h3>
+          <label>
+            <span>用户名</span>
+            <input v-model="profileForm.username" type="text" minlength="2" maxlength="50" required />
+          </label>
+          <button class="btn btn-primary" type="submit">保存资料</button>
+        </form>
+
+        <form class="card settings-card" @submit.prevent="handleChangePassword">
+          <h3>修改密码</h3>
+          <label>
+            <span>当前密码</span>
+            <input v-model="passwordForm.currentPassword" type="password" required />
+          </label>
+          <label>
+            <span>新密码</span>
+            <input v-model="passwordForm.newPassword" type="password" required />
+          </label>
+          <label>
+            <span>确认新密码</span>
+            <input v-model="passwordForm.confirmPassword" type="password" required />
+          </label>
+          <button class="btn btn-primary" type="submit">修改密码</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>信用流水</h3>
+        <div v-if="creditAdjustments.length === 0" class="muted">暂无信用变更记录</div>
+        <div v-else class="credit-list">
+          <article v-for="item in creditAdjustments" :key="item.creditAdjustmentId" class="credit-item">
+            <div>
+              <strong>{{ item.description || '信用变更' }}</strong>
+              <span>{{ formatDate(item.adjustTime) }}</span>
+            </div>
+            <b :class="item.changePoints >= 0 ? 'credit-up' : 'credit-down'">
+              {{ item.changePoints >= 0 ? '+' : '' }}{{ item.changePoints }}
+            </b>
+          </article>
         </div>
-        <div class="info-item">
-          <span class="info-label">账号状态</span>
-          <span :class="['badge', authStore.user?.status === 'Active' ? 'badge-green' : 'badge-yellow']">
-            {{ authStore.user?.status || '未知' }}
+      </div>
+
+      <div class="card">
+        <h3>角色与权限</h3>
+        <div class="chip-section">
+          <span v-for="role in profile?.roles || []" :key="role.roleId" class="chip">
+            {{ role.roleName }}
           </span>
+          <span v-if="!profile?.roles?.length" class="muted">暂无角色</span>
         </div>
-        <div class="info-item">
-          <span class="info-label">邮箱</span>
-          <span class="info-value">{{ authStore.user?.email || '-' }}</span>
+        <div class="permission-grid">
+          <span v-for="permission in profile?.permissions || []" :key="permission.permissionId" class="permission-item">
+            {{ permission.permissionName }}
+          </span>
+          <span v-if="!profile?.permissions?.length" class="muted">暂无权限</span>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-bottom: 1rem;">账号设置</h3>
-      <div class="settings-list">
-        <button class="setting-item" @click="showChangePassword = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <span>修改密码</span>
-        </button>
-        <button class="setting-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-          <span>隐私设置</span>
-        </button>
-        <button class="setting-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span>通知设置</span>
-        </button>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { changePassword, getCreditAdjustments, getProfile, updateProfile } from '../api'
 import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
-const showChangePassword = ref(false)
+const profile = ref(null)
+const creditAdjustments = ref([])
+const loading = ref(true)
+const error = ref('')
+const success = ref('')
+
+const profileForm = ref({
+  username: '',
+})
+
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
+const loadProfile = async () => {
+  try {
+    loading.value = true
+    const [res, adjustmentsRes] = await Promise.all([getProfile(), getCreditAdjustments()])
+    profile.value = res.data
+    creditAdjustments.value = adjustmentsRes.data
+    profileForm.value.username = res.data.username || ''
+  } catch (e) {
+    error.value = '无法加载个人资料: ' + (e.response?.data?.message || e.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+const formatDate = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const validatePassword = (password) => {
+  return password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password)
+}
+
+const clearMessages = () => {
+  error.value = ''
+  success.value = ''
+}
+
+const handleUpdateProfile = async () => {
+  try {
+    clearMessages()
+    const res = await updateProfile({ username: profileForm.value.username })
+    profile.value = { ...profile.value, ...res.data }
+    authStore.user = {
+      ...authStore.user,
+      username: res.data.username,
+    }
+    success.value = '资料已更新'
+  } catch (e) {
+    error.value = e.response?.data?.message || '资料更新失败'
+  }
+}
+
+const handleChangePassword = async () => {
+  try {
+    clearMessages()
+    if (!validatePassword(passwordForm.value.newPassword)) {
+      error.value = '新密码必须至少8位，包含大小写字母和数字'
+      return
+    }
+    if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+      error.value = '两次输入的新密码不一致'
+      return
+    }
+
+    await changePassword({
+      currentPassword: passwordForm.value.currentPassword,
+      newPassword: passwordForm.value.newPassword,
+    })
+    passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
+    success.value = '密码已修改'
+  } catch (e) {
+    error.value = e.response?.data?.message || '密码修改失败'
+  }
+}
+
+onMounted(loadProfile)
 </script>
 
 <style scoped>
@@ -104,20 +232,51 @@ const showChangePassword = ref(false)
 
 .profile-info h2 {
   font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
-.profile-email {
+.profile-email,
+.muted {
+  color: var(--text-secondary);
+}
+
+.info-grid,
+.settings-grid,
+.permission-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.info-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 1rem;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin: 1rem 0;
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.settings-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
   color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
+.settings-card input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  padding: 0.625rem 0.75rem;
 }
 
 .info-item {
@@ -129,49 +288,78 @@ const showChangePassword = ref(false)
 .info-label {
   font-size: 0.875rem;
   color: var(--text-secondary);
-  font-weight: 500;
 }
 
 .info-value {
-  font-size: 1rem;
-  color: var(--text);
   font-weight: 600;
 }
 
-.settings-list {
+.chip-section,
+.permission-grid {
+  margin-top: 1rem;
+}
+
+.chip-section {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.chip,
+.permission-item {
+  border-radius: 9999px;
+  background: var(--bg);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+}
+
+.permission-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.credit-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.625rem;
+  margin-top: 1rem;
 }
 
-.setting-item {
-  display: flex;
+.credit-item {
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-  font-size: 0.875rem;
-  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
 }
 
-.setting-item:hover {
-  background: var(--bg);
-  border-color: var(--primary);
+.credit-item div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.setting-item svg {
-  width: 20px;
-  height: 20px;
+.credit-item span {
   color: var(--text-secondary);
-  flex-shrink: 0;
+  font-size: 0.875rem;
 }
 
-.setting-item span {
-  flex: 1;
+.credit-up {
+  color: #15803d;
+}
+
+.credit-down {
+  color: #dc2626;
+}
+
+.success-message {
+  background: #dcfce7;
+  color: #166534;
+  padding: 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
 }
 </style>

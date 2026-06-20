@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 BCrypt密码加密工具
-用法: python encpyt.py <password>
-示例: python encpyt.py "MyPassword123"
+用法: python scripts/encrypt.py <password>
+示例: python scripts/encrypt.py "MyPassword123"
 """
 
 import sys
@@ -16,8 +16,8 @@ def encrypt_password(password):
 
 def main():
     if len(sys.argv) != 2:
-        print("用法: python encpyt.py <password>")
-        print("示例: python encpyt.py '1'")
+        print("用法: python scripts/encrypt.py <password>")
+        print("示例: python scripts/encrypt.py 'Password1'")
         sys.exit(1)
     
     password = sys.argv[1]

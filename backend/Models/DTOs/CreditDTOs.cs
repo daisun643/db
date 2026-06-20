@@ -25,3 +25,23 @@ public class UserCreditResponse
     public int TotalCredit { get; set; }
     public int Credit { get; set; }
 }
+
+public class CreditAdjustmentResponse
+{
+    public int CreditAdjustmentId { get; set; }
+    public int? UserId { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public int ChangePoints { get; set; }
+    public DateTime? AdjustTime { get; set; }
+}
+
+public class UpdateProfileRequest
+{
+    public string Username { get; set; } = string.Empty;
+}
+
+public class ChangePasswordRequest
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}
