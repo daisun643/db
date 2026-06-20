@@ -84,7 +84,7 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const isCollapsed = ref(false)
+const isCollapsed = ref(true)
 const protectedMenuPaths = ['/forums', '/products', '/messages', '/system-status']
 const routeAccess = ref({})
 
