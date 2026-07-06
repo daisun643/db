@@ -1,5 +1,8 @@
 -- 社交关系与私信模块约束
 -- 本脚本在基础表创建完成后执行，用于补充业务约束和常用查询索引。
+ALTER SESSION SET CONTAINER = XEPDB1;
+ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
+
 
 ALTER TABLE "FriendShip" MODIFY (
     "userId"     NOT NULL,
