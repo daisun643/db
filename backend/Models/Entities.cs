@@ -411,15 +411,17 @@ public class PrivateMessage
 {
     [Key]
     public int MessageID { get; set; }
+    [Required]
     [MaxLength(4000)]
-    public string? Content { get; set; }
-    public DateTime? SendTime { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public DateTime SendTime { get; set; }
+    [Required]
     [MaxLength(1)]
-    public string? IsRead { get; set; }
-    public int? ReceiverID { get; set; }
+    public string IsRead { get; set; } = "0";
+    public int ReceiverID { get; set; }
     [ForeignKey("ReceiverID")]
     public User? Receiver { get; set; }
-    public int? SenderID { get; set; }
+    public int SenderID { get; set; }
     [ForeignKey("SenderID")]
     public User? Sender { get; set; }
 }
@@ -429,16 +431,17 @@ public class FriendShip
 {
     [Key]
     public int FriendshipID { get; set; }
-    public int? UserID { get; set; }
+    public int UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
-    public int? FriendID { get; set; }
+    public int FriendID { get; set; }
     [ForeignKey("FriendID")]
     public User? Friend { get; set; }
+    [Required]
     [MaxLength(20)]
-    public string? Status { get; set; }
-    public DateTime? CreateTime { get; set; }
-    public DateTime? UpdateTime { get; set; }
+    public string Status { get; set; } = "Pending";
+    public DateTime CreateTime { get; set; }
+    public DateTime UpdateTime { get; set; }
 }
 
 [Table("CreditAdjustment")]

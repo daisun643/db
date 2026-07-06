@@ -309,9 +309,9 @@ public class AppDbContext : DbContext
             e.ToTable("PrivateMessage");
             e.HasKey(x => x.MessageID);
             e.Property(x => x.MessageID).HasColumnName("messageId").ValueGeneratedOnAdd();
-            e.Property(x => x.Content).HasColumnName("content");
-            e.Property(x => x.SendTime).HasColumnName("sendTime");
-            e.Property(x => x.IsRead).HasColumnName("isRead");
+            e.Property(x => x.Content).HasColumnName("content").HasMaxLength(4000).IsRequired();
+            e.Property(x => x.SendTime).HasColumnName("sendTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
+            e.Property(x => x.IsRead).HasColumnName("isRead").HasMaxLength(1).HasDefaultValue("0").IsRequired();
             e.Property(x => x.ReceiverID).HasColumnName("receiverId");
             e.Property(x => x.SenderID).HasColumnName("senderId");
         });
@@ -323,9 +323,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.FriendshipID).HasColumnName("friendshipId").ValueGeneratedOnAdd();
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.FriendID).HasColumnName("friendId");
-            e.Property(x => x.Status).HasColumnName("status");
-            e.Property(x => x.CreateTime).HasColumnName("createTime");
-            e.Property(x => x.UpdateTime).HasColumnName("updateTime");
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Pending").IsRequired();
+            e.Property(x => x.CreateTime).HasColumnName("createTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
+            e.Property(x => x.UpdateTime).HasColumnName("updateTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
             e.HasOne(x => x.User)
                 .WithMany(u => u.FriendShips)
                 .HasForeignKey(x => x.UserID)
