@@ -39,8 +39,8 @@ public class MessagesController : ControllerBase
                 (m.SenderID == userId.Value && m.ReceiverID == currentUserId));
         }
 
-        var messages = await query.OrderByDescending(m => m.SendTime).Take(100).ToListAsync();
-        return Ok(messages.Select(MapMessage).ToList());
+        var latestMessages = await query.OrderByDescending(m => m.SendTime).Take(100).ToListAsync();
+        return Ok(latestMessages.OrderBy(m => m.SendTime).Select(MapMessage).ToList());
     }
 
     [HttpPost]
@@ -52,10 +52,14 @@ public class MessagesController : ControllerBase
         var currentUserId = CurrentUserId();
         if (request.ReceiverID == currentUserId)
             return BadRequest(new { message = "不能给自己发送私信" });
+        if (string.IsNullOrWhiteSpace(request.Content))
+            return BadRequest(new { message = "私信内容不能为空" });
 
         var receiver = await _db.Users.FindAsync(request.ReceiverID);
         if (receiver == null)
             return NotFound(new { message = "接收者不存在" });
+        if (!string.Equals(receiver.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "接收者当前不可用" });
 
         var areFriends = await _db.FriendShips.CountAsync(f =>
             f.Status == "Accepted" &&
@@ -68,7 +72,7 @@ public class MessagesController : ControllerBase
         {
             SenderID = currentUserId,
             ReceiverID = request.ReceiverID,
-            Content = request.Content,
+            Content = request.Content.Trim(),
             SendTime = DateTime.Now,
             IsRead = "0"
         };
@@ -98,18 +102,25 @@ public class MessagesController : ControllerBase
     }
 
     [HttpPost("read-all")]
-    public async Task<ActionResult> MarkAllRead()
+    public async Task<ActionResult> MarkAllRead([FromQuery] int? userId)
     {
         var currentUserId = CurrentUserId();
-        var messages = await _db.PrivateMessages
-            .Where(m => m.ReceiverID == currentUserId && m.IsRead != "1")
-            .ToListAsync();
+        if (userId == currentUserId)
+            return BadRequest(new { message = "不能选择自己作为会话对象" });
+
+        var query = _db.PrivateMessages
+            .Where(m => m.ReceiverID == currentUserId && m.IsRead != "1");
+
+        if (userId.HasValue)
+            query = query.Where(m => m.SenderID == userId.Value);
+
+        var messages = await query.ToListAsync();
 
         foreach (var message in messages)
             message.IsRead = "1";
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "全部已读" });
+        return Ok(new { message = userId.HasValue ? "当前会话已读" : "全部已读", count = messages.Count });
     }
 
     [HttpGet("unread-count")]
@@ -139,7 +150,7 @@ public class MessagesController : ControllerBase
         return new PrivateMessageResponse
         {
             MessageID = message.MessageID,
-            Content = message.Content ?? "",
+            Content = message.Content,
             SendTime = message.SendTime,
             IsRead = message.IsRead == "1",
             SenderID = message.SenderID,
