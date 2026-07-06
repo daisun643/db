@@ -16,6 +16,7 @@
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="success" class="success-message">{{ success }}</div>
 
     <div v-if="activeTab === 'messages'" class="messages-layout">
       <aside class="friends-panel">
@@ -57,7 +58,10 @@
         <template v-else>
           <div class="conversation-header">
             <h2>{{ selectedFriend.username || selectedFriend.email }}</h2>
-            <button class="btn" @click="handleMarkAllRead">全部已读</button>
+            <div class="conversation-actions">
+              <button class="btn" @click="handleMarkAllRead">当前会话已读</button>
+              <button class="link-button danger" @click="handleDeleteFriend">删除好友</button>
+            </div>
           </div>
 
           <div v-if="loading" class="loading">加载中...</div>
@@ -116,6 +120,7 @@ import { onMounted, ref, watch } from 'vue'
 import {
   acceptFriendRequest,
   createFriendRequest,
+  deleteFriend,
   deleteNotification,
   getFriendRequests,
   getFriends,
@@ -139,6 +144,9 @@ const selectedFriend = ref(null)
 const friendEmail = ref('')
 const messageText = ref('')
 const error = ref(null)
+const success = ref(null)
+const errorMessage = (e) => e.response?.data?.message || e.message || '操作失败'
+
 
 const loadFriends = async () => {
   const [friendsRes, requestsRes] = await Promise.all([getFriends(), getFriendRequests()])
@@ -155,7 +163,7 @@ const loadMessages = async () => {
   try {
     loading.value = true
     const res = await getMessages({ userId: selectedFriend.value.userID })
-    messages.value = res.data.reverse()
+    messages.value = res.data
   } catch (e) {
     error.value = '无法加载私信: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -183,46 +191,92 @@ const loadUnreadCount = async () => {
 const selectFriend = async (friend) => {
   selectedFriend.value = friend
   await loadMessages()
+  await markAllMessagesRead(friend.userID)
+  messages.value = messages.value.map((message) =>
+    message.senderID === friend.userID ? { ...message, isRead: true } : message,
+  )
+  await loadUnreadCount()
 }
 
 const handleAddFriend = async () => {
   try {
+    error.value = null
+    success.value = null
     await createFriendRequest({ email: friendEmail.value })
     friendEmail.value = ''
+    success.value = '好友申请已发送，等待对方处理'
     await loadFriends()
   } catch (e) {
+    success.value = null
     error.value = '好友申请失败: ' + (e.response?.data?.message || e.message)
   }
 }
 
 const handleAccept = async (request) => {
-  await acceptFriendRequest(request.friendshipID)
-  await loadFriends()
+  try {
+    error.value = null
+    await acceptFriendRequest(request.friendshipID)
+    await loadFriends()
+  } catch (e) {
+    error.value = '接受好友申请失败: ' + errorMessage(e)
+  }
 }
 
 const handleReject = async (request) => {
-  await rejectFriendRequest(request.friendshipID)
-  await loadFriends()
+  try {
+    error.value = null
+    await rejectFriendRequest(request.friendshipID)
+    await loadFriends()
+  } catch (e) {
+    error.value = '拒绝好友申请失败: ' + errorMessage(e)
+  }
 }
 
 const handleSendMessage = async () => {
   if (!selectedFriend.value) return
-  await sendMessage({
-    receiverID: selectedFriend.value.userID,
-    content: messageText.value,
-  })
-  messageText.value = ''
-  await loadMessages()
+  try {
+    error.value = null
+    await sendMessage({
+      receiverID: selectedFriend.value.userID,
+      content: messageText.value,
+    })
+    messageText.value = ''
+    await loadMessages()
+  } catch (e) {
+    error.value = '发送私信失败: ' + errorMessage(e)
+  }
 }
 
 const handleRead = async (message) => {
-  await markMessageRead(message.messageID)
-  await Promise.all([loadMessages(), loadUnreadCount()])
+  try {
+    await markMessageRead(message.messageID)
+    await Promise.all([loadMessages(), loadUnreadCount()])
+  } catch (e) {
+    error.value = '标记已读失败: ' + errorMessage(e)
+  }
 }
 
 const handleMarkAllRead = async () => {
-  await markAllMessagesRead()
-  await Promise.all([loadMessages(), loadUnreadCount()])
+  if (!selectedFriend.value) return
+  try {
+    await markAllMessagesRead(selectedFriend.value.userID)
+    await Promise.all([loadMessages(), loadUnreadCount()])
+  } catch (e) {
+    error.value = '标记会话已读失败: ' + errorMessage(e)
+  }
+}
+
+const handleDeleteFriend = async () => {
+  if (!selectedFriend.value || !window.confirm(`确定删除好友“${selectedFriend.value.username || selectedFriend.value.email}”吗？`)) return
+  try {
+    error.value = null
+    await deleteFriend(selectedFriend.value.friendshipID)
+    selectedFriend.value = null
+    messages.value = []
+    await Promise.all([loadFriends(), loadUnreadCount()])
+  } catch (e) {
+    error.value = '删除好友失败: ' + errorMessage(e)
+  }
 }
 
 const handleDeleteNotification = async (notification) => {
@@ -256,6 +310,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.success-message {
+  background: #dcfce7;
+  color: #166534;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border-left: 4px solid #16a34a;
+  margin-bottom: 1rem;
+}
+
 .messages-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -291,6 +354,12 @@ onMounted(async () => {
   padding: 0.625rem 0.75rem;
   font: inherit;
 }
+.conversation-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 
 .request-list,
 .friend-list {
