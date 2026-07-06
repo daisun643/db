@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Backend.Models.DTOs;
 
@@ -65,6 +66,8 @@ public class AuthResponse
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public UserInfo? User { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DebugCode { get; set; }
 }
 
 public class UserInfo
@@ -74,6 +77,10 @@ public class UserInfo
     public string Email { get; set; } = string.Empty;
     public int Credit { get; set; }
     public string Status { get; set; } = string.Empty;
+    public int UserLevel { get; set; }
+    public int TotalCredit { get; set; }
+    public List<string> Roles { get; set; } = new();
+    public List<string> Permissions { get; set; } = new();
 }
 
 public class RouteAccessRequest

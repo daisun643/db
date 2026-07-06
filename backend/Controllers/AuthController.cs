@@ -46,12 +46,13 @@ public class AuthController : ControllerBase
             });
         }
 
-        var (success, message) = await _authService.SendVerificationCodeAsync(request.Email);
+        var (success, message, debugCode) = await _authService.SendVerificationCodeAsync(request.Email);
         
         return Ok(new AuthResponse
         {
             Success = success,
-            Message = message
+            Message = message,
+            DebugCode = debugCode
         });
     }
 
@@ -85,14 +86,7 @@ public class AuthController : ControllerBase
         {
             Success = true,
             Message = message,
-            User = new UserInfo
-            {
-                UserId = user.UserID,
-                Username = user.Username!,
-                Email = user.Email!,
-                Credit = user.Credit ?? 0,
-                Status = user.Status ?? "Active"
-            }
+            User = MapUserInfo(user, roles, permissions)
         });
     }
 
@@ -125,14 +119,7 @@ public class AuthController : ControllerBase
         {
             Success = true,
             Message = message,
-            User = new UserInfo
-            {
-                UserId = user.UserID,
-                Username = user.Username!,
-                Email = user.Email!,
-                Credit = user.Credit ?? 0,
-                Status = user.Status ?? "Active"
-            }
+            User = MapUserInfo(user, roles ?? new List<string>(), permissions ?? new List<string>())
         });
     }
 
@@ -219,18 +206,13 @@ public class AuthController : ControllerBase
             });
         }
 
+        var (roles, permissions) = await GetUserAccessAsync(user.UserID);
+
         return Ok(new AuthResponse
         {
             Success = true,
             Message = "获取成功",
-            User = new UserInfo
-            {
-                UserId = user.UserID,
-                Username = user.Username ?? "",
-                Email = user.Email ?? "",
-                Credit = user.Credit ?? 0,
-                Status = user.Status ?? "Active"
-            }
+            User = MapUserInfo(user, roles, permissions)
         });
     }
 
@@ -338,5 +320,21 @@ public class AuthController : ControllerBase
             .ToList();
 
         return (roles, permissions);
+    }
+
+    private static UserInfo MapUserInfo(Backend.Models.User user, List<string> roles, List<string> permissions)
+    {
+        return new UserInfo
+        {
+            UserId = user.UserID,
+            Username = user.Username ?? "",
+            Email = user.Email ?? "",
+            Credit = user.Credit ?? 0,
+            Status = user.Status ?? "Active",
+            UserLevel = user.UserLevel,
+            TotalCredit = user.TotalCredit,
+            Roles = roles,
+            Permissions = permissions
+        };
     }
 }

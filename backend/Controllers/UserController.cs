@@ -206,6 +206,13 @@ public class UserController : ControllerBase
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
+        var usernameExists = await _db.Users.AnyAsync(u =>
+            u.UserID != currentUserId &&
+            u.Username != null &&
+            u.Username.ToLower() == username.ToLower());
+        if (usernameExists)
+            return BadRequest(new { message = "该用户名已被使用" });
+
         user.Username = username;
         await _db.SaveChangesAsync();
 
