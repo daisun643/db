@@ -16,6 +16,7 @@
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="success" class="success-message">{{ success }}</div>
 
     <div v-if="activeTab === 'messages'" class="messages-layout">
       <aside class="friends-panel">
@@ -143,6 +144,7 @@ const selectedFriend = ref(null)
 const friendEmail = ref('')
 const messageText = ref('')
 const error = ref(null)
+const success = ref(null)
 const errorMessage = (e) => e.response?.data?.message || e.message || '操作失败'
 
 
@@ -198,10 +200,14 @@ const selectFriend = async (friend) => {
 
 const handleAddFriend = async () => {
   try {
+    error.value = null
+    success.value = null
     await createFriendRequest({ email: friendEmail.value })
     friendEmail.value = ''
+    success.value = '好友申请已发送，等待对方处理'
     await loadFriends()
   } catch (e) {
+    success.value = null
     error.value = '好友申请失败: ' + (e.response?.data?.message || e.message)
   }
 }
@@ -304,6 +310,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.success-message {
+  background: #dcfce7;
+  color: #166534;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border-left: 4px solid #16a34a;
+  margin-bottom: 1rem;
+}
+
 .messages-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
