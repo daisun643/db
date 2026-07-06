@@ -6,22 +6,23 @@
 
 | 成员 | 模块 | 建议分支 | 文档 |
 |---|---|---|---|
-| 成员 1 | 用户、账号与后台权限 | `feature/user-auth-rbac` | `01_用户账号与后台权限.md` |
-| 成员 2 | 社交关系与私信 | `feature/social-friends-messages` | `02_社交关系与私信.md` |
-| 成员 3 | 系统通知与事件推送 | `feature/social-notifications` | `03_系统通知与事件推送.md` |
-| 成员 4 | 论坛帖子与评论 | `feature/forum-posts-comments` | `04_论坛帖子与评论.md` |
-| 成员 5 | 论坛治理与检索 | `feature/forum-governance-search` | `05_论坛治理与检索.md` |
-| 成员 6 | 商品发布与库存控制 | `feature/market-products-stock` | `06_商品发布与库存控制.md` |
-| 成员 7 | 订单交易与钱包 | `feature/market-orders-wallet` | `07_订单交易与钱包.md` |
-| 成员 8 | 纠纷仲裁 | `feature/market-disputes` | `08_纠纷仲裁.md` |
-| 成员 9 | 举报与审核闭环 | `feature/reports-audit` | `09_举报与审核闭环.md` |
-| 成员 10 | 部署、集成与验收 | `feature/deploy-acceptance` | `10_部署集成与验收.md` |
+| 成员 1 | 用户、账号与后台权限 | `feat/forum-auth-rbac` | `01_用户账号与后台权限.md` |
+| 成员 2 | 社交关系与私信 | `feat/forum-social-message` | `02_社交关系与私信.md` |
+| 成员 3 | 系统通知与事件推送 | `feat/forum-notification` | `03_系统通知与事件推送.md` |
+| 成员 4 | 论坛帖子与评论 | `feat/forum-post-comment` | `04_论坛帖子与评论.md` |
+| 成员 5 | 论坛治理与检索 | `feat/forum-governance-search` | `05_论坛治理与检索.md` |
+| 成员 6 | 商品发布与库存控制 | `feat/market-product-stock` | `06_商品发布与库存控制.md` |
+| 成员 7 | 订单交易与钱包 | `feat/market-order-wallet` | `07_订单交易与钱包.md` |
+| 成员 8 | 纠纷仲裁 | `feat/market-dispute` | `08_纠纷仲裁.md` |
+| 成员 9 | 举报与审核闭环 | `feat/forum-report-audit` | `09_举报与审核闭环.md` |
+| 成员 10 | 部署、集成与验收 | `feat/deploy-acceptance` | `10_部署集成与验收.md` |
 
 ## 分支建议
 
-- `main`：稳定版本，只放最终可验收代码。
-- `dev`：集成分支，各模块通过测试后合并到这里。
-- `feature/*`：个人功能分支，每个成员只维护自己的模块。
+- `master`：稳定版本，只放最终可验收代码。
+- `feat/forum-xxx`：论坛、社交、通知、举报等社区侧功能分支。
+- `feat/market-xxx`：商品、订单、钱包、纠纷等市场侧功能分支。
+- `feat/deploy-acceptance`：部署、集成和验收分支。
 - `fix/*`：联调阶段的问题修复分支。
 - `test/*`：只调整测试或验收用例的分支。
 
