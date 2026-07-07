@@ -1,4 +1,4 @@
-using Backend.Data;
+﻿using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
 using Backend.Authorization;
@@ -21,11 +21,13 @@ public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
 
-    public TransactionsController(AppDbContext db, ICreditService creditService)
+    public TransactionsController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet("me")]
@@ -105,6 +107,8 @@ public class TransactionsController : ControllerBase
         await CreateNotificationAsync(userId, "订单已创建", $"你已锁定商品：{product.Title}", order.TransactionID);
         if (product.UserID.HasValue)
             await CreateNotificationAsync(product.UserID.Value, "商品被下单", $"商品 {product.Title} 已被买家锁定", order.TransactionID);
+
+        await _db.SaveChangesAsync();
 
         await dbTransaction.CommitAsync();
 
@@ -321,15 +325,18 @@ public class TransactionsController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content, int transactionId)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Transaction",
             Title = title,
             Content = content,
+            TargetType = "Transaction",
+            TargetID = transactionId,
             TransactionID = transactionId,
-            CreateTime = DateTime.Now
+            Link = $"/products/orders/{transactionId}",
+            EventKey = $"transaction:{transactionId}:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 
     private async Task ArchiveOrderMessagesAsync(int transactionId)
@@ -394,3 +401,5 @@ public class TransactionsController : ControllerBase
         };
     }
 }
+
+

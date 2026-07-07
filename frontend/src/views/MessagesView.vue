@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <div class="page-header page-header-tabs">
       <h1 class="page-title">消息中心</h1>
@@ -10,7 +10,7 @@
         </button>
         <button :class="['tab', { active: activeTab === 'notifications' }]" @click="activeTab = 'notifications'">
           通知
-          <span class="badge badge-red" v-if="notifications.length > 0">{{ notifications.length }}</span>
+          <span class="badge badge-red" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
         </button>
       </div>
     </div>
@@ -92,27 +92,61 @@
     </div>
 
     <div v-if="activeTab === 'notifications'" class="tab-content">
+      <div class="notification-toolbar">
+        <select v-model="notificationType" @change="resetAndLoadNotifications">
+          <option value="">全部类型</option>
+          <option value="Mention">@提及</option>
+          <option value="Transaction">交易</option>
+          <option value="Audit">审核</option>
+          <option value="Report">举报</option>
+          <option value="Dispute">纠纷</option>
+          <option value="System">系统</option>
+        </select>
+        <select v-model="notificationReadFilter" @change="resetAndLoadNotifications">
+          <option value="">全部状态</option>
+          <option value="false">未读</option>
+          <option value="true">已读</option>
+        </select>
+        <button class="btn" @click="handleMarkAllNotificationsRead" :disabled="unreadNotifications === 0">全部已读</button>
+      </div>
+
       <div v-if="loading" class="loading">加载中...</div>
       <div v-else-if="notifications.length === 0" class="empty-state">
         <p>暂无通知</p>
       </div>
       <div v-else class="notification-list">
-        <article v-for="notification in notifications" :key="notification.notificationID" class="notification-item">
-          <div class="notification-icon">!</div>
+        <article
+          v-for="notification in notifications"
+          :key="notification.notificationID"
+          :class="['notification-item', { unread: !notification.isRead }]"
+        >
+          <div class="notification-icon">{{ typeIcon(notification.type) }}</div>
           <div class="notification-content">
-            <h4>{{ notification.title }}</h4>
+            <div class="notification-heading">
+              <h4>{{ notification.title }}</h4>
+              <span class="notification-type">{{ notification.type || 'System' }}</span>
+            </div>
             <p>{{ notification.content }}</p>
             <span class="notification-time">{{ formatDate(notification.createTime) }}</span>
           </div>
-          <button class="link-button danger" @click="handleDeleteNotification(notification)">删除</button>
+          <div class="notification-actions">
+            <button v-if="!notification.isRead" class="link-button" @click="handleReadNotification(notification)">标为已读</button>
+            <button class="link-button danger" @click="handleDeleteNotification(notification)">删除</button>
+          </div>
         </article>
+      </div>
+
+      <div class="pagination-bar" v-if="notificationTotal > notificationPageSize">
+        <button class="btn" :disabled="notificationPage <= 1" @click="changeNotificationPage(notificationPage - 1)">上一页</button>
+        <span>第 {{ notificationPage }} 页 / 共 {{ notificationTotalPages }} 页</span>
+        <button class="btn" :disabled="notificationPage >= notificationTotalPages" @click="changeNotificationPage(notificationPage + 1)">下一页</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -122,8 +156,11 @@ import {
   getMessages,
   getNotifications,
   getUnreadMessageCount,
+  getUnreadNotificationCount,
   markAllMessagesRead,
+  markAllNotificationsRead,
   markMessageRead,
+  markNotificationRead,
   rejectFriendRequest,
   sendMessage,
 } from '../api'
@@ -131,6 +168,7 @@ import {
 const activeTab = ref('messages')
 const loading = ref(false)
 const unreadMessages = ref(0)
+const unreadNotifications = ref(0)
 const friends = ref([])
 const friendRequests = ref([])
 const messages = ref([])
@@ -139,6 +177,13 @@ const selectedFriend = ref(null)
 const friendEmail = ref('')
 const messageText = ref('')
 const error = ref(null)
+const notificationType = ref('')
+const notificationReadFilter = ref('')
+const notificationPage = ref(1)
+const notificationPageSize = ref(20)
+const notificationTotal = ref(0)
+
+const notificationTotalPages = computed(() => Math.max(1, Math.ceil(notificationTotal.value / notificationPageSize.value)))
 
 const loadFriends = async () => {
   const [friendsRes, requestsRes] = await Promise.all([getFriends(), getFriendRequests()])
@@ -166,8 +211,16 @@ const loadMessages = async () => {
 const loadNotifications = async () => {
   try {
     loading.value = true
-    const res = await getNotifications()
-    notifications.value = res.data
+    const params = {
+      page: notificationPage.value,
+      pageSize: notificationPageSize.value,
+    }
+    if (notificationType.value) params.type = notificationType.value
+    if (notificationReadFilter.value !== '') params.isRead = notificationReadFilter.value
+
+    const res = await getNotifications(params)
+    notifications.value = res.data.items || res.data
+    notificationTotal.value = res.data.total ?? notifications.value.length
   } catch (e) {
     error.value = '无法加载通知: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -178,6 +231,21 @@ const loadNotifications = async () => {
 const loadUnreadCount = async () => {
   const res = await getUnreadMessageCount()
   unreadMessages.value = res.data.count || 0
+}
+
+const loadUnreadNotifications = async () => {
+  const res = await getUnreadNotificationCount()
+  unreadNotifications.value = res.data.count || 0
+}
+
+const resetAndLoadNotifications = async () => {
+  notificationPage.value = 1
+  await loadNotifications()
+}
+
+const changeNotificationPage = async (page) => {
+  notificationPage.value = page
+  await loadNotifications()
 }
 
 const selectFriend = async (friend) => {
@@ -225,9 +293,24 @@ const handleMarkAllRead = async () => {
   await Promise.all([loadMessages(), loadUnreadCount()])
 }
 
+const handleReadNotification = async (notification) => {
+  await markNotificationRead(notification.notificationID)
+  await Promise.all([loadNotifications(), loadUnreadNotifications()])
+}
+
+const handleMarkAllNotificationsRead = async () => {
+  await markAllNotificationsRead()
+  await Promise.all([loadNotifications(), loadUnreadNotifications()])
+}
+
 const handleDeleteNotification = async (notification) => {
   await deleteNotification(notification.notificationID)
-  await loadNotifications()
+  await Promise.all([loadNotifications(), loadUnreadNotifications()])
+}
+
+const typeIcon = (type) => {
+  const map = { System: '系', Mention: '@', Transaction: '交', Audit: '审', Report: '举', Dispute: '纠' }
+  return map[type] || (type?.slice(0, 1) || '!')
 }
 
 const formatDate = (value) => {
@@ -241,17 +324,18 @@ const formatDate = (value) => {
 }
 
 watch(activeTab, async (tab) => {
+  error.value = null
   if (tab === 'messages') {
     await Promise.all([loadFriends(), loadUnreadCount()])
     await loadMessages()
   }
   if (tab === 'notifications') {
-    await loadNotifications()
+    await Promise.all([loadNotifications(), loadUnreadNotifications()])
   }
 })
 
 onMounted(async () => {
-  await Promise.all([loadFriends(), loadUnreadCount(), loadNotifications()])
+  await Promise.all([loadFriends(), loadUnreadCount(), loadNotifications(), loadUnreadNotifications()])
 })
 </script>
 
@@ -277,19 +361,32 @@ onMounted(async () => {
 }
 
 .friend-form,
-.message-form {
+.message-form,
+.notification-toolbar,
+.pagination-bar {
   display: flex;
   gap: 0.5rem;
 }
 
+.notification-toolbar,
+.pagination-bar {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .friend-form input,
-.message-form input {
-  flex: 1;
+.message-form input,
+.notification-toolbar select {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.625rem 0.75rem;
   font: inherit;
+}
+
+.friend-form input,
+.message-form input {
+  flex: 1;
 }
 
 .request-list,
@@ -346,58 +443,57 @@ onMounted(async () => {
   margin-top: 1rem;
 }
 
-.message-item {
+.message-item,
+.notification-item {
   display: flex;
   gap: 1rem;
   padding: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
 }
 
 .message-item.mine {
   background: #f8fafc;
 }
 
-.message-item.unread {
+.message-item.unread,
+.notification-item.unread {
   border-color: var(--primary);
 }
 
-.message-content {
+.message-content,
+.notification-content {
   flex: 1;
   min-width: 0;
 }
 
-.message-header {
+.message-header,
+.notification-heading {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.5rem;
 }
 
-.message-sender {
+.message-sender,
+.notification-heading h4 {
   font-weight: 600;
 }
 
 .message-time,
 .notification-time,
-.empty-inline {
+.empty-inline,
+.notification-type {
   color: var(--text-secondary);
   font-size: 0.75rem;
 }
 
-.message-text {
+.message-text,
+.notification-content p {
   color: var(--text-secondary);
 }
 
-.message-form {
+.message-form,
+.pagination-bar {
   margin-top: 1rem;
-}
-
-.notification-item {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
 }
 
 .notification-icon {
@@ -413,19 +509,11 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.notification-content {
-  flex: 1;
-}
-
-.notification-content h4 {
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
-}
-
-.notification-content p {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
+.notification-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  align-items: flex-end;
 }
 
 .link-button {
@@ -452,7 +540,9 @@ onMounted(async () => {
 
   .friend-form,
   .message-form,
-  .conversation-header {
+  .conversation-header,
+  .notification-item,
+  .notification-actions {
     align-items: stretch;
     flex-direction: column;
   }

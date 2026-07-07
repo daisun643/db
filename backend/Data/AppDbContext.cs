@@ -1,4 +1,4 @@
-using Backend.Models;
+﻿using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Data;
@@ -214,7 +214,7 @@ public class AppDbContext : DbContext
             e.ToTable("AuditRecord");
             e.HasKey(x => x.AuditID);
             e.Property(x => x.AuditID).HasColumnName("auditId").ValueGeneratedOnAdd();
-            e.Property(x => x.TargetType).HasColumnName("targetType");
+            e.Property(x => x.TargetType).HasColumnName("targetType").IsUnicode(false);
             e.Property(x => x.TargetID).HasColumnName("targetId");
             e.Property(x => x.TriggerWord).HasColumnName("triggerWord");
             e.Property(x => x.Status).HasColumnName("status");
@@ -293,7 +293,7 @@ public class AppDbContext : DbContext
             e.ToTable("ReportTicket");
             e.HasKey(x => x.ReportID);
             e.Property(x => x.ReportID).HasColumnName("reportId").ValueGeneratedOnAdd();
-            e.Property(x => x.TargetType).HasColumnName("targetType");
+            e.Property(x => x.TargetType).HasColumnName("targetType").IsUnicode(false);
             e.Property(x => x.TargetID).HasColumnName("targetId");
             e.Property(x => x.Reason).HasColumnName("reason");
             e.Property(x => x.Status).HasColumnName("status");
@@ -311,7 +311,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.MessageID).HasColumnName("messageId").ValueGeneratedOnAdd();
             e.Property(x => x.Content).HasColumnName("content");
             e.Property(x => x.SendTime).HasColumnName("sendTime");
-            e.Property(x => x.IsRead).HasColumnName("isRead");
+            e.Property(x => x.IsRead).HasColumnName("isRead").IsUnicode(false);
             e.Property(x => x.ReceiverID).HasColumnName("receiverId");
             e.Property(x => x.SenderID).HasColumnName("senderId");
         });
@@ -355,8 +355,18 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasColumnName("title");
             e.Property(x => x.Content).HasColumnName("content");
             e.Property(x => x.CreateTime).HasColumnName("createTime");
+            e.Property(x => x.Type).HasColumnName("type").IsUnicode(false);
+            e.Property(x => x.TargetType).HasColumnName("targetType").IsUnicode(false);
+            e.Property(x => x.TargetID).HasColumnName("targetId");
+            e.Property(x => x.Link).HasColumnName("link").IsUnicode(false);
+            e.Property(x => x.IsRead).HasColumnName("isRead").IsUnicode(false);
+            e.Property(x => x.ReadTime).HasColumnName("readTime");
+            e.Property(x => x.EventKey).HasColumnName("eventKey").IsUnicode(false);
             e.Property(x => x.TransactionID).HasColumnName("transactionId");
             e.Property(x => x.UserID).HasColumnName("userId");
+            e.HasIndex(x => x.EventKey);
         });
     }
 }
+
+

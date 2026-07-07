@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
@@ -113,9 +113,15 @@ export const sendMessage = (data) => api.post('/messages', data)
 export const markMessageRead = (id) => api.post(`/messages/${id}/read`)
 export const markAllMessagesRead = () => api.post('/messages/read-all')
 export const getUnreadMessageCount = () => api.get('/messages/unread-count')
-export const getNotifications = () => api.get('/notifications')
+export const getNotifications = (params = {}) => api.get('/notifications', { params })
+export const getUnreadNotificationCount = () => api.get('/notifications/unread-count')
+export const markNotificationRead = (id) => api.post('/notifications/' + id + '/read')
+export const markAllNotificationsRead = () => api.post('/notifications/read-all')
+export const createSystemNotification = (data) => api.post('/notifications/system', data)
 export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
 
 export const getHealth = () => api.get('/health')
 
 export default api
+
+

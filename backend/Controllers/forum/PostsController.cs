@@ -1,4 +1,4 @@
-using Backend.Data;
+﻿using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
 using Backend.Authorization;
@@ -20,12 +20,14 @@ public class PostsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
     private static readonly string[] SensitiveWords = ["违禁", "敏感词", "spam"];
 
-    public PostsController(AppDbContext db, ICreditService creditService)
+    public PostsController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -161,7 +163,7 @@ public class PostsController : ControllerBase
         await _db.SaveChangesAsync();
 
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -206,7 +208,7 @@ public class PostsController : ControllerBase
 
         await _db.SaveChangesAsync();
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -459,7 +461,7 @@ public class PostsController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
-        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你");
+        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
         await _db.SaveChangesAsync();
 
         var user = await _db.Users.FindAsync(userId);
@@ -726,33 +728,63 @@ public class PostsController : ControllerBase
         }
     }
 
-    private async Task CreateMentionNotificationsAsync(int senderId, string content, string title, string notificationContent)
+    private async Task CreateMentionNotificationsAsync(int senderId, string content, string title, string notificationContent, string targetType, int targetId, string link)
     {
-        var mentionedNames = Regex.Matches(content, @"@([\p{L}\p{N}_\-.]{2,50})")
-            .Select(match => match.Groups[1].Value)
+        var mentionTokens = Regex.Matches(content ?? string.Empty, @"@([\p{L}\p{N}_\-.]{1,80})")
+            .Select(match => match.Groups[1].Value.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(10)
             .ToList();
 
-        if (mentionedNames.Count == 0)
+        if (mentionTokens.Count == 0)
             return;
 
-        var mentionedUsers = await _db.Users
-            .Where(u => u.UserID != senderId && u.Username != null && mentionedNames.Contains(u.Username))
+        var lowerTokens = mentionTokens.Select(token => token.ToLowerInvariant()).ToHashSet();
+        var candidateUsers = await _db.Users
+            .Where(u => u.UserID != senderId)
             .ToListAsync();
+        var mentionedUsers = candidateUsers
+            .Where(u => MatchesMentionToken(u, lowerTokens))
+            .ToList();
 
         foreach (var user in mentionedUsers)
         {
-            _db.Notifications.Add(new Notification
+            await _notificationService.CreateAsync(new CreateNotificationOptions
             {
                 UserID = user.UserID,
+                Type = "Mention",
                 Title = title,
                 Content = notificationContent,
-                CreateTime = DateTime.Now
+                TargetType = targetType,
+                TargetID = targetId,
+                Link = link,
+                EventKey = $"mention:{targetType}:{targetId}:{user.UserID}:{title}"
             });
         }
     }
 
+    private static bool MatchesMentionToken(User user, HashSet<string> lowerTokens)
+    {
+        var candidates = new List<string?>
+        {
+            user.Username,
+            user.UserCode,
+            user.Email
+        };
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            var atIndex = user.Email.IndexOf("@", StringComparison.Ordinal);
+            if (atIndex > 0)
+                candidates.Add(user.Email[..atIndex]);
+        }
+
+        return candidates
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim().ToLowerInvariant())
+            .Any(lowerTokens.Contains);
+    }
     private static int CalculateHeatScore(Post post, int commentCount)
     {
         var ageHours = Math.Max(0, (DateTime.Now - (post.CreateTime ?? DateTime.Now)).TotalHours);
@@ -797,3 +829,5 @@ public class PostsController : ControllerBase
         return roots;
     }
 }
+
+

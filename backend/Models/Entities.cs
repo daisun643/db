@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Backend.Models;
@@ -465,6 +465,17 @@ public class Notification
     [MaxLength(4000)]
     public string? Content { get; set; }
     public DateTime? CreateTime { get; set; }
+    [MaxLength(50)]
+    public string? Type { get; set; }
+    [MaxLength(50)]
+    public string? TargetType { get; set; }
+    public int? TargetID { get; set; }
+    [MaxLength(500)]
+    public string? Link { get; set; }
+    public string? IsRead { get; set; }
+    public DateTime? ReadTime { get; set; }
+    [MaxLength(200)]
+    public string? EventKey { get; set; }
     public int? TransactionID { get; set; }
     [ForeignKey("TransactionID")]
     public Transaction? Transaction { get; set; }
@@ -472,3 +483,4 @@ public class Notification
     [ForeignKey("UserID")]
     public User? User { get; set; }
 }
+
