@@ -11,6 +11,9 @@ class SocialAPI(AuthAPI):
     def get_friend_requests(self):
         return self.get(f"{self.FRIENDS_PREFIX}/requests")
 
+    def get_sent_friend_requests(self):
+        return self.get(f"{self.FRIENDS_PREFIX}/sent")
+
     def create_friend_request(self, *, user_id=None, email=None):
         payload = {}
         if user_id is not None:

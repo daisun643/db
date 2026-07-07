@@ -50,6 +50,7 @@ def test_social_endpoints_require_login():
     client = SocialAPI()
     try:
         assert client.get_friends().status_code == 401
+        assert client.get_sent_friend_requests().status_code == 401
         assert client.get_messages().status_code == 401
         assert client.get_unread_count().status_code == 401
     finally:
@@ -70,14 +71,21 @@ def test_rejected_request_can_be_sent_again(social_users):
     created = client_a.create_friend_request(user_id=user_b["userID"])
     assert created.status_code == 200, created.text
     friendship_id = created.json()["friendshipID"]
+    sent_requests = client_a.get_sent_friend_requests()
+    assert sent_requests.status_code == 200, sent_requests.text
+    assert any(request["friendshipID"] == friendship_id and request["status"] == "Pending" for request in sent_requests.json())
 
     rejected = client_b.reject_friend_request(friendship_id)
     assert rejected.status_code == 200, rejected.text
     assert client_b.reject_friend_request(friendship_id).status_code == 409
+    sent_requests = client_a.get_sent_friend_requests()
+    assert any(request["friendshipID"] == friendship_id and request["status"] == "Rejected" for request in sent_requests.json())
 
     resent = client_a.create_friend_request(user_id=user_b["userID"])
     assert resent.status_code == 200, resent.text
     assert resent.json()["status"] == "Pending"
+    sent_requests = client_a.get_sent_friend_requests()
+    assert any(request["friendshipID"] == friendship_id and request["status"] == "Pending" for request in sent_requests.json())
 
 
 def test_friendship_and_private_message_flow(social_users):
@@ -96,6 +104,8 @@ def test_friendship_and_private_message_flow(social_users):
     assert accepted.status_code == 200, accepted.text
     assert client_b.accept_friend_request(friendship_id).status_code == 409
 
+    sent_requests = client_a.get_sent_friend_requests()
+    assert any(request["friendshipID"] == friendship_id and request["status"] == "Accepted" for request in sent_requests.json())
     assert any(friend["userID"] == user_b["userID"] for friend in client_a.get_friends().json())
     assert any(friend["userID"] == user_a["userID"] for friend in client_b.get_friends().json())
 
