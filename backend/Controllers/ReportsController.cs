@@ -21,11 +21,13 @@ public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
 
-    public ReportsController(AppDbContext db, ICreditService creditService)
+    public ReportsController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -96,12 +98,15 @@ public class ReportsController : ControllerBase
 
         if (report.ReporterID.HasValue)
         {
-            _db.Notifications.Add(new Notification
+            await _notificationService.CreateAsync(new CreateNotificationOptions
             {
                 UserID = report.ReporterID.Value,
+                Type = "Report",
                 Title = "举报处理结果",
                 Content = $"你的举报已处理：{report.Status}",
-                CreateTime = DateTime.Now
+                TargetType = report.TargetType,
+                TargetID = report.TargetID,
+                EventKey = $"report:{report.TargetType}:{report.TargetID}:review:{report.ReporterID.Value}"
             });
         }
 
@@ -131,7 +136,7 @@ public class ReportsController : ControllerBase
             {
                 post.Status = "Banned";
                 if (post.UserID.HasValue)
-                    await PenalizeReportedUserAsync(post.UserID.Value, -20, $"举报成立：帖子《{post.Title}》被封禁");
+                    await PenalizeReportedUserAsync(post.UserID.Value, -20, $"举报成立：帖子《{post.Title}》被封禁", "Post", post.PostID);
             }
         }
         else if (report.TargetType == "Comment")
@@ -141,7 +146,7 @@ public class ReportsController : ControllerBase
             {
                 comment.Status = "Banned";
                 if (comment.UserID.HasValue)
-                    await PenalizeReportedUserAsync(comment.UserID.Value, -10, "举报成立：评论被封禁");
+                    await PenalizeReportedUserAsync(comment.UserID.Value, -10, "举报成立：评论被封禁", "Comment", comment.CommentID);
             }
         }
         else if (report.TargetType == "Product")
@@ -151,20 +156,23 @@ public class ReportsController : ControllerBase
             {
                 product.Status = "Inactive";
                 if (product.UserID.HasValue)
-                    await PenalizeReportedUserAsync(product.UserID.Value, -20, $"举报成立：商品《{product.Title}》被下架");
+                    await PenalizeReportedUserAsync(product.UserID.Value, -20, $"举报成立：商品《{product.Title}》被下架", "Product", product.ProductID);
             }
         }
     }
 
-    private async Task PenalizeReportedUserAsync(int userId, int points, string reason)
+    private async Task PenalizeReportedUserAsync(int userId, int points, string reason, string targetType, int targetId)
     {
         await _creditService.AddCreditAsync(userId, points, reason);
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Report",
             Title = "违规处理通知",
             Content = $"{reason}，信用分 {points}",
-            CreateTime = DateTime.Now
+            TargetType = targetType,
+            TargetID = targetId,
+            EventKey = $"report:penalty:{targetType}:{targetId}:{userId}"
         });
     }
 

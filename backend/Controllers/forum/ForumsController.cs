@@ -19,8 +19,13 @@ namespace Backend.Controllers;
 public class ForumsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public ForumsController(AppDbContext db) => _db = db;
+    public ForumsController(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     [HttpGet]
     [AllowAnonymous]
@@ -171,13 +176,13 @@ public class ForumsController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Forum",
             Title = title,
             Content = content,
-            CreateTime = DateTime.Now
+            EventKey = $"forum:manager:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 }

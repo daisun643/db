@@ -20,8 +20,13 @@ namespace Backend.Controllers;
 public class FriendsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public FriendsController(AppDbContext db) => _db = db;
+    public FriendsController(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<List<FriendResponse>>> GetFriends()
@@ -159,14 +164,14 @@ public class FriendsController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Friend",
             Title = title,
             Content = content,
-            CreateTime = DateTime.Now
+            EventKey = $"friend:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 
     private static FriendResponse MapFriend(FriendShip friendship, int currentUserId)

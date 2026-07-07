@@ -462,6 +462,46 @@ public class PostsController : ControllerBase
         }
 
         await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
+
+        // 评论回复通知：两个独立判断
+        // 1. 只要评论者不是帖子作者 → 通知帖子作者
+        if (post.UserID.HasValue && post.UserID.Value != userId)
+        {
+            await _notificationService.CreateAsync(new CreateNotificationOptions
+            {
+                UserID = post.UserID.Value,
+                Type = "Reply",
+                Title = "帖子新评论",
+                Content = $"有人在帖子《{post.Title}》中发表了评论",
+                TargetType = "Post",
+                TargetID = post.PostID,
+                Link = $"/forums/posts/{post.PostID}",
+                EventKey = $"reply:post:{comment.CommentID}:{post.UserID.Value}"
+            });
+        }
+
+        // 2. 如果回复了别人的评论，且回复者不是父评论作者 → 通知父评论作者
+        if (request.ParentCommentID.HasValue)
+        {
+            var parentComment = await _db.PostComments.FindAsync(request.ParentCommentID.Value);
+            if (parentComment != null && parentComment.UserID.HasValue
+                && parentComment.UserID.Value != userId
+                && parentComment.UserID.Value != post.UserID)  // 避免父评论作者=帖子作者时重复通知
+            {
+                await _notificationService.CreateAsync(new CreateNotificationOptions
+                {
+                    UserID = parentComment.UserID.Value,
+                    Type = "Reply",
+                    Title = "评论回复",
+                    Content = $"有人在帖子《{post.Title}》中回复了你的评论",
+                    TargetType = "Comment",
+                    TargetID = parentComment.CommentID,
+                    Link = $"/forums/posts/{post.PostID}",
+                    EventKey = $"reply:comment:{comment.CommentID}:{parentComment.UserID.Value}"
+                });
+            }
+        }
+
         await _db.SaveChangesAsync();
 
         var user = await _db.Users.FindAsync(userId);

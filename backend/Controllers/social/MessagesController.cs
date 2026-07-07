@@ -20,8 +20,13 @@ namespace Backend.Controllers;
 public class MessagesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public MessagesController(AppDbContext db) => _db = db;
+    public MessagesController(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<List<PrivateMessageResponse>>> GetMessages([FromQuery] int? userId)
@@ -124,14 +129,14 @@ public class MessagesController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Message",
             Title = title,
             Content = content,
-            CreateTime = DateTime.Now
+            EventKey = $"message:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 
     private static PrivateMessageResponse MapMessage(PrivateMessage message)
