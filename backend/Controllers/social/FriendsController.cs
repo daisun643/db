@@ -50,6 +50,19 @@ public class FriendsController : ControllerBase
         return Ok(requests.Select(f => MapFriend(f, userId)).ToList());
     }
 
+    [HttpGet("sent")]
+    public async Task<ActionResult<List<FriendResponse>>> GetSentRequests()
+    {
+        var userId = CurrentUserId();
+        var requests = await _db.FriendShips
+            .Include(f => f.Friend)
+            .Where(f => f.UserID == userId)
+            .OrderByDescending(f => f.UpdateTime)
+            .Take(20)
+            .ToListAsync();
+
+        return Ok(requests.Select(f => MapFriend(f, userId)).ToList());
+    }
     [HttpPost]
     public async Task<ActionResult<FriendResponse>> CreateRequest([FromBody] CreateFriendRequest request)
     {
