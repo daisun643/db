@@ -113,11 +113,11 @@
                 <span class="post-action-svg" :style="iconMaskStyle(openIcon)" aria-hidden="true"></span>
               </button>
               <button
-                class="post-icon-action"
+                :class="['post-icon-action', { favorited: post.isFavorited }]"
                 @click.stop="handleFavorite(post)"
-                :disabled="favoriteFolders.length === 0"
-                title="收藏"
-                aria-label="收藏"
+                :disabled="!post.isFavorited && favoriteFolders.length === 0"
+                :title="post.isFavorited ? '取消收藏' : '收藏'"
+                :aria-label="post.isFavorited ? '取消收藏' : '收藏'"
               >
                 <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
@@ -293,11 +293,11 @@
                 <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
               <button
-                class="post-icon-action"
-                @click="handleFavorite(selectedPost)"
-                :disabled="favoriteFolders.length === 0"
-                title="收藏"
-                aria-label="收藏"
+                :class="['post-icon-action', { favorited: selectedPost.isFavorited }]"
+                @click.stop="handleFavorite(selectedPost)"
+                :disabled="!selectedPost.isFavorited && favoriteFolders.length === 0"
+                :title="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+                :aria-label="selectedPost.isFavorited ? '取消收藏' : '收藏'"
               >
                 <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
@@ -379,6 +379,38 @@
         <button class="btn btn-primary" type="submit">提交举报</button>
       </form>
     </div>
+
+    <div v-if="folderPickerOpen" class="detail-backdrop" @click.self="closeFolderPicker">
+      <div class="post-detail-panel folder-picker-panel" role="dialog" aria-label="选择收藏夹">
+        <div class="modal-header">
+          <button class="icon-button" @click="closeFolderPicker" aria-label="关闭收藏夹选择">
+            <span>×</span>
+          </button>
+          <span class="muted">选择收藏夹</span>
+        </div>
+        <ul class="folder-pick-list">
+          <li
+            v-for="folder in favoriteFolders"
+            :key="folder.folderID"
+            class="folder-pick-item"
+            role="button"
+            tabindex="0"
+            @click="selectFolderForFavorite(folder.folderID)"
+            @keydown.enter="selectFolderForFavorite(folder.folderID)"
+          >
+            <span>{{ folder.folderName }}</span>
+            <span class="folder-post-count">{{ folder.postCount || 0 }}</span>
+          </li>
+          <li v-if="favoriteFolders.length === 0" class="folder-pick-empty">
+            暂无收藏夹，请先创建一个
+          </li>
+        </ul>
+        <form @submit.prevent="handlePickerCreateFolder" class="folder-picker-form">
+          <input v-model="pickerFolderName" type="text" placeholder="新收藏夹名称" required />
+          <button class="btn" type="submit">创建并收藏</button>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -412,6 +444,7 @@ import {
   likePost,
   removePostFromFavoriteFolder,
   suggestTags,
+  unfavoritePost,
   unlikePost,
   updateFavoriteFolder,
   updatePost,
@@ -450,6 +483,9 @@ const editTagText = ref('')
 const editImageText = ref('')
 const reportTarget = ref(null)
 const reportReason = ref('')
+const folderPickerOpen = ref(false)
+const folderPickerTarget = ref(null)
+const pickerFolderName = ref('')
 const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
 
 const postMetricItems = (post) => [
@@ -617,10 +653,61 @@ const updatePostLikeState = (postId, isLiked, likeCount) => {
   }
 }
 
+const updatePostFavoriteState = (postId, isFavorited) => {
+  for (const collection of [posts.value, myPosts.value, favoritePosts.value]) {
+    const target = collection.find(item => item.postID === postId)
+    if (target) {
+      target.isFavorited = isFavorited
+    }
+  }
+
+  if (selectedPost.value?.postID === postId) {
+    selectedPost.value.isFavorited = isFavorited
+  }
+}
+
 const handleFavorite = async (post) => {
-  if (!selectedFolderId.value) return
-  await addPostToFavoriteFolder(selectedFolderId.value, post.postID)
+  if (post.isFavorited) {
+    await unfavoritePost(post.postID)
+    updatePostFavoriteState(post.postID, false)
+    await loadFavoriteFolders()
+    if (activeTab.value === 'favorites') await loadFavoritePosts()
+    return
+  }
+
+  if (favoriteFolders.value.length === 0) {
+    await createFavoriteFolder({ folderName: '默认收藏夹' })
+    await loadFavoriteFolders()
+  }
+  folderPickerTarget.value = post
+  folderPickerOpen.value = true
+}
+
+const selectFolderForFavorite = async (folderId) => {
+  if (!folderPickerTarget.value) return
+  await addPostToFavoriteFolder(folderId, folderPickerTarget.value.postID)
+  updatePostFavoriteState(folderPickerTarget.value.postID, true)
   await loadFavoriteFolders()
+  closeFolderPicker()
+}
+
+const handlePickerCreateFolder = async () => {
+  if (!pickerFolderName.value.trim()) return
+  const res = await createFavoriteFolder({ folderName: pickerFolderName.value.trim() })
+  pickerFolderName.value = ''
+  await loadFavoriteFolders()
+  if (folderPickerTarget.value) {
+    await addPostToFavoriteFolder(res.data.folderID, folderPickerTarget.value.postID)
+    updatePostFavoriteState(folderPickerTarget.value.postID, true)
+    await loadFavoriteFolders()
+  }
+  closeFolderPicker()
+}
+
+const closeFolderPicker = () => {
+  folderPickerOpen.value = false
+  folderPickerTarget.value = null
+  pickerFolderName.value = ''
 }
 
 const handleDeletePost = async (post) => {
@@ -1202,6 +1289,15 @@ onMounted(async () => {
   background: rgba(249, 24, 128, 0.1);
 }
 
+.post-icon-action.favorited {
+  color: #f59e0b;
+}
+
+.post-icon-action.favorited:hover,
+.post-icon-action.favorited:focus-visible {
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .post-icon-action.danger:hover,
 .post-icon-action.danger:focus-visible {
   background: rgba(244, 33, 46, 0.1);
@@ -1655,5 +1751,70 @@ onMounted(async () => {
   .modal-header {
     align-items: flex-start;
   }
+}
+
+.folder-picker-panel {
+  max-width: 400px;
+}
+
+.folder-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.folder-pick-item {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  transition: background 0.15s;
+}
+
+.folder-pick-item:last-child {
+  border-bottom: none;
+}
+
+.folder-pick-item:hover,
+.folder-pick-item:focus-visible {
+  background: rgba(29, 155, 240, 0.06);
+  outline: none;
+}
+
+.folder-post-count {
+  color: #536471;
+  font-size: 0.8125rem;
+}
+
+.folder-pick-empty {
+  color: #536471;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.folder-picker-form {
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.folder-picker-form input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.folder-picker-form input:focus {
+  border-color: #1d9bf0;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
 }
 </style>

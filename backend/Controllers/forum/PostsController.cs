@@ -378,6 +378,28 @@ public class PostsController : ControllerBase
         return Ok(new { liked = false, likeCount = post.LikeCount ?? 0 });
     }
 
+    [HttpDelete("{id}/favorite")]
+    [Authorize]
+    public async Task<ActionResult> Unfavorite(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var post = await _db.Posts.FindAsync(id);
+        if (post == null)
+            return NotFound();
+
+        var folderPosts = await _db.FolderPosts
+            .Include(fp => fp.Folder)
+            .Where(fp => fp.PostID == id && fp.Folder != null && fp.Folder.UserID == userId)
+            .ToListAsync();
+        if (folderPosts.Count > 0)
+        {
+            _db.FolderPosts.RemoveRange(folderPosts);
+            await _db.SaveChangesAsync();
+        }
+
+        return Ok(new { favorited = false });
+    }
+
     [HttpGet("{postId}/comments")]
     [AllowAnonymous]
     public async Task<ActionResult<List<CommentResponse>>> GetComments(int postId)

@@ -75,6 +75,7 @@ export const deleteFavoriteFolder = (folderId) => api.delete(`/favorite-folders/
 export const getFavoriteFolderPosts = (folderId) => api.get(`/favorite-folders/${folderId}/posts`)
 export const addPostToFavoriteFolder = (folderId, postId) => api.post(`/favorite-folders/${folderId}/posts/${postId}`)
 export const removePostFromFavoriteFolder = (folderId, postId) => api.delete(`/favorite-folders/${folderId}/posts/${postId}`)
+export const unfavoritePost = (id) => api.delete(`/posts/${id}/favorite`)
 export const getPostAudits = () => api.get('/audits/posts')
 export const approvePostAudit = (auditId) => api.post(`/audits/posts/${auditId}/approve`)
 export const rejectPostAudit = (auditId) => api.post(`/audits/posts/${auditId}/reject`)
