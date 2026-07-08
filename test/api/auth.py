@@ -34,8 +34,11 @@ class AuthAPI(BaseAPIClient):
             "file": (filename, content, content_type),
         })
 
-    def forgot_password(self, email: str) -> requests.Response:
-        return self.post(f"{self.PREFIX}/forgot-password", json={"email": email})
+    def forgot_password(self, email: str, debug_expires_in_minutes: int | None = None) -> requests.Response:
+        payload = {"email": email}
+        if debug_expires_in_minutes is not None:
+            payload["debugExpiresInMinutes"] = debug_expires_in_minutes
+        return self.post(f"{self.PREFIX}/forgot-password", json=payload)
 
     def reset_password(self, email: str, code: str, new_password: str) -> requests.Response:
         return self.post(f"{self.PREFIX}/reset-password", json={

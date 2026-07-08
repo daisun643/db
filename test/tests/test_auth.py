@@ -18,6 +18,15 @@ def _send_code_or_skip(client, email: str) -> str:
     return code
 
 
+def _password_reset_code_or_skip(client, email: str, debug_expires_in_minutes: int | None = None) -> str:
+    resp = client.forgot_password(email, debug_expires_in_minutes)
+    data = assert_success(resp)
+    code = data.get("debugCode")
+    if not code:
+        pytest.skip("当前环境未返回开发调试验证码，跳过密码重置闭环测试")
+    return code
+
+
 def _register_unique_user(client, prefix: str = "stage2", password: str = "Password123") -> dict:
     email = _unique_email(prefix)
     username = f"{prefix}_{uuid.uuid4().hex[:8]}"
@@ -29,6 +38,15 @@ def _register_unique_user(client, prefix: str = "stage2", password: str = "Passw
         "password": password,
         "user": data["user"],
     }
+
+
+def _assert_auth_response_failure(response, message: str | None = None) -> dict:
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+    assert data["success"] is False, f"Expected success=false, got: {data}"
+    if message is not None:
+        assert data["message"] == message
+    return data
 
 
 class TestStage1Registration:
@@ -229,6 +247,72 @@ class TestStage2ChangePassword:
         assert_success(client.logout())
 
         old_login = client.login(created["email"], created["password"])
+        assert old_login.status_code == 400
+        assert old_login.json()["message"] == "邮箱或密码错误"
+
+        assert_success(client.login(created["email"], new_password))
+
+
+class TestStage3PasswordReset:
+
+    def test_forgot_password_accepts_existing_email(self, client):
+        created = _register_unique_user(client, "reset_apply")
+
+        resp = client.forgot_password(created["email"])
+        data = assert_success(resp)
+
+        assert data["message"] == "如果该邮箱已注册，重置验证码将发送到您的邮箱"
+        assert "debugCode" in data
+
+    def test_forgot_password_does_not_reveal_missing_email(self, client):
+        existing = _register_unique_user(client, "reset_no_leak")
+        missing_email = _unique_email("missing")
+
+        existing_resp = client.forgot_password(existing["email"])
+        missing_resp = client.forgot_password(missing_email)
+
+        existing_data = assert_success(existing_resp)
+        missing_data = assert_success(missing_resp)
+        assert missing_data["message"] == existing_data["message"]
+
+    def test_reset_password_rejects_wrong_code(self, client):
+        created = _register_unique_user(client, "reset_wrong")
+        _password_reset_code_or_skip(client, created["email"])
+
+        resp = client.reset_password(created["email"], "000000", "NewPassword123")
+
+        _assert_auth_response_failure(resp, "验证码无效或已过期")
+
+    def test_reset_password_rejects_expired_code(self, client):
+        created = _register_unique_user(client, "reset_expired")
+        code = _password_reset_code_or_skip(client, created["email"], debug_expires_in_minutes=-1)
+
+        resp = client.reset_password(created["email"], code, "NewPassword123")
+
+        _assert_auth_response_failure(resp, "验证码已过期")
+
+    def test_reset_password_rejects_used_code(self, client):
+        created = _register_unique_user(client, "reset_used")
+        code = _password_reset_code_or_skip(client, created["email"])
+
+        assert_success(client.reset_password(created["email"], code, "NewPassword123"))
+        resp = client.reset_password(created["email"], code, "AnotherPassword123")
+
+        _assert_auth_response_failure(resp, "验证码无效或已过期")
+
+    def test_reset_password_success_old_password_fails_new_password_works(self, client):
+        old_password = "Password123"
+        new_password = "NewPassword123"
+        created = _register_unique_user(client, "reset_success", old_password)
+        code = _password_reset_code_or_skip(client, created["email"])
+
+        resp = client.reset_password(created["email"], code, new_password)
+        data = assert_success(resp)
+        assert data["message"] == "密码重置成功"
+
+        assert_success(client.logout())
+
+        old_login = client.login(created["email"], old_password)
         assert old_login.status_code == 400
         assert old_login.json()["message"] == "邮箱或密码错误"
 

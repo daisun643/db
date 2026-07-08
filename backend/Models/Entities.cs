@@ -104,6 +104,8 @@ public class EmailCode
     public string? Email { get; set; }
     [MaxLength(10)]
     public string? Code { get; set; }
+    [MaxLength(30)]
+    public string? Purpose { get; set; }
     public DateTime? SendTime { get; set; }
     public DateTime? ExpireTime { get; set; }
     [MaxLength(1)]

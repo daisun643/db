@@ -44,6 +44,8 @@ public class ForgotPasswordRequest
     [Required(ErrorMessage = "邮箱不能为空")]
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
+
+    public int? DebugExpiresInMinutes { get; set; }
 }
 
 public class ResetPasswordRequest

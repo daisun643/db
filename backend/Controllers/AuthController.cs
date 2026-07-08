@@ -148,12 +148,13 @@ public class AuthController : ControllerBase
             });
         }
 
-        var (success, message) = await _authService.ForgotPasswordAsync(request.Email);
+        var (success, message, debugCode) = await _authService.ForgotPasswordAsync(request);
         
         return Ok(new AuthResponse
         {
             Success = success,
-            Message = message
+            Message = message,
+            DebugCode = debugCode
         });
     }
 

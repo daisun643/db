@@ -20,6 +20,7 @@ CREATE UNIQUE INDEX "idx_postlike_post_user" ON "PostLike"("postId", "userId");
 -- ============================================================
 
 CREATE INDEX "idx_emailcode_email" ON "EmailCode"("email");
+CREATE INDEX "idx_emailcode_email_purpose" ON "EmailCode"("email", "purpose");
 CREATE INDEX "idx_emailcode_sendtime" ON "EmailCode"("sendTime");
 
 COMMIT;

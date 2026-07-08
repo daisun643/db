@@ -101,6 +101,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.EmailCodeID).HasColumnName("emailCodeId").ValueGeneratedOnAdd();
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.Code).HasColumnName("code");
+            e.Property(x => x.Purpose).HasColumnName("purpose");
             e.Property(x => x.SendTime).HasColumnName("sendTime");
             e.Property(x => x.ExpireTime).HasColumnName("expireTime");
             e.Property(x => x.IsUsed).HasColumnName("isUsed");
