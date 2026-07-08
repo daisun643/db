@@ -379,21 +379,26 @@
     </div>
 
     <div v-if="editingPost" class="detail-backdrop" @click.self="closeEditPost">
-      <form class="post-detail-panel post-edit-form" @submit.prevent="handleUpdatePost">
-        <div class="detail-header">
-          <button class="link-button" type="button" @click="closeEditPost">取消编辑</button>
-          <span class="muted">帖子 #{{ editingPost.postID }}</span>
+      <form class="post-detail-panel composer-modal" @submit.prevent="handleUpdatePost">
+        <div class="modal-header">
+          <button class="icon-button" type="button" @click="closeEditPost" aria-label="关闭编辑窗口">
+            <span>×</span>
+          </button>
+          <button class="compose-submit" type="submit" :disabled="editingSaving">
+            {{ editingSaving ? '保存中...' : '保存' }}
+          </button>
         </div>
-        <h2>编辑帖子</h2>
-        <input v-model="editForm.title" type="text" placeholder="帖子标题" required />
-        <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
-        <div class="composer-row">
-          <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
-          <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <div class="composer-shell">
+          <div class="composer-avatar">{{ userInitial }}</div>
+          <div class="composer-fields">
+            <input v-model="editForm.title" type="text" placeholder="帖子标题" required />
+            <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
+            <div class="composer-row">
+              <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
+              <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+            </div>
+          </div>
         </div>
-        <button class="btn btn-primary" type="submit" :disabled="editingSaving">
-          {{ editingSaving ? '保存中...' : '保存帖子' }}
-        </button>
       </form>
     </div>
 
