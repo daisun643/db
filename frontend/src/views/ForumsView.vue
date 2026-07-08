@@ -167,50 +167,79 @@
       </div>
     </div>
 
-    <div v-else-if="activeTab === 'favorites'" class="tab-content">
-      <div class="favorite-header">
-        <select v-model.number="selectedFolderId" @change="loadFavoritePosts">
-          <option disabled value="">选择收藏夹</option>
-          <option v-for="folder in favoriteFolders" :key="folder.folderID" :value="folder.folderID">
-            {{ folder.folderName }} ({{ folder.postCount || 0 }})
-          </option>
-        </select>
-        <form @submit.prevent="handleCreateFolder" class="folder-form">
-          <input v-model="folderName" type="text" placeholder="新收藏夹名称" required />
+    <div v-else-if="activeTab === 'favorites'" class="favorites-layout">
+      <aside class="favorites-sidebar">
+        <div class="section-title">收藏夹</div>
+        <form @submit.prevent="handleCreateFolder" class="folder-create-form">
+          <input v-model="folderName" type="text" placeholder="新建收藏夹名称" required />
           <button class="btn" type="submit">创建</button>
         </form>
-        <form v-if="selectedFolderId" @submit.prevent="handleRenameFolder" class="folder-form">
-          <input v-model="folderRenameName" type="text" placeholder="重命名收藏夹" required />
-          <button class="btn" type="submit">重命名</button>
-          <button class="btn" type="button" @click="handleDeleteFolder">删除收藏夹</button>
-        </form>
-      </div>
-
-      <div v-if="loadingFavorites" class="loading">加载中...</div>
-      <div v-else class="post-list">
-        <article
-          v-for="post in favoritePosts"
-          :key="post.postID"
-          class="post-item"
-          role="button"
-          tabindex="0"
-          @click="openPostDetail(post)"
-          @keydown.enter="openPostDetail(post)"
-        >
-          <div class="post-meta">
-            <span>{{ post.forumName || '未分区' }}</span>
-            <span>{{ post.username || '匿名用户' }}</span>
+        <div class="folder-list">
+          <div
+            v-for="folder in favoriteFolders"
+            :key="folder.folderID"
+            :class="['folder-item', { active: selectedFolderId === folder.folderID }]"
+            @click="selectFolder(folder.folderID)"
+          >
+            <div class="folder-item-row">
+              <template v-if="renamingFolderId === folder.folderID">
+                <input
+                  v-model="renameText"
+                  type="text"
+                  class="folder-rename-input"
+                  required
+                  @keyup.enter="handleRenameFolderInline(folder.folderID)"
+                  @keyup.escape="cancelRename"
+                  @click.stop
+                  ref="renameInput"
+                />
+              </template>
+              <template v-else>
+                <span class="folder-name">{{ folder.folderName }}</span>
+                <span class="folder-count">{{ folder.postCount || 0 }}</span>
+              </template>
+            </div>
+            <div class="folder-item-actions">
+              <span class="folder-action-link" @click.stop="startRename(folder)">重命名</span>
+              <span class="folder-action-link danger" @click.stop="handleDeleteFolderById(folder.folderID)">删除</span>
+            </div>
           </div>
-          <button class="post-title-button" @click.stop="openPostDetail(post)">
-            {{ post.title }}
-          </button>
-          <p>{{ post.contentPreview }}</p>
-          <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
-        </article>
-        <div v-if="favoritePosts.length === 0" class="empty-state">
-          <p>暂无收藏</p>
+          <div v-if="favoriteFolders.length === 0" class="folder-list-empty">
+            暂无收藏夹
+          </div>
         </div>
-      </div>
+      </aside>
+
+      <main class="favorites-main">
+        <div v-if="!selectedFolderId" class="empty-state">
+          <p>选择一个收藏夹查看帖子</p>
+        </div>
+        <div v-else-if="loadingFavorites" class="loading">加载中...</div>
+        <div v-else class="post-list">
+          <article
+            v-for="post in favoritePosts"
+            :key="post.postID"
+            class="post-item"
+            role="button"
+            tabindex="0"
+            @click="openPostDetail(post)"
+            @keydown.enter="openPostDetail(post)"
+          >
+            <div class="post-meta">
+              <span>{{ post.forumName || '未分区' }}</span>
+              <span>{{ post.username || '匿名用户' }}</span>
+            </div>
+            <button class="post-title-button" @click.stop="openPostDetail(post)">
+              {{ post.title }}
+            </button>
+            <p>{{ post.contentPreview }}</p>
+            <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
+          </article>
+          <div v-if="favoritePosts.length === 0" class="empty-state">
+            <p>暂无收藏帖子</p>
+          </div>
+        </div>
+      </main>
     </div>
 
     <div v-if="composerOpen" class="detail-backdrop" @click.self="closeComposer">
@@ -471,6 +500,8 @@ const imageText = ref('')
 const folderName = ref('')
 const folderRenameName = ref('')
 const selectedFolderId = ref('')
+const renamingFolderId = ref(null)
+const renameText = ref('')
 const detailOpen = ref(false)
 const selectedPost = ref(null)
 const comments = ref([])
@@ -557,17 +588,9 @@ const loadMyPosts = async () => {
 const loadFavoriteFolders = async () => {
   const res = await getFavoriteFolders()
   favoriteFolders.value = res.data
-  if (!selectedFolderId.value && favoriteFolders.value.length > 0) {
-    selectedFolderId.value = favoriteFolders.value[0].folderID
-  }
-  const selected = favoriteFolders.value.find(folder => folder.folderID === selectedFolderId.value)
-  folderRenameName.value = selected?.folderName || ''
 }
 
 const loadFavoritePosts = async () => {
-  const selected = favoriteFolders.value.find(folder => folder.folderID === selectedFolderId.value)
-  folderRenameName.value = selected?.folderName || ''
-
   if (!selectedFolderId.value) {
     favoritePosts.value = []
     return
@@ -818,22 +841,42 @@ const handleDeleteComment = async (comment) => {
 }
 
 const handleCreateFolder = async () => {
-  await createFavoriteFolder({ folderName: folderName.value })
+  const res = await createFavoriteFolder({ folderName: folderName.value })
   folderName.value = ''
   await loadFavoriteFolders()
+  selectedFolderId.value = res.data.folderID
+  await loadFavoritePosts()
 }
 
-const handleRenameFolder = async () => {
-  if (!selectedFolderId.value) return
-  await updateFavoriteFolder(selectedFolderId.value, { folderName: folderRenameName.value })
+const selectFolder = async (folderId) => {
+  selectedFolderId.value = folderId
+  await loadFavoritePosts()
+}
+
+const startRename = (folder) => {
+  renamingFolderId.value = folder.folderID
+  renameText.value = folder.folderName
+}
+
+const cancelRename = () => {
+  renamingFolderId.value = null
+  renameText.value = ''
+}
+
+const handleRenameFolderInline = async (folderId) => {
+  if (!renameText.value.trim()) return
+  await updateFavoriteFolder(folderId, { folderName: renameText.value.trim() })
+  renamingFolderId.value = null
+  renameText.value = ''
   await loadFavoriteFolders()
 }
 
-const handleDeleteFolder = async () => {
-  if (!selectedFolderId.value) return
-  await deleteFavoriteFolder(selectedFolderId.value)
-  selectedFolderId.value = ''
-  favoritePosts.value = []
+const handleDeleteFolderById = async (folderId) => {
+  await deleteFavoriteFolder(folderId)
+  if (selectedFolderId.value === folderId) {
+    selectedFolderId.value = ''
+    favoritePosts.value = []
+  }
   await loadFavoriteFolders()
   await loadFavoritePosts()
 }
@@ -841,6 +884,13 @@ const handleDeleteFolder = async () => {
 const handleRemoveFavorite = async (post) => {
   if (!selectedFolderId.value) return
   await removePostFromFavoriteFolder(selectedFolderId.value, post.postID)
+  await Promise.all([loadFavoriteFolders(), loadFavoritePosts()])
+}
+
+const handleRemoveFavoriteFromCurrent = async (post) => {
+  if (!selectedFolderId.value) return
+  await removePostFromFavoriteFolder(selectedFolderId.value, post.postID)
+  updatePostFavoriteState(post.postID, false)
   await Promise.all([loadFavoriteFolders(), loadFavoritePosts()])
 }
 
@@ -1069,6 +1119,138 @@ onMounted(async () => {
   font-size: 0.75rem;
 }
 
+.favorites-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 760px);
+  gap: 0;
+  align-items: start;
+  justify-content: center;
+}
+
+.favorites-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.75rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.favorites-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-create-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.folder-create-form input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.folder-create-form input:focus {
+  border-color: #1d9bf0;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-item {
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 0.625rem 0.75rem;
+  transition: background 0.15s;
+}
+
+.folder-item:hover {
+  background: var(--bg);
+}
+
+.folder-item.active {
+  background: var(--bg);
+  color: var(--primary);
+}
+
+.folder-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.folder-name {
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.folder-item.active .folder-count {
+  color: var(--primary);
+}
+
+.folder-rename-input {
+  border: 1px solid #1d9bf0;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  width: 100%;
+}
+
+.folder-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+
+.folder-item-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.375rem;
+  padding-left: 0.125rem;
+}
+
+.folder-action-link {
+  color: #536471;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.folder-action-link:hover {
+  color: #0f1419;
+  text-decoration: underline;
+}
+
+.folder-action-link.danger:hover {
+  color: #dc2626;
+}
+
+.folder-list-empty {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  padding: 1rem 0.75rem;
+  text-align: center;
+}
+
 .forum-main,
 .post-list {
   display: flex;
@@ -1089,17 +1271,7 @@ onMounted(async () => {
 }
 
 .toolbar,
-.favorite-header {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-}
-
-.toolbar,
-.composer-row,
-.favorite-header,
-.folder-form {
+.composer-row {
   display: flex;
   gap: 0.75rem;
   align-items: center;
@@ -1114,9 +1286,7 @@ onMounted(async () => {
 .toolbar select,
 .composer-fields input,
 .composer-fields select,
-.composer-fields textarea,
-.favorite-header input,
-.favorite-header select {
+.composer-fields textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.625rem 0.75rem;
@@ -1125,9 +1295,7 @@ onMounted(async () => {
 
 .toolbar input,
 .composer-fields input,
-.composer-fields select,
-.favorite-header input,
-.favorite-header select {
+.composer-fields select {
   min-width: 0;
 }
 
@@ -1530,11 +1698,13 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-  .forum-layout {
+  .forum-layout,
+  .favorites-layout {
     grid-template-columns: 1fr;
   }
 
-  .forum-sidebar {
+  .forum-sidebar,
+  .favorites-sidebar {
     position: static;
   }
 
@@ -1545,9 +1715,7 @@ onMounted(async () => {
   }
 
   .toolbar,
-  .composer-row,
-  .favorite-header,
-  .folder-form {
+  .composer-row {
     align-items: stretch;
     flex-direction: column;
   }
