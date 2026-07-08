@@ -178,6 +178,10 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
+            nickname = user.Nickname,
+            avatarUrl = user.AvatarUrl,
+            contact = user.Contact,
+            bio = user.Bio,
             userLevel = user.UserLevel,
             totalCredit = user.TotalCredit,
             credit = user.Credit,
@@ -194,26 +198,43 @@ public class UserController : ControllerBase
     [HttpPut("profile")]
     public async Task<ActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
         var currentUserId = GetCurrentUserId();
         if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
-
-        var username = request.Username.Trim();
-        if (username.Length < 2 || username.Length > 50)
-            return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
 
         var user = await _db.Users.FindAsync(currentUserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
-        var usernameExists = await _db.Users.AnyAsync(u =>
-            u.UserID != currentUserId &&
-            u.Username != null &&
-            u.Username.ToLower() == username.ToLower());
-        if (usernameExists)
-            return BadRequest(new { message = "该用户名已被使用" });
+        if (request.Username != null)
+        {
+            var username = request.Username.Trim();
+            if (username.Length < 2 || username.Length > 50)
+                return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
 
-        user.Username = username;
+            var existingUsernameUserId = await _db.Users
+                .Where(u => u.UserID != currentUserId &&
+                            u.Username != null &&
+                            u.Username.ToLower() == username.ToLower())
+                .Select(u => u.UserID)
+                .FirstOrDefaultAsync();
+            if (existingUsernameUserId != 0)
+                return BadRequest(new { message = "该用户名已被使用" });
+
+            user.Username = username;
+        }
+
+        if (request.Nickname != null)
+            user.Nickname = NormalizeProfileField(request.Nickname, 50);
+        if (request.AvatarUrl != null)
+            user.AvatarUrl = NormalizeProfileField(request.AvatarUrl, 500);
+        if (request.Contact != null)
+            user.Contact = NormalizeProfileField(request.Contact, 100);
+        if (request.Bio != null)
+            user.Bio = NormalizeProfileField(request.Bio, 500);
         await _db.SaveChangesAsync();
 
         return Ok(new
@@ -222,6 +243,10 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
+            nickname = user.Nickname,
+            avatarUrl = user.AvatarUrl,
+            contact = user.Contact,
+            bio = user.Bio,
             userLevel = user.UserLevel,
             totalCredit = user.TotalCredit,
             credit = user.Credit,
@@ -236,6 +261,9 @@ public class UserController : ControllerBase
     [HttpPost("password")]
     public async Task<ActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
         var currentUserId = GetCurrentUserId();
         if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
@@ -265,8 +293,22 @@ public class UserController : ControllerBase
         return int.TryParse(userId, out var id) ? id : 0;
     }
 
-    private static bool IsValidPassword(string password)
+    private static string? NormalizeProfileField(string? value, int maxLength)
     {
+        if (value == null) return null;
+
+        var trimmed = value.Trim();
+        if (trimmed.Length > maxLength)
+        {
+            trimmed = trimmed[..maxLength];
+        }
+
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static bool IsValidPassword(string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password)) return false;
         if (password.Length < 8) return false;
 
         return password.Any(char.IsUpper) &&

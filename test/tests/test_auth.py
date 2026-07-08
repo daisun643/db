@@ -18,6 +18,19 @@ def _send_code_or_skip(client, email: str) -> str:
     return code
 
 
+def _register_unique_user(client, prefix: str = "stage2", password: str = "Password123") -> dict:
+    email = _unique_email(prefix)
+    username = f"{prefix}_{uuid.uuid4().hex[:8]}"
+    code = _send_code_or_skip(client, email)
+    data = assert_success(client.register(email, username, password, code))
+    return {
+        "email": email,
+        "username": username,
+        "password": password,
+        "user": data["user"],
+    }
+
+
 class TestStage1Registration:
 
     def test_register_success_with_tongji_email(self, client):
@@ -78,3 +91,116 @@ class TestStage1CurrentUser:
         assert "dashboard.view" in user["permissions"]
         assert isinstance(user["userLevel"], int)
         assert isinstance(user["totalCredit"], int)
+
+
+class TestStage2Profile:
+
+    def test_profile_requires_login(self, client):
+        resp = client.get("/api/user/profile")
+        assert resp.status_code == 401
+
+    def test_logged_in_user_can_view_own_profile(self, user_client):
+        resp = user_client.get("/api/user/profile")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["email"] == "4@tongji.edu.cn"
+        assert "roles" in data
+        assert "permissions" in data
+
+    def test_user_can_update_allowed_profile_fields(self, client):
+        created = _register_unique_user(client, "profile")
+        new_username = f"profile_{uuid.uuid4().hex[:8]}"
+
+        resp = client.put("/api/user/profile", json={
+            "username": new_username,
+            "nickname": "阶段二昵称",
+            "avatarUrl": "https://example.com/avatar.png",
+            "contact": "wechat: stage2",
+            "bio": "阶段二个人简介",
+        })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["username"] == new_username
+        assert data["nickname"] == "阶段二昵称"
+        assert data["avatarUrl"] == "https://example.com/avatar.png"
+        assert data["contact"] == "wechat: stage2"
+        assert data["bio"] == "阶段二个人简介"
+
+        profile = client.get("/api/user/profile").json()
+        assert profile["userId"] == created["user"]["userId"]
+        assert profile["email"] == created["email"]
+        assert profile["nickname"] == "阶段二昵称"
+
+    def test_profile_update_ignores_user_id_and_sensitive_fields(self, client):
+        created = _register_unique_user(client, "guard")
+        before = client.get("/api/user/profile").json()
+        new_username = f"guard_{uuid.uuid4().hex[:8]}"
+
+        resp = client.put("/api/user/profile", json={
+            "userId": 1,
+            "username": new_username,
+            "credit": 9999,
+            "status": "Disabled",
+            "passwordHash": "not-a-real-hash",
+            "roles": ["Admin"],
+            "permissions": ["dashboard.view"],
+        })
+
+        assert resp.status_code == 200
+        after = client.get("/api/user/profile").json()
+        assert after["userId"] == created["user"]["userId"]
+        assert after["userId"] != 1
+        assert after["username"] == new_username
+        assert after["email"] == before["email"]
+        assert after["credit"] == before["credit"]
+        assert after["status"] == before["status"]
+        assert [role["roleName"] for role in after["roles"]] == [role["roleName"] for role in before["roles"]]
+
+        client.logout()
+        assert_success(client.login(created["email"], created["password"]))
+
+
+class TestStage2ChangePassword:
+
+    def test_change_password_rejects_wrong_current_password(self, client):
+        _register_unique_user(client, "pwd_wrong")
+
+        resp = client.post("/api/user/password", json={
+            "currentPassword": "WrongPassword1",
+            "newPassword": "NewPassword123",
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()["message"] == "当前密码错误"
+
+    def test_change_password_rejects_weak_new_password(self, client):
+        created = _register_unique_user(client, "pwd_weak")
+
+        resp = client.post("/api/user/password", json={
+            "currentPassword": created["password"],
+            "newPassword": "password",
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()["message"] == "新密码必须至少8位，包含大小写字母和数字"
+
+    def test_change_password_success_and_old_password_fails(self, client):
+        created = _register_unique_user(client, "pwd_ok")
+        new_password = "NewPassword123"
+
+        resp = client.post("/api/user/password", json={
+            "currentPassword": created["password"],
+            "newPassword": new_password,
+        })
+        assert resp.status_code == 200
+        assert resp.json()["message"] == "密码已修改"
+
+        assert_success(client.logout())
+
+        old_login = client.login(created["email"], created["password"])
+        assert old_login.status_code == 400
+        assert old_login.json()["message"] == "邮箱或密码错误"
+
+        assert_success(client.login(created["email"], new_password))

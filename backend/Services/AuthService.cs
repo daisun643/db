@@ -140,6 +140,7 @@ public class AuthService : IAuthService
         {
             Email = email,
             Username = username,
+            Nickname = username,
             PasswordHash = passwordHash,
             Credit = 100,
             Status = "Active",

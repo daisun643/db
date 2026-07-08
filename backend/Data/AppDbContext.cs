@@ -46,6 +46,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.PasswordHash).HasColumnName("passwordHash");
             e.Property(x => x.UserCode).HasColumnName("userCode");
+            e.Property(x => x.Nickname).HasColumnName("nickname");
+            e.Property(x => x.AvatarUrl).HasColumnName("avatarUrl");
+            e.Property(x => x.Contact).HasColumnName("contact");
+            e.Property(x => x.Bio).HasColumnName("bio");
             e.Property(x => x.Credit).HasColumnName("credit");
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.UserLevel).HasColumnName("userLevel");

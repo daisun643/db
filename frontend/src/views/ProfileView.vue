@@ -8,13 +8,14 @@
     <div class="card">
       <div class="profile-header">
         <div class="profile-avatar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <img v-if="profile?.avatarUrl" :src="profile.avatarUrl" alt="用户头像" />
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
         </div>
         <div class="profile-info">
-          <h2>{{ profile?.username || '用户' }}</h2>
+          <h2>{{ profile?.nickname || profile?.username || '用户' }}</h2>
           <p class="profile-email">{{ profile?.email }}</p>
         </div>
       </div>
@@ -28,6 +29,18 @@
           <div class="info-item">
             <span class="info-label">用户 ID</span>
             <span class="info-value">{{ profile?.userId || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">用户名</span>
+            <span class="info-value">{{ profile?.username || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">昵称</span>
+            <span class="info-value">{{ profile?.nickname || '-' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">联系方式</span>
+            <span class="info-value">{{ profile?.contact || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">信用分</span>
@@ -52,6 +65,22 @@
           <label>
             <span>用户名</span>
             <input v-model="profileForm.username" type="text" minlength="2" maxlength="50" required />
+          </label>
+          <label>
+            <span>昵称</span>
+            <input v-model="profileForm.nickname" type="text" maxlength="50" placeholder="展示给其他用户的名称" />
+          </label>
+          <label>
+            <span>头像链接</span>
+            <input v-model="profileForm.avatarUrl" type="url" maxlength="500" placeholder="https://..." />
+          </label>
+          <label>
+            <span>联系方式</span>
+            <input v-model="profileForm.contact" type="text" maxlength="100" placeholder="QQ / 微信 / 手机号等" />
+          </label>
+          <label>
+            <span>个人简介</span>
+            <textarea v-model="profileForm.bio" maxlength="500" rows="4" placeholder="简单介绍一下自己"></textarea>
           </label>
           <button class="btn btn-primary" type="submit">保存资料</button>
         </form>
@@ -123,6 +152,10 @@ const success = ref('')
 
 const profileForm = ref({
   username: '',
+  nickname: '',
+  avatarUrl: '',
+  contact: '',
+  bio: '',
 })
 
 const passwordForm = ref({
@@ -138,6 +171,10 @@ const loadProfile = async () => {
     profile.value = res.data
     creditAdjustments.value = adjustmentsRes.data
     profileForm.value.username = res.data.username || ''
+    profileForm.value.nickname = res.data.nickname || ''
+    profileForm.value.avatarUrl = res.data.avatarUrl || ''
+    profileForm.value.contact = res.data.contact || ''
+    profileForm.value.bio = res.data.bio || ''
   } catch (e) {
     error.value = '无法加载个人资料: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -167,11 +204,21 @@ const clearMessages = () => {
 const handleUpdateProfile = async () => {
   try {
     clearMessages()
-    const res = await updateProfile({ username: profileForm.value.username })
+    const res = await updateProfile({
+      username: profileForm.value.username,
+      nickname: profileForm.value.nickname,
+      avatarUrl: profileForm.value.avatarUrl,
+      contact: profileForm.value.contact,
+      bio: profileForm.value.bio,
+    })
     profile.value = { ...profile.value, ...res.data }
     authStore.user = {
       ...authStore.user,
       username: res.data.username,
+      nickname: res.data.nickname,
+      avatarUrl: res.data.avatarUrl,
+      contact: res.data.contact,
+      bio: res.data.bio,
     }
     success.value = '资料已更新'
   } catch (e) {
@@ -230,6 +277,12 @@ onMounted(loadProfile)
   height: 48px;
 }
 
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .profile-info h2 {
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
@@ -271,12 +324,17 @@ onMounted(loadProfile)
   font-size: 0.875rem;
 }
 
-.settings-card input {
+.settings-card input,
+.settings-card textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
   font: inherit;
   padding: 0.625rem 0.75rem;
+}
+
+.settings-card textarea {
+  resize: vertical;
 }
 
 .info-item {

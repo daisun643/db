@@ -16,6 +16,14 @@ public class User
     public string? PasswordHash { get; set; }
     [MaxLength(50)]
     public string? UserCode { get; set; }
+    [MaxLength(50)]
+    public string? Nickname { get; set; }
+    [MaxLength(500)]
+    public string? AvatarUrl { get; set; }
+    [MaxLength(100)]
+    public string? Contact { get; set; }
+    [MaxLength(500)]
+    public string? Bio { get; set; }
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }

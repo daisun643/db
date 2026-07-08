@@ -75,6 +75,10 @@ public class UserInfo
     public int UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string Nickname { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
+    public string Contact { get; set; } = string.Empty;
+    public string Bio { get; set; } = string.Empty;
     public int Credit { get; set; }
     public string Status { get; set; } = string.Empty;
     public int UserLevel { get; set; }
