@@ -417,13 +417,12 @@ public class PostsController : ControllerBase
         var comments = await _db.PostComments
             .Include(c => c.User)
             .Where(c => c.PostID == postId &&
-                c.Status != "Deleted" &&
                 c.Status != "Banned" &&
-                (c.Status == "Active" || (userId.HasValue && c.UserID == userId.Value) || canViewRestrictedComments))
+                (c.Status == "Active" || c.Status == "Deleted" || (userId.HasValue && c.UserID == userId.Value) || canViewRestrictedComments))
             .OrderBy(c => c.CreateTime)
             .ToListAsync();
 
-        return Ok(BuildCommentTree(comments));
+        return Ok(BuildCommentTree(comments, canViewRestrictedComments, userId));
     }
 
     [HttpPost("{postId}/comments")]
@@ -789,12 +788,12 @@ public class PostsController : ControllerBase
         return Math.Max(0, (post.ViewCount ?? 0) + (post.LikeCount ?? 0) * 5 + commentCount * 8 + bonus - decay);
     }
 
-    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments)
+    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId)
     {
         var nodes = comments.ToDictionary(c => c.CommentID, c => new CommentResponse
         {
             CommentID = c.CommentID,
-            Content = c.Content ?? "",
+            Content = (c.Status == "Deleted" && !canViewRestricted && c.UserID != userId) ? "" : (c.Content ?? ""),
             Status = c.Status ?? "",
             CreateTime = c.CreateTime,
             UserID = c.UserID,
@@ -816,6 +815,13 @@ public class PostsController : ControllerBase
             }
         }
 
+        roots = roots.Where(KeepInTree).ToList();
         return roots;
+    }
+
+    private static bool KeepInTree(CommentResponse node)
+    {
+        node.Replies = node.Replies.Where(KeepInTree).ToList();
+        return node.Status != "Deleted" || node.Replies.Count > 0;
     }
 }

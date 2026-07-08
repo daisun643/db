@@ -941,29 +941,23 @@ const CommentNode = defineComponent({
 
     const initial = (name) => (name || '?')[0]?.toUpperCase() || '?'
 
-    const renderNode = () => h('article', { class: 'comment-node' }, [
-      h('div', { class: 'comment-avatar' }, [
-        h('span', initial(props.comment.username)),
+    const isDeleted = props.comment.status === 'Deleted'
+
+    const renderNode = () => h('article', { class: isDeleted ? 'comment-node deleted' : 'comment-node' }, [
+      h('div', { class: isDeleted ? 'comment-avatar deleted' : 'comment-avatar' }, [
+        h('span', isDeleted ? '' : initial(props.comment.username)),
       ]),
       h('div', { class: 'comment-body' }, [
         h('div', { class: 'comment-header' }, [
-          h('span', { class: 'comment-author' }, props.comment.username || '用户'),
+          h('span', { class: 'comment-author' }, isDeleted ? '用户已删除' : (props.comment.username || '用户')),
           h('span', { class: 'comment-time' }, formatDate(props.comment.createTime)),
-          props.comment.status && props.comment.status !== 'Active'
-            ? h('span', { class: 'comment-status' }, props.comment.status)
-            : null,
         ]),
-        h('div', { class: 'comment-content' }, props.comment.content || ''),
-        h('div', { class: 'comment-actions' }, [
-          h('button', { class: 'comment-action-btn', onClick: () => emit('reply', props.comment) }, [
-            h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', class: 'action-icon' }, [
-              h('path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' }),
-            ]),
-            '回复',
-          ]),
-          h('button', { class: 'comment-action-btn danger', onClick: () => emit('report', props.comment) }, '举报'),
+        h('div', { class: 'comment-content' }, isDeleted ? '用户已删除该评论' : (props.comment.content || '')),
+        isDeleted ? null : h('div', { class: 'comment-actions' }, [
+          h('span', { class: 'comment-action-link', onClick: () => emit('reply', props.comment) }, '回复'),
+          h('span', { class: 'comment-action-link', onClick: () => emit('report', props.comment) }, '举报'),
           canDelete()
-            ? h('button', { class: 'comment-action-btn danger', onClick: () => emit('delete', props.comment) }, '删除')
+            ? h('span', { class: 'comment-action-link', onClick: () => emit('delete', props.comment) }, '删除')
             : null,
         ]),
         props.replyingTo === props.comment.commentID
@@ -1521,184 +1515,6 @@ onMounted(async () => {
   justify-content: flex-start;
 }
 
-.comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.comment-form textarea {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  min-height: 88px;
-  padding: 0.75rem 1rem;
-  resize: vertical;
-  transition: border-color 0.2s;
-}
-
-.comment-form textarea:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.comment-node {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.comment-node:last-child {
-  border-bottom: none;
-}
-
-.comment-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), #6366f1);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.comment-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.375rem;
-}
-
-.comment-author {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--text);
-}
-
-.comment-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.comment-status {
-  font-size: 0.6875rem;
-  color: #d97706;
-  background: #fef3c7;
-  border-radius: 9999px;
-  padding: 0.0625rem 0.5rem;
-}
-
-.comment-content {
-  color: var(--text);
-  line-height: 1.65;
-  font-size: 0.9375rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.comment-actions {
-  display: flex;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-}
-
-.comment-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius);
-  transition: all 0.15s;
-}
-
-.comment-action-btn:hover {
-  background: var(--bg);
-  color: var(--primary);
-}
-
-.comment-action-btn.danger:hover {
-  color: #dc2626;
-  background: #fef2f2;
-}
-
-.action-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.comment-children {
-  width: 100%;
-  margin-left: calc(36px + 0.75rem);
-  padding-left: 1rem;
-  border-left: 2px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-
-.comment-children .comment-node {
-  padding: 0.75rem 0;
-}
-
-.comment-children .comment-avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 0.75rem;
-}
-
-.reply-form {
-  margin-top: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.reply-form textarea {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  font-size: 0.875rem;
-  min-height: 64px;
-  padding: 0.5rem 0.75rem;
-  resize: vertical;
-  transition: border-color 0.2s;
-}
-
-.reply-form textarea:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.reply-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
 .btn-sm {
   padding: 0.375rem 0.75rem;
   font-size: 0.8125rem;
@@ -1816,5 +1632,181 @@ onMounted(async () => {
   border-color: #1d9bf0;
   outline: none;
   box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+</style>
+
+<style>
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.comment-form textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  min-height: 88px;
+  padding: 0.75rem 1rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.comment-form textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.comment-node {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-node:last-child {
+  border-bottom: none;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #6366f1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.comment-author {
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: #536471;
+}
+
+.comment-time {
+  font-size: 0.75rem;
+  color: #536471;
+}
+
+.comment-node.deleted > .comment-body > .comment-header > .comment-author,
+.comment-node.deleted > .comment-body > .comment-header > .comment-time {
+  color: #b9c1c9;
+}
+
+.comment-node.deleted > .comment-body > .comment-content {
+  color: #b9c1c9;
+  font-style: italic;
+}
+
+.comment-avatar.deleted {
+  background: #b9c1c9;
+  color: white;
+}
+
+.comment-status {
+  font-size: 0.6875rem;
+  color: #d97706;
+  background: #fef3c7;
+  border-radius: 9999px;
+  padding: 0.0625rem 0.5rem;
+}
+
+.comment-content {
+  color: #0f1419;
+  line-height: 1.65;
+  font-size: 0.9375rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.comment-action-link {
+  color: #536471;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.comment-action-link:hover {
+  color: #0f1419;
+  text-decoration: underline;
+}
+
+.comment-children {
+  width: 100%;
+  margin-left: calc(36px + 0.75rem);
+  padding-left: 1rem;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.comment-children .comment-node {
+  padding: 0.75rem 0;
+}
+
+.comment-children .comment-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 0.75rem;
+}
+
+.reply-form {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reply-form textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 64px;
+  padding: 0.5rem 0.75rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.reply-form textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.reply-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 </style>
