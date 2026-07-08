@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { forgotPassword, resetPassword } from '../api'
 
@@ -99,6 +99,9 @@ const error = ref('')
 const success = ref('')
 const countdown = ref(0)
 
+const MESSAGE_TIMEOUT_MS = 4000
+let messageTimer = null
+
 const validatePassword = (password) => {
   if (password.length < 8) return false
   const hasUpper = /[A-Z]/.test(password)
@@ -107,13 +110,46 @@ const validatePassword = (password) => {
   return hasUpper && hasLower && hasDigit
 }
 
-const handleSendCode = async () => {
-  try {
+const clearMessageTimer = () => {
+  if (messageTimer) {
+    clearTimeout(messageTimer)
+    messageTimer = null
+  }
+}
+
+const clearMessages = () => {
+  clearMessageTimer()
+  error.value = ''
+  success.value = ''
+}
+
+const scheduleClearMessages = () => {
+  clearMessageTimer()
+  messageTimer = setTimeout(() => {
     error.value = ''
     success.value = ''
+    messageTimer = null
+  }, MESSAGE_TIMEOUT_MS)
+}
+
+const showError = (message) => {
+  error.value = message
+  success.value = ''
+  scheduleClearMessages()
+}
+
+const showSuccess = (message) => {
+  success.value = message
+  error.value = ''
+  scheduleClearMessages()
+}
+
+const handleSendCode = async () => {
+  try {
+    clearMessages()
 
     if (!form.value.email) {
-      error.value = '请输入邮箱'
+      showError('请输入邮箱')
       return
     }
 
@@ -121,7 +157,7 @@ const handleSendCode = async () => {
     const response = await forgotPassword(form.value.email)
 
     if (response.data.success) {
-      success.value = '验证码已发送，请查收邮件'
+      showSuccess('验证码已发送，请查收邮件')
       countdown.value = 60
       const timer = setInterval(() => {
         countdown.value--
@@ -130,10 +166,10 @@ const handleSendCode = async () => {
         }
       }, 1000)
     } else {
-      error.value = response.data.message || '发送失败'
+      showError(response.data.message || '发送失败')
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '发送失败，请稍后重试'
+    showError(err.response?.data?.message || '发送失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -142,16 +178,15 @@ const handleSendCode = async () => {
 const handleResetPassword = async () => {
   try {
     loading.value = true
-    error.value = ''
-    success.value = ''
+    clearMessages()
 
     if (!validatePassword(form.value.newPassword)) {
-      error.value = '密码必须至少8位，包含大小写字母和数字'
+      showError('密码必须至少8位，包含大小写字母和数字')
       return
     }
 
     if (form.value.newPassword !== form.value.confirmPassword) {
-      error.value = '两次输入的密码不一致'
+      showError('两次输入的密码不一致')
       return
     }
 
@@ -162,19 +197,21 @@ const handleResetPassword = async () => {
     })
 
     if (response.data.success) {
-      success.value = '密码重置成功，3秒后跳转到登录页'
+      showSuccess('密码重置成功，3秒后跳转到登录页')
       setTimeout(() => {
         router.push('/login')
       }, 3000)
     } else {
-      error.value = response.data.message || '重置失败'
+      showError(response.data.message || '重置失败')
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '重置失败，请稍后重试'
+    showError(err.response?.data?.message || '重置失败，请稍后重试')
   } finally {
     loading.value = false
   }
 }
+
+onBeforeUnmount(clearMessageTimer)
 </script>
 
 <style scoped>
