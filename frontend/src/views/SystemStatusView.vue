@@ -21,11 +21,9 @@
       </div>
     </div>
 
-    <div v-if="error" class="error-message">{{ error }}</div>
-    <div v-if="success" class="success-message">{{ success }}</div>
-
     <div class="card">
       <h2>数据库连接状态</h2>
+      <SectionMessage :message="sectionMessages.system" />
       <div v-if="loading" class="loading">正在检查系统状态...</div>
       <div v-else-if="health" :class="['badge', health.status === 'healthy' ? 'badge-green' : 'badge-red']">
         {{ health.status === 'healthy' ? '数据库连接正常' : '数据库连接异常' }}
@@ -36,6 +34,7 @@
     <div class="admin-grid">
       <section class="card">
         <h2>角色管理</h2>
+        <SectionMessage :message="sectionMessages.roles" />
         <form class="inline-form" @submit.prevent="handleCreateRole">
           <input v-model="roleForm.roleName" type="text" placeholder="角色名称" required />
           <input v-model="roleForm.description" type="text" placeholder="描述" />
@@ -43,20 +42,23 @@
         </form>
 
         <div class="role-list">
-          <button
+          <div
             v-for="role in roles"
             :key="roleId(role)"
-            :class="['role-item', { active: selectedRoleId === roleId(role) }]"
-            @click="selectRole(role)"
+            :class="['role-row', { active: selectedRoleId === roleId(role) }]"
           >
-            <span>{{ role.roleName }}</span>
-            <small>{{ role.description }}</small>
-          </button>
+            <button class="role-item" type="button" @click="selectRole(role)">
+              <span>{{ role.roleName }}</span>
+              <small>{{ role.description }}</small>
+            </button>
+            <button class="btn btn-danger" type="button" @click="handleDeleteRole(role)">删除</button>
+          </div>
         </div>
       </section>
 
       <section class="card">
         <h2>权限分配</h2>
+        <SectionMessage :message="sectionMessages.permissions" />
         <form class="permission-form" @submit.prevent="handleCreatePermission">
           <input v-model="permissionForm.permissionName" type="text" placeholder="权限名，如 forums.create" required />
           <input v-model="permissionForm.description" type="text" placeholder="说明" />
@@ -73,8 +75,11 @@
                 type="checkbox"
                 :value="permissionId(permission)"
               />
-              <span>{{ permission.permissionName }}</span>
-              <small>{{ permission.description }}</small>
+              <span class="permission-content">
+                <span>{{ permission.permissionName }}</span>
+                <small>{{ permission.description }}</small>
+              </span>
+              <button class="btn btn-danger" type="button" @click.prevent.stop="handleDeletePermission(permission)">删除</button>
             </label>
           </div>
           <button class="btn btn-primary" @click="handleAssignPermissions">保存权限</button>
@@ -84,6 +89,7 @@
 
     <div class="card">
       <h2>论坛版块管理</h2>
+      <SectionMessage :message="sectionMessages.forums" />
       <form class="inline-form" @submit.prevent="handleCreateForum">
         <input v-model="forumForm.forumName" type="text" placeholder="版块名称" required />
         <input v-model="forumForm.description" type="text" placeholder="版块描述" />
@@ -120,6 +126,7 @@
 
     <div class="card">
       <h2>用户与角色</h2>
+      <SectionMessage :message="sectionMessages.users" />
       <form class="user-create-form" @submit.prevent="handleCreateUser">
         <input v-model="userForm.username" type="text" placeholder="用户名" required />
         <input v-model="userForm.email" type="email" placeholder="校园邮箱" required />
@@ -182,6 +189,7 @@
 
     <div class="card">
       <h2>内容审核队列</h2>
+      <SectionMessage :message="sectionMessages.audits" />
       <div v-if="postAudits.length === 0" class="muted">暂无待审核内容</div>
       <div v-else class="report-list">
         <article v-for="audit in postAudits" :key="audit.auditID" class="report-item">
@@ -200,6 +208,7 @@
 
     <div class="card">
       <h2>帖子状态管理</h2>
+      <SectionMessage :message="sectionMessages.posts" />
       <div class="toolbar-row">
         <select v-model="postStatusFilter" @change="loadManagedPosts">
           <option value="">可见帖子</option>
@@ -233,6 +242,7 @@
 
     <div class="card">
       <h2>交易纠纷仲裁</h2>
+      <SectionMessage :message="sectionMessages.disputes" />
       <div v-if="disputes.length === 0" class="muted">暂无纠纷工单</div>
       <div v-else class="report-list">
         <article v-for="dispute in disputes" :key="dispute.ticketID" class="report-item dispute-item">
@@ -284,6 +294,7 @@
 
     <div class="card">
       <h2>举报工单</h2>
+      <SectionMessage :message="sectionMessages.reports" />
       <div v-if="reports.length === 0" class="muted">暂无举报</div>
       <div v-else class="report-list">
         <article v-for="report in reports" :key="report.reportID" class="report-item">
@@ -307,7 +318,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, h } from 'vue'
 import {
   approvePostAudit,
   assignPermissionsToRole,
@@ -318,6 +329,8 @@ import {
   createUser,
   createPermission,
   createRole,
+  deletePermission,
+  deleteRole,
   getForums,
   getHealth,
   getPermissions,
@@ -353,8 +366,25 @@ const selectedRoleId = ref(null)
 const selectedPermissionIds = ref([])
 const loading = ref(true)
 const loadingUsers = ref(true)
-const error = ref(null)
-const success = ref('')
+const messageTimers = new Map()
+const sectionMessages = ref({
+  system: null,
+  roles: null,
+  permissions: null,
+  forums: null,
+  users: null,
+  audits: null,
+  posts: null,
+  disputes: null,
+  reports: null,
+})
+
+const SectionMessage = (props) => {
+  if (!props.message) return null
+  return h('div', {
+    class: [`${props.message.type}-message`, 'section-message'],
+  }, props.message.text)
+}
 
 const roleForm = ref({
   roleName: '',
@@ -407,9 +437,26 @@ const auditContent = (audit) => {
   return audit.post?.contentPreview || '暂无帖子内容'
 }
 
-const clearMessages = () => {
-  error.value = null
-  success.value = ''
+const clearMessage = (section) => {
+  if (messageTimers.has(section)) {
+    clearTimeout(messageTimers.get(section))
+    messageTimers.delete(section)
+  }
+  sectionMessages.value = {
+    ...sectionMessages.value,
+    [section]: null,
+  }
+}
+
+const showMessage = (section, type, text) => {
+  clearMessage(section)
+  sectionMessages.value = {
+    ...sectionMessages.value,
+    [section]: { type, text },
+  }
+  messageTimers.set(section, setTimeout(() => {
+    clearMessage(section)
+  }, 3000))
 }
 
 const loadStats = async () => {
@@ -436,6 +483,14 @@ const loadRbac = async () => {
   const [rolesRes, permissionsRes] = await Promise.all([getRoles(), getPermissions()])
   roles.value = rolesRes.data
   permissions.value = permissionsRes.data
+  if (selectedRoleId.value) {
+    const selected = roles.value.find(role => roleId(role) === selectedRoleId.value)
+    if (selected) selectRole(selected)
+    else {
+      selectedRoleId.value = null
+      selectedPermissionIds.value = []
+    }
+  }
 }
 
 const loadReports = async () => {
@@ -485,26 +540,43 @@ const loadUserRoles = async () => {
 
 const selectRole = (role) => {
   selectedRoleId.value = roleId(role)
-  selectedPermissionIds.value = (role.rolePermissions || [])
-    .map(rp => rp.permissionID ?? rp.permissionId)
+  selectedPermissionIds.value = (role.permissions || role.rolePermissions || [])
+    .map(item => item.permissionID ?? item.permissionId ?? item.permission?.permissionID ?? item.permission?.permissionId)
     .filter(Boolean)
 }
 
 const handleCreateRole = async () => {
   try {
-    clearMessages()
+    clearMessage('roles')
     await createRole(roleForm.value)
     roleForm.value = { roleName: '', description: '' }
     await loadRbac()
-    success.value = '角色已创建'
+    showMessage('roles', 'success', '角色已创建')
   } catch (e) {
-    error.value = e.response?.data?.message || '角色创建失败'
+    showMessage('roles', 'error', e.response?.data?.message || '角色创建失败')
+  }
+}
+
+const handleDeleteRole = async (role) => {
+  if (!window.confirm(`确认删除角色 ${role.roleName}？`)) return
+
+  try {
+    clearMessage('roles')
+    await deleteRole(roleId(role))
+    if (selectedRoleId.value === roleId(role)) {
+      selectedRoleId.value = null
+      selectedPermissionIds.value = []
+    }
+    await Promise.all([loadRbac(), loadUserRoles()])
+    showMessage('roles', 'success', '角色已删除')
+  } catch (e) {
+    showMessage('roles', 'error', e.response?.data?.message || '角色删除失败')
   }
 }
 
 const handleCreatePermission = async () => {
   try {
-    clearMessages()
+    clearMessage('permissions')
     await createPermission({
       permissionName: permissionForm.value.permissionName.trim(),
       description: permissionForm.value.description,
@@ -513,39 +585,54 @@ const handleCreatePermission = async () => {
     })
     permissionForm.value = { permissionName: '', description: '', resource: '', action: '' }
     await loadRbac()
-    success.value = '权限已创建'
+    showMessage('permissions', 'success', '权限已创建')
   } catch (e) {
-    error.value = e.response?.data?.message || '权限创建失败'
+    showMessage('permissions', 'error', e.response?.data?.message || '权限创建失败')
+  }
+}
+
+const handleDeletePermission = async (permission) => {
+  if (!window.confirm(`确认删除权限 ${permission.permissionName}？`)) return
+
+  try {
+    clearMessage('permissions')
+    await deletePermission(permissionId(permission))
+    selectedPermissionIds.value = selectedPermissionIds.value
+      .filter(id => id !== permissionId(permission))
+    await loadRbac()
+    showMessage('permissions', 'success', '权限已删除')
+  } catch (e) {
+    showMessage('permissions', 'error', e.response?.data?.message || '权限删除失败')
   }
 }
 
 const handleAssignPermissions = async () => {
   try {
-    clearMessages()
+    clearMessage('permissions')
     await assignPermissionsToRole(selectedRoleId.value, selectedPermissionIds.value)
     await loadRbac()
-    success.value = '权限已保存'
+    showMessage('permissions', 'success', '权限已保存')
   } catch (e) {
-    error.value = e.response?.data?.message || '权限保存失败'
+    showMessage('permissions', 'error', e.response?.data?.message || '权限保存失败')
   }
 }
 
 const handleCreateForum = async () => {
   try {
-    clearMessages()
+    clearMessage('forums')
     await createForum(forumForm.value)
     forumForm.value = { forumName: '', description: '' }
     await loadForums()
     stats.value = { ...stats.value, forums: forums.value.length }
-    success.value = '论坛版块已创建'
+    showMessage('forums', 'success', '论坛版块已创建')
   } catch (e) {
-    error.value = e.response?.data?.message || '论坛版块创建失败'
+    showMessage('forums', 'error', e.response?.data?.message || '论坛版块创建失败')
   }
 }
 
 const handleCreateUser = async () => {
   try {
-    clearMessages()
+    clearMessage('users')
     await createUser({
       username: userForm.value.username.trim(),
       email: userForm.value.email.trim(),
@@ -555,9 +642,9 @@ const handleCreateUser = async () => {
     userForm.value = { username: '', email: '', password: '', roleIds: [] }
     await loadStats()
     await loadUserRoles()
-    success.value = '用户已创建'
+    showMessage('users', 'success', '用户已创建')
   } catch (e) {
-    error.value = e.response?.data?.message || '用户创建失败'
+    showMessage('users', 'error', e.response?.data?.message || '用户创建失败')
   }
 }
 
@@ -566,24 +653,24 @@ const handleAssignManager = async (forum) => {
   if (!userId) return
 
   try {
-    clearMessages()
+    clearMessage('forums')
     await assignForumManager(forum.forumID, userId)
     forumManagerDrafts.value = { ...forumManagerDrafts.value, [forum.forumID]: '' }
     await loadForums()
-    success.value = '版主已指派'
+    showMessage('forums', 'success', '版主已指派')
   } catch (e) {
-    error.value = e.response?.data?.message || '版主指派失败'
+    showMessage('forums', 'error', e.response?.data?.message || '版主指派失败')
   }
 }
 
 const handleRemoveManager = async (forum, manager) => {
   try {
-    clearMessages()
+    clearMessage('forums')
     await removeForumManager(forum.forumID, manager.userID)
     await loadForums()
-    success.value = '版主已移除'
+    showMessage('forums', 'success', '版主已移除')
   } catch (e) {
-    error.value = e.response?.data?.message || '版主移除失败'
+    showMessage('forums', 'error', e.response?.data?.message || '版主移除失败')
   }
 }
 
@@ -599,48 +686,48 @@ const toggleUserRole = (userId, roleIdValue, checked) => {
 
 const saveUserRoles = async (userId) => {
   try {
-    clearMessages()
+    clearMessage('users')
     await assignRolesToUser(userId, userRoleIds.value[userId] || [])
-    success.value = '用户角色已保存'
+    showMessage('users', 'success', '用户角色已保存')
   } catch (e) {
-    error.value = e.response?.data?.message || '用户角色保存失败'
+    showMessage('users', 'error', e.response?.data?.message || '用户角色保存失败')
   }
 }
 
 const handleReviewReport = async (report, action) => {
   try {
-    clearMessages()
+    clearMessage('reports')
     await reviewReport(report.reportID, {
       action,
       result: action === 'approve' ? '举报成立，已处理目标内容' : '举报不成立',
     })
     await loadReports()
-    success.value = '举报已处理'
+    showMessage('reports', 'success', '举报已处理')
   } catch (e) {
-    error.value = e.response?.data?.message || '举报处理失败'
+    showMessage('reports', 'error', e.response?.data?.message || '举报处理失败')
   }
 }
 
 const handlePostAudit = async (audit, action) => {
   try {
-    clearMessages()
+    clearMessage('audits')
     if (action === 'approve') await approvePostAudit(audit.auditID)
     else await rejectPostAudit(audit.auditID)
     await Promise.all([loadPostAudits(), loadManagedPosts(), loadStats()])
-    success.value = '内容审核已处理'
+    showMessage('audits', 'success', '内容审核已处理')
   } catch (e) {
-    error.value = e.response?.data?.message || '内容审核失败'
+    showMessage('audits', 'error', e.response?.data?.message || '内容审核失败')
   }
 }
 
 const handlePostStatus = async (post, action) => {
   try {
-    clearMessages()
+    clearMessage('posts')
     await changePostStatus(post.postID, { action })
     await Promise.all([loadManagedPosts(), loadStats()])
-    success.value = '帖子状态已更新'
+    showMessage('posts', 'success', '帖子状态已更新')
   } catch (e) {
-    error.value = e.response?.data?.message || '帖子状态更新失败'
+    showMessage('posts', 'error', e.response?.data?.message || '帖子状态更新失败')
   }
 }
 
@@ -649,15 +736,15 @@ const handleResolveDispute = async (dispute) => {
   if (!draft) return
 
   try {
-    clearMessages()
+    clearMessage('disputes')
     await resolveDispute(dispute.ticketID, {
       decision: draft.decision,
       refundAmount: draft.refundAmount || 0,
     })
     await loadDisputes()
-    success.value = '纠纷已结案'
+    showMessage('disputes', 'success', '纠纷已结案')
   } catch (e) {
-    error.value = e.response?.data?.message || '纠纷处理失败'
+    showMessage('disputes', 'error', e.response?.data?.message || '纠纷处理失败')
   }
 }
 
@@ -675,7 +762,7 @@ onMounted(async () => {
 
   if (results.every(result => result.status === 'rejected')) {
     const firstReason = results.find(result => result.status === 'rejected')?.reason
-    error.value = '无法加载系统数据: ' + (firstReason?.response?.data?.message || firstReason?.message || '权限不足')
+    showMessage('system', 'error', '无法加载系统数据: ' + (firstReason?.response?.data?.message || firstReason?.message || '权限不足'))
   }
 
   loading.value = false
@@ -762,6 +849,13 @@ select {
   margin-top: 1rem;
 }
 
+.role-row {
+  align-items: stretch;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .role-item {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -770,9 +864,10 @@ select {
   cursor: pointer;
   padding: 0.75rem;
   text-align: left;
+  width: 100%;
 }
 
-.role-item.active,
+.role-row.active .role-item,
 .role-item:hover {
   border-color: var(--primary);
   background: var(--bg);
@@ -794,6 +889,17 @@ select {
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
+}
+
+.check-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.625rem;
+}
+
+.permission-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .mini-check {
@@ -951,12 +1057,25 @@ select {
   color: var(--text-secondary);
 }
 
+.section-message {
+  margin-bottom: 1rem;
+}
+
 .success-message {
   background: #dcfce7;
   color: #166534;
   padding: 1rem;
   border-radius: var(--radius);
   margin-bottom: 1rem;
+}
+
+.btn-danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.btn-danger:hover {
+  background: #fee2e2;
 }
 
 @media (max-width: 900px) {
@@ -969,6 +1088,10 @@ select {
   }
 
   .user-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .role-row {
     grid-template-columns: 1fr;
   }
 

@@ -48,6 +48,7 @@ export const updateRole = (id, data) => api.put(`/rbac/roles/${id}`, data)
 export const deleteRole = (id) => api.delete(`/rbac/roles/${id}`)
 export const getPermissions = () => api.get('/rbac/permissions')
 export const createPermission = (data) => api.post('/rbac/permissions', data)
+export const deletePermission = (id) => api.delete(`/rbac/permissions/${id}`)
 export const assignPermissionsToRole = (roleId, permissionIds) =>
   api.post(`/rbac/roles/${roleId}/permissions`, { permissionIds })
 export const getUserRoles = (userId) => api.get(`/rbac/users/${userId}/roles`)
