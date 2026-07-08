@@ -467,3 +467,48 @@ class TestStage4Rbac:
 
         assert resp.status_code == 403
         assert resp.json()["message"] == "分配管理员角色需要 admin.add 权限"
+
+
+class TestStage5BackendEntryAccess:
+
+    def test_guest_cannot_check_backend_route_access(self, client):
+        resp = client.check_route_access("/system-status")
+
+        assert resp.status_code == 401
+
+    def test_normal_user_cannot_access_backend_entry(self, user_client):
+        resp = user_client.check_route_access("/system-status")
+
+        assert resp.status_code == 200
+        assert resp.json()["hasAccess"] is False
+
+    def test_admin_can_access_backend_entry(self, admin_client):
+        resp = admin_client.check_route_access("/system-status")
+
+        assert resp.status_code == 200
+        assert resp.json()["hasAccess"] is True
+
+    def test_dashboard_view_user_can_access_backend_entry(self, client):
+        assert_success(client.login("2@tongji.edu.cn", "Password2"))
+
+        resp = client.check_route_access("/system-status?tab=rbac#roles")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["path"] == "/system-status"
+        assert data["hasAccess"] is True
+
+    @pytest.mark.parametrize("path", ["/", "/forums", "/products", "/messages", "/profile"])
+    def test_frontend_menu_paths_are_known_by_backend_route_map(self, user_client, path):
+        resp = user_client.check_route_access(path)
+
+        assert resp.status_code == 200
+        assert resp.json()["path"] == path
+        assert resp.json()["hasAccess"] is True
+
+    def test_unknown_route_is_not_allowed(self, admin_client):
+        resp = admin_client.check_route_access("/unknown-admin")
+
+        assert resp.status_code == 200
+        assert resp.json()["path"] == "/unknown-admin"
+        assert resp.json()["hasAccess"] is False
