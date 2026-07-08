@@ -23,20 +23,26 @@ public class RbacController : ControllerBase
 
     [HttpGet("roles")]
     [RequirePermission("roles.manage", "permissions.manage", "dashboard.view")]
-    public async Task<ActionResult<List<Role>>> GetAllRoles()
+    public async Task<ActionResult> GetAllRoles()
     {
+        // 不直接返回 EF 实体。Role -> RolePermission -> Role 的双向导航属性会形成 JSON 循环，
+        // 从而让 /api/rbac/roles 返回 500。
         var roles = await _db.Roles
+            .AsNoTracking()
             .Include(r => r.RolePermissions)
             .ThenInclude(rp => rp.Permission)
+            .OrderBy(r => r.RoleID)
             .ToListAsync();
-        return Ok(roles);
+
+        return Ok(roles.Select(ToRoleResponse).ToList());
     }
 
     [HttpGet("roles/{id}")]
     [RequirePermission("roles.manage", "permissions.manage")]
-    public async Task<ActionResult<Role>> GetRoleById(int id)
+    public async Task<ActionResult> GetRoleById(int id)
     {
         var role = await _db.Roles
+            .AsNoTracking()
             .Include(r => r.RolePermissions)
             .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(r => r.RoleID == id);
@@ -44,14 +50,31 @@ public class RbacController : ControllerBase
         if (role == null)
             return NotFound(new { message = "角色不存在" });
 
-        return Ok(role);
+        return Ok(ToRoleResponse(role));
     }
+
+    private static RoleResponse ToRoleResponse(Role role) => new()
+    {
+        RoleID = role.RoleID,
+        RoleName = role.RoleName ?? string.Empty,
+        Description = role.Description,
+        CreateTime = role.CreateTime,
+        RolePermissions = role.RolePermissions
+            .Select(rp => new RolePermissionResponse
+            {
+                RoleID = rp.RoleID,
+                PermissionID = rp.PermissionID,
+                PermissionName = rp.Permission?.PermissionName ?? string.Empty,
+                Description = rp.Permission?.Description
+            })
+            .ToList()
+    };
 
     [HttpPost("roles")]
     [RequirePermission("roles.manage")]
     public async Task<ActionResult<Role>> CreateRole([FromBody] CreateRoleRequest request)
     {
-        if (await _db.Roles.AnyAsync(r => r.RoleName == request.RoleName))
+        if ((await _db.Roles.CountAsync(r => r.RoleName == request.RoleName)) > 0)
             return BadRequest(new { message = "角色名称已存在" });
 
         var role = new Role
@@ -77,7 +100,7 @@ public class RbacController : ControllerBase
             return NotFound(new { message = "角色不存在" });
 
         if (request.RoleName != role.RoleName && 
-            await _db.Roles.AnyAsync(r => r.RoleName == request.RoleName))
+            (await _db.Roles.CountAsync(r => r.RoleName == request.RoleName)) > 0)
             return BadRequest(new { message = "角色名称已存在" });
 
         role.RoleName = request.RoleName;
@@ -97,7 +120,7 @@ public class RbacController : ControllerBase
         if (role == null)
             return NotFound(new { message = "角色不存在" });
 
-        var hasUsers = await _db.UserRoles.AnyAsync(ur => ur.RoleID == id);
+        var hasUsers = (await _db.UserRoles.CountAsync(ur => ur.RoleID == id)) > 0;
         if (hasUsers)
             return BadRequest(new { message = "该角色下还有用户，无法删除" });
 
@@ -131,7 +154,7 @@ public class RbacController : ControllerBase
     [RequirePermission("permissions.manage")]
     public async Task<ActionResult<Permission>> CreatePermission([FromBody] CreatePermissionRequest request)
     {
-        if (await _db.Permissions.AnyAsync(p => p.PermissionName == request.PermissionName))
+        if ((await _db.Permissions.CountAsync(p => p.PermissionName == request.PermissionName)) > 0)
             return BadRequest(new { message = "权限名称已存在" });
 
         var permission = new Permission
@@ -158,7 +181,7 @@ public class RbacController : ControllerBase
             return NotFound(new { message = "权限不存在" });
 
         if (request.PermissionName != permission.PermissionName && 
-            await _db.Permissions.AnyAsync(p => p.PermissionName == request.PermissionName))
+            (await _db.Permissions.CountAsync(p => p.PermissionName == request.PermissionName)) > 0)
             return BadRequest(new { message = "权限名称已存在" });
 
         permission.PermissionName = request.PermissionName;
@@ -303,6 +326,23 @@ public class RbacController : ControllerBase
         _logger.LogInformation("移除用户 {UserId} 的角色 {RoleId}", userId, roleId);
         return Ok(new { message = "角色移除成功" });
     }
+}
+
+public class RoleResponse
+{
+    public int RoleID { get; set; }
+    public string RoleName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public DateTime? CreateTime { get; set; }
+    public List<RolePermissionResponse> RolePermissions { get; set; } = new();
+}
+
+public class RolePermissionResponse
+{
+    public int RoleID { get; set; }
+    public int PermissionID { get; set; }
+    public string PermissionName { get; set; } = string.Empty;
+    public string? Description { get; set; }
 }
 
 public class CreateRoleRequest

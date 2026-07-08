@@ -26,6 +26,7 @@
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
+    <div v-if="notice" class="success-message">{{ notice }}</div>
 
     <div v-if="activeTab === 'all'" class="forum-layout">
       <aside class="forum-sidebar">
@@ -45,21 +46,70 @@
           <span>{{ forum.forumName }}</span>
           <span class="forum-count">{{ forum.postCount || 0 }}</span>
         </button>
+
+        <div class="section-title" style="margin-top:1.5rem">热门标签</div>
+        <div v-if="tagStats.length === 0" class="muted" style="font-size:0.8rem;padding:0 0.5rem">暂无标签</div>
+        <button
+          v-for="stat in tagStats"
+          :key="stat.tagId"
+          :class="['forum-filter', { active: filters.tag === stat.tagName }]"
+          @click="selectTag(stat.tagName)"
+        >
+          <span>#{{ stat.tagName }}</span>
+          <span class="forum-count">{{ stat.postCount }}</span>
+        </button>
       </aside>
 
       <main class="forum-main">
         <div class="feed-toolbar">
           <div class="toolbar">
-            <input v-model="filters.keyword" type="search" placeholder="搜索标题或内容" @keyup.enter="loadPosts" />
-            <input v-model="filters.tag" type="search" placeholder="标签" @keyup.enter="loadPosts" />
-            <select v-model="filters.sort" @change="loadPosts">
+            <input v-model="filters.keyword" type="search" placeholder="搜索标题或内容" @keyup.enter="applyFilters" />
+            <input v-model="filters.tag" type="search" placeholder="单个标签" @keyup.enter="applyFilters" />
+            <select v-model="filters.sort" @change="applyFilters">
               <option value="latest">最新</option>
               <option value="hot">热度</option>
             </select>
-            <button class="btn btn-primary" @click="loadPosts">筛选</button>
+            <button class="btn btn-primary" @click="applyFilters">筛选</button>
           </div>
           <button class="compose-trigger" @click="openComposer">发布帖子</button>
         </div>
+
+        <details class="advanced-search">
+          <summary>高级筛选：多个标签、时间与热度</summary>
+          <div class="advanced-search-grid">
+            <label>
+              多个标签（逗号分隔）
+              <input v-model="filters.tags" type="text" placeholder="如：数据库, 课程设计" @keyup.enter="applyFilters" />
+            </label>
+            <label>
+              标签关系
+              <select v-model="filters.tagOp">
+                <option value="and">同时包含</option>
+                <option value="or">包含任一</option>
+              </select>
+            </label>
+            <label>
+              开始时间
+              <input v-model="filters.from" type="datetime-local" />
+            </label>
+            <label>
+              结束时间
+              <input v-model="filters.to" type="datetime-local" />
+            </label>
+            <label>
+              最低热度
+              <input v-model.number="filters.minHeat" type="number" min="0" placeholder="不限" />
+            </label>
+            <label>
+              最高热度
+              <input v-model.number="filters.maxHeat" type="number" min="0" placeholder="不限" />
+            </label>
+          </div>
+          <div class="advanced-search-actions">
+            <button class="btn btn-primary" @click="applyFilters">应用高级筛选</button>
+            <button class="btn" @click="resetFilters">清空筛选</button>
+          </div>
+        </details>
 
         <div v-if="loading" class="loading">加载中...</div>
         <div v-else class="post-list">
@@ -128,6 +178,11 @@
           </article>
           <div v-if="posts.length === 0" class="empty-state">
             <p>暂无帖子</p>
+          </div>
+          <div v-if="totalPosts > 0" class="pagination-row">
+            <button class="btn" :disabled="filters.page <= 1" @click="loadPosts(filters.page - 1)">上一页</button>
+            <span>第 {{ filters.page }} 页 · 共 {{ totalPosts }} 条</span>
+            <button class="btn" :disabled="!hasNextPage" @click="loadPosts(filters.page + 1)">下一页</button>
           </div>
         </div>
       </main>
@@ -409,6 +464,7 @@ import {
   getPost,
   getPostComments,
   getPosts,
+  getTagStats,
   likePost,
   removePostFromFavoriteFolder,
   suggestTags,
@@ -420,6 +476,7 @@ import {
 const authStore = useAuthStore()
 const activeTab = ref('all')
 const forums = ref([])
+const tagStats = ref([])
 const posts = ref([])
 const myPosts = ref([])
 const favoriteFolders = ref([])
@@ -433,6 +490,7 @@ const submitting = ref(false)
 const commentSubmitting = ref(false)
 const composerOpen = ref(false)
 const error = ref(null)
+const notice = ref('')
 const tagText = ref('')
 const imageText = ref('')
 const folderName = ref('')
@@ -467,8 +525,18 @@ const filters = ref({
   forumId: null,
   keyword: '',
   tag: '',
+  tags: '',
+  tagOp: 'and',
+  from: '',
+  to: '',
+  minHeat: null,
+  maxHeat: null,
   sort: 'latest',
+  page: 1,
+  pageSize: 20,
 })
+const totalPosts = ref(0)
+const hasNextPage = ref(false)
 
 const postForm = ref({
   forumID: '',
@@ -489,17 +557,32 @@ const loadForums = async () => {
   }
 }
 
-const loadPosts = async () => {
+const loadPosts = async (page = filters.value.page) => {
   try {
     loading.value = true
+    error.value = null
+    filters.value.page = Math.max(1, Number(page) || 1)
     const res = await getPosts({
       forumId: filters.value.forumId || undefined,
-      keyword: filters.value.keyword || undefined,
-      tag: filters.value.tag || undefined,
+      keyword: filters.value.keyword.trim() || undefined,
+      tag: filters.value.tag.trim() || undefined,
+      tags: filters.value.tags.trim() || undefined,
+      tagOp: filters.value.tagOp,
+      from: filters.value.from || undefined,
+      to: filters.value.to || undefined,
+      minHeat: Number.isFinite(filters.value.minHeat) ? filters.value.minHeat : undefined,
+      maxHeat: Number.isFinite(filters.value.maxHeat) ? filters.value.maxHeat : undefined,
       sort: filters.value.sort,
+      page: filters.value.page,
+      pageSize: filters.value.pageSize,
     })
-    posts.value = res.data
+    posts.value = Array.isArray(res.data) ? res.data : []
+    totalPosts.value = Number(res.headers?.['x-total-count'] ?? posts.value.length)
+    hasNextPage.value = filters.value.page * filters.value.pageSize < totalPosts.value
   } catch (e) {
+    posts.value = []
+    totalPosts.value = 0
+    hasNextPage.value = false
     error.value = '无法加载帖子数据: ' + (e.response?.data?.message || e.message)
   } finally {
     loading.value = false
@@ -550,11 +633,55 @@ const loadFavoritePosts = async () => {
 
 const selectForum = async (forumId) => {
   filters.value.forumId = forumId
+  filters.value.page = 1
+  await loadPosts()
+}
+
+const loadTagStats = async () => {
+  try {
+    const res = await getTagStats()
+    tagStats.value = res.data
+  } catch (e) {
+    // 静默跳过
+  }
+}
+
+const selectTag = async (tagName) => {
+  if (filters.value.tag === tagName) {
+    filters.value.tag = ''
+  } else {
+    filters.value.tag = tagName
+  }
+  filters.value.page = 1
+  await loadPosts()
+}
+
+const applyFilters = async () => {
+  filters.value.page = 1
+  await loadPosts()
+}
+
+const resetFilters = async () => {
+  filters.value = {
+    forumId: filters.value.forumId,
+    keyword: '',
+    tag: '',
+    tags: '',
+    tagOp: 'and',
+    from: '',
+    to: '',
+    minHeat: null,
+    maxHeat: null,
+    sort: 'latest',
+    page: 1,
+    pageSize: 20,
+  }
   await loadPosts()
 }
 
 const openComposer = () => {
   error.value = null
+  notice.value = ''
   composerOpen.value = true
 }
 
@@ -569,11 +696,14 @@ const handleCreatePost = async () => {
     error.value = null
     const tagNames = tagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
     const imageUrls = imageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
-    await createPost({
+    const res = await createPost({
       ...postForm.value,
       tagNames,
       imageUrls,
     })
+    notice.value = res.data?.status === 'PendingReview'
+      ? '帖子已提交审核：内容命中敏感词，暂不会公开展示；可在“我的帖子”查看审核状态。'
+      : '帖子发布成功。'
     postForm.value.title = ''
     postForm.value.content = ''
     tagText.value = ''
@@ -803,10 +933,13 @@ const handleCreateComment = async (parentCommentId) => {
   try {
     commentSubmitting.value = true
     error.value = null
-    await createComment(selectedPost.value.postID, {
+    const res = await createComment(selectedPost.value.postID, {
       content: content.trim(),
       parentCommentID: parentCommentId,
     })
+    notice.value = res.data?.status === 'PendingReview'
+      ? '评论已提交审核：内容命中敏感词，暂不会公开展示。'
+      : '评论发布成功。'
     commentText.value = ''
     cancelReply()
     await loadComments()
@@ -932,7 +1065,7 @@ watch(activeTab, async (tab) => {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadForums(), loadPosts(), loadFavoriteFolders()])
+    await Promise.all([loadForums(), loadPosts(), loadFavoriteFolders(), loadTagStats()])
   } catch (e) {
     error.value = '无法加载论坛数据: ' + (e.response?.data?.message || e.message)
     loading.value = false
@@ -1655,5 +1788,60 @@ onMounted(async () => {
   .modal-header {
     align-items: flex-start;
   }
+}
+</style>
+
+
+<style scoped>
+.advanced-search {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.advanced-search summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.advanced-search-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.advanced-search-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.advanced-search-actions, .pagination-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.pagination-row {
+  justify-content: center;
+  padding: 1rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .advanced-search-grid { grid-template-columns: 1fr; }
+}
+.success-message {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
 }
 </style>
