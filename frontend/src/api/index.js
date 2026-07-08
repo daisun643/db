@@ -34,6 +34,13 @@ export const createUser = (data) => api.post('/users', data)
 export const getProfile = () => api.get('/user/profile')
 export const getCreditAdjustments = () => api.get('/user/credit-adjustments')
 export const updateProfile = (data) => api.put('/user/profile', data)
+export const uploadAvatar = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/user/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const changePassword = (data) => api.post('/user/password', data)
 export const getRoles = () => api.get('/rbac/roles')
 export const createRole = (data) => api.post('/rbac/roles', data)

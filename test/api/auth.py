@@ -29,6 +29,11 @@ class AuthAPI(BaseAPIClient):
             "code": code,
         })
 
+    def upload_avatar(self, filename: str, content: bytes, content_type: str = "image/png") -> requests.Response:
+        return self.post("/api/user/avatar", files={
+            "file": (filename, content, content_type),
+        })
+
     def forgot_password(self, email: str) -> requests.Response:
         return self.post(f"{self.PREFIX}/forgot-password", json={"email": email})
 

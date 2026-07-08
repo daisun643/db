@@ -14,15 +14,30 @@ namespace Backend.Controllers;
 [Route("api/[controller]")]
 public class UserController : ControllerBase
 {
+    private const long MaxAvatarBytes = 2 * 1024 * 1024;
+    private static readonly Dictionary<string, string> AllowedAvatarTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/jpeg"] = ".jpg",
+        ["image/png"] = ".png",
+        ["image/gif"] = ".gif",
+        ["image/webp"] = ".webp"
+    };
+
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
     private readonly ILogger<UserController> _logger;
+    private readonly IWebHostEnvironment _environment;
 
-    public UserController(AppDbContext db, ICreditService creditService, ILogger<UserController> logger)
+    public UserController(
+        AppDbContext db,
+        ICreditService creditService,
+        ILogger<UserController> logger,
+        IWebHostEnvironment environment)
     {
         _db = db;
         _creditService = creditService;
         _logger = logger;
+        _environment = environment;
     }
 
     /// <summary>
@@ -230,7 +245,11 @@ public class UserController : ControllerBase
         if (request.Nickname != null)
             user.Nickname = NormalizeProfileField(request.Nickname, 50);
         if (request.AvatarUrl != null)
-            user.AvatarUrl = NormalizeProfileField(request.AvatarUrl, 500);
+        {
+            var avatarPath = NormalizeAvatarPath(request.AvatarUrl);
+            if (avatarPath != null || string.IsNullOrWhiteSpace(request.AvatarUrl))
+                user.AvatarUrl = avatarPath;
+        }
         if (request.Contact != null)
             user.Contact = NormalizeProfileField(request.Contact, 100);
         if (request.Bio != null)
@@ -251,6 +270,58 @@ public class UserController : ControllerBase
             totalCredit = user.TotalCredit,
             credit = user.Credit,
             status = user.Status
+        });
+    }
+
+    /// <summary>
+    /// 上传当前登录用户头像
+    /// </summary>
+    [Authorize]
+    [HttpPost("avatar")]
+    [RequestSizeLimit(MaxAvatarBytes)]
+    public async Task<ActionResult> UploadAvatar([FromForm] IFormFile? file)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "请选择头像文件" });
+
+        if (file.Length > MaxAvatarBytes)
+            return BadRequest(new { message = "头像文件不能超过2MB" });
+
+        if (!AllowedAvatarTypes.TryGetValue(file.ContentType, out var extension))
+            return BadRequest(new { message = "仅支持 JPG、PNG、GIF、WebP 图片" });
+
+        if (!HasValidImageSignature(file, extension))
+            return BadRequest(new { message = "头像文件格式不正确" });
+
+        var user = await _db.Users.FindAsync(currentUserId);
+        if (user == null)
+            return NotFound(new { message = "用户不存在" });
+
+        var webRootPath = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var avatarDirectory = Path.Combine(webRootPath, "uploads", "avatars");
+        Directory.CreateDirectory(avatarDirectory);
+
+        var fileName = $"{currentUserId}_{Guid.NewGuid():N}{extension}";
+        var filePath = Path.Combine(avatarDirectory, fileName);
+
+        await using (var stream = System.IO.File.Create(filePath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        DeleteOldLocalAvatar(webRootPath, user.AvatarUrl);
+
+        user.AvatarUrl = $"/uploads/avatars/{fileName}";
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "头像已上传",
+            avatarUrl = user.AvatarUrl
         });
     }
 
@@ -304,6 +375,56 @@ public class UserController : ControllerBase
         }
 
         return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static string? NormalizeAvatarPath(string? value)
+    {
+        var normalized = NormalizeProfileField(value, 500);
+        if (normalized == null) return null;
+
+        return normalized.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase)
+            ? normalized
+            : null;
+    }
+
+    private static bool HasValidImageSignature(IFormFile file, string extension)
+    {
+        Span<byte> header = stackalloc byte[12];
+        using var stream = file.OpenReadStream();
+        var bytesRead = stream.Read(header);
+
+        return extension switch
+        {
+            ".jpg" => bytesRead >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+            ".png" => bytesRead >= 8 &&
+                      header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47 &&
+                      header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A,
+            ".gif" => bytesRead >= 6 &&
+                      header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 &&
+                      header[3] == 0x38 && (header[4] == 0x37 || header[4] == 0x39) && header[5] == 0x61,
+            ".webp" => bytesRead >= 12 &&
+                       header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
+                       header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
+            _ => false
+        };
+    }
+
+    private static void DeleteOldLocalAvatar(string webRootPath, string? avatarUrl)
+    {
+        if (string.IsNullOrWhiteSpace(avatarUrl) ||
+            !avatarUrl.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var fileName = Path.GetFileName(avatarUrl);
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+
+        var oldPath = Path.Combine(webRootPath, "uploads", "avatars", fileName);
+        if (System.IO.File.Exists(oldPath))
+        {
+            System.IO.File.Delete(oldPath);
+        }
     }
 
     private static bool IsValidPassword(string? password)

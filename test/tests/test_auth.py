@@ -115,7 +115,6 @@ class TestStage2Profile:
         resp = client.put("/api/user/profile", json={
             "username": new_username,
             "nickname": "阶段二昵称",
-            "avatarUrl": "https://example.com/avatar.png",
             "contact": "wechat: stage2",
             "bio": "阶段二个人简介",
         })
@@ -124,7 +123,6 @@ class TestStage2Profile:
         data = resp.json()
         assert data["username"] == new_username
         assert data["nickname"] == "阶段二昵称"
-        assert data["avatarUrl"] == "https://example.com/avatar.png"
         assert data["contact"] == "wechat: stage2"
         assert data["bio"] == "阶段二个人简介"
 
@@ -144,6 +142,7 @@ class TestStage2Profile:
             "credit": 9999,
             "status": "Disabled",
             "passwordHash": "not-a-real-hash",
+            "avatarUrl": "https://example.com/avatar.png",
             "roles": ["Admin"],
             "permissions": ["dashboard.view"],
         })
@@ -156,10 +155,40 @@ class TestStage2Profile:
         assert after["email"] == before["email"]
         assert after["credit"] == before["credit"]
         assert after["status"] == before["status"]
+        assert after.get("avatarUrl") in (None, "", before.get("avatarUrl"))
         assert [role["roleName"] for role in after["roles"]] == [role["roleName"] for role in before["roles"]]
 
         client.logout()
         assert_success(client.login(created["email"], created["password"]))
+
+    def test_user_can_upload_local_avatar(self, client):
+        _register_unique_user(client, "avatar")
+        png = (
+            b"\x89PNG\r\n\x1a\n"
+            b"\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde"
+            b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
+            b"\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+
+        resp = client.upload_avatar("avatar.png", png, "image/png")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["avatarUrl"].startswith("/uploads/avatars/")
+        assert data["avatarUrl"].endswith(".png")
+
+        profile = client.get("/api/user/profile").json()
+        assert profile["avatarUrl"] == data["avatarUrl"]
+
+    def test_avatar_upload_rejects_non_image_file(self, client):
+        _register_unique_user(client, "avatar_bad")
+
+        resp = client.upload_avatar("avatar.txt", b"not image", "text/plain")
+
+        assert resp.status_code == 400
+        assert resp.json()["message"] == "仅支持 JPG、PNG、GIF、WebP 图片"
 
 
 class TestStage2ChangePassword:

@@ -71,8 +71,14 @@
             <input v-model="profileForm.nickname" type="text" maxlength="50" placeholder="展示给其他用户的名称" />
           </label>
           <label>
-            <span>头像链接</span>
-            <input v-model="profileForm.avatarUrl" type="url" maxlength="500" placeholder="https://..." />
+            <span>头像</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              :disabled="avatarUploading"
+              @change="handleAvatarUpload"
+            />
+            <small class="field-hint">支持 JPG、PNG、GIF、WebP，文件不超过 2MB</small>
           </label>
           <label>
             <span>联系方式</span>
@@ -140,13 +146,14 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { changePassword, getCreditAdjustments, getProfile, updateProfile } from '../api'
+import { changePassword, getCreditAdjustments, getProfile, updateProfile, uploadAvatar } from '../api'
 import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
 const profile = ref(null)
 const creditAdjustments = ref([])
 const loading = ref(true)
+const avatarUploading = ref(false)
 const error = ref('')
 const success = ref('')
 
@@ -201,13 +208,44 @@ const clearMessages = () => {
   success.value = ''
 }
 
+const handleAvatarUpload = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  try {
+    clearMessages()
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      error.value = '仅支持 JPG、PNG、GIF、WebP 图片'
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      error.value = '头像文件不能超过2MB'
+      return
+    }
+
+    avatarUploading.value = true
+    const res = await uploadAvatar(file)
+    profileForm.value.avatarUrl = res.data.avatarUrl
+    profile.value = { ...profile.value, avatarUrl: res.data.avatarUrl }
+    authStore.user = {
+      ...authStore.user,
+      avatarUrl: res.data.avatarUrl,
+    }
+    success.value = res.data.message || '头像已上传'
+  } catch (e) {
+    error.value = e.response?.data?.message || '头像上传失败'
+  } finally {
+    avatarUploading.value = false
+    event.target.value = ''
+  }
+}
+
 const handleUpdateProfile = async () => {
   try {
     clearMessages()
     const res = await updateProfile({
       username: profileForm.value.username,
       nickname: profileForm.value.nickname,
-      avatarUrl: profileForm.value.avatarUrl,
       contact: profileForm.value.contact,
       bio: profileForm.value.bio,
     })
@@ -216,7 +254,6 @@ const handleUpdateProfile = async () => {
       ...authStore.user,
       username: res.data.username,
       nickname: res.data.nickname,
-      avatarUrl: res.data.avatarUrl,
       contact: res.data.contact,
       bio: res.data.bio,
     }
@@ -335,6 +372,11 @@ onMounted(loadProfile)
 
 .settings-card textarea {
   resize: vertical;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 .info-item {
