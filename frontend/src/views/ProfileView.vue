@@ -2,9 +2,6 @@
   <div class="page-container">
     <h1 class="page-title">个人资料</h1>
 
-    <div v-if="error" class="error-message">{{ error }}</div>
-    <div v-if="success" class="success-message">{{ success }}</div>
-
     <div class="card">
       <div class="profile-header">
         <div class="profile-avatar">
@@ -57,6 +54,8 @@
             </span>
           </div>
         </div>
+        <div v-if="error" class="error-message profile-message">{{ error }}</div>
+        <div v-if="success" class="success-message profile-message">{{ success }}</div>
       </div>
 
       <div class="settings-grid">
@@ -145,7 +144,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { changePassword, getCreditAdjustments, getProfile, updateProfile, uploadAvatar } from '../api'
 import { useAuthStore } from '../stores/auth'
 
@@ -156,6 +155,9 @@ const loading = ref(true)
 const avatarUploading = ref(false)
 const error = ref('')
 const success = ref('')
+
+const MESSAGE_TIMEOUT_MS = 4000
+let messageTimer = null
 
 const profileForm = ref({
   username: '',
@@ -183,7 +185,7 @@ const loadProfile = async () => {
     profileForm.value.contact = res.data.contact || ''
     profileForm.value.bio = res.data.bio || ''
   } catch (e) {
-    error.value = '无法加载个人资料: ' + (e.response?.data?.message || e.message)
+    showError('无法加载个人资料: ' + (e.response?.data?.message || e.message))
   } finally {
     loading.value = false
   }
@@ -204,8 +206,37 @@ const validatePassword = (password) => {
 }
 
 const clearMessages = () => {
+  clearMessageTimer()
   error.value = ''
   success.value = ''
+}
+
+const clearMessageTimer = () => {
+  if (messageTimer) {
+    clearTimeout(messageTimer)
+    messageTimer = null
+  }
+}
+
+const scheduleClearMessages = () => {
+  clearMessageTimer()
+  messageTimer = setTimeout(() => {
+    error.value = ''
+    success.value = ''
+    messageTimer = null
+  }, MESSAGE_TIMEOUT_MS)
+}
+
+const showError = (message) => {
+  error.value = message
+  success.value = ''
+  scheduleClearMessages()
+}
+
+const showSuccess = (message) => {
+  success.value = message
+  error.value = ''
+  scheduleClearMessages()
 }
 
 const handleAvatarUpload = async (event) => {
@@ -215,11 +246,11 @@ const handleAvatarUpload = async (event) => {
   try {
     clearMessages()
     if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
-      error.value = '仅支持 JPG、PNG、GIF、WebP 图片'
+      showError('仅支持 JPG、PNG、GIF、WebP 图片')
       return
     }
     if (file.size > 2 * 1024 * 1024) {
-      error.value = '头像文件不能超过2MB'
+      showError('头像文件不能超过2MB')
       return
     }
 
@@ -231,9 +262,9 @@ const handleAvatarUpload = async (event) => {
       ...authStore.user,
       avatarUrl: res.data.avatarUrl,
     }
-    success.value = res.data.message || '头像已上传'
+    showSuccess(res.data.message || '头像已上传')
   } catch (e) {
-    error.value = e.response?.data?.message || '头像上传失败'
+    showError(e.response?.data?.message || '头像上传失败')
   } finally {
     avatarUploading.value = false
     event.target.value = ''
@@ -257,9 +288,9 @@ const handleUpdateProfile = async () => {
       contact: res.data.contact,
       bio: res.data.bio,
     }
-    success.value = '资料已更新'
+    showSuccess('资料已更新')
   } catch (e) {
-    error.value = e.response?.data?.message || '资料更新失败'
+    showError(e.response?.data?.message || '资料更新失败')
   }
 }
 
@@ -267,11 +298,11 @@ const handleChangePassword = async () => {
   try {
     clearMessages()
     if (!validatePassword(passwordForm.value.newPassword)) {
-      error.value = '新密码必须至少8位，包含大小写字母和数字'
+      showError('新密码必须至少8位，包含大小写字母和数字')
       return
     }
     if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-      error.value = '两次输入的新密码不一致'
+      showError('两次输入的新密码不一致')
       return
     }
 
@@ -280,12 +311,13 @@ const handleChangePassword = async () => {
       newPassword: passwordForm.value.newPassword,
     })
     passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
-    success.value = '密码已修改'
+    showSuccess('密码已修改')
   } catch (e) {
-    error.value = e.response?.data?.message || '密码修改失败'
+    showError(e.response?.data?.message || '密码修改失败')
   }
 }
 
+onBeforeUnmount(clearMessageTimer)
 onMounted(loadProfile)
 </script>
 
@@ -461,5 +493,10 @@ onMounted(loadProfile)
   padding: 1rem;
   border-radius: var(--radius);
   margin-bottom: 1rem;
+}
+
+.profile-message {
+  margin-bottom: 0;
+  margin-top: 1rem;
 }
 </style>
