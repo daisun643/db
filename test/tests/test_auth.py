@@ -596,3 +596,71 @@ class TestStage6Credit:
 
         assert zero_resp.status_code == 400
         assert blank_reason_resp.status_code == 400
+
+
+class TestStage7MemberOneCoverage:
+
+    def test_login_success_and_wrong_password_failure(self, client):
+        success_resp = client.login("1@tongji.edu.cn", "Password1")
+        success_data = assert_success(success_resp)
+        assert success_data["message"] == "登录成功"
+        assert success_data["user"]["email"] == "1@tongji.edu.cn"
+
+        assert_success(client.logout())
+
+        wrong_resp = client.login("1@tongji.edu.cn", "WrongPassword1")
+        assert wrong_resp.status_code == 400
+        assert wrong_resp.json()["message"] == "邮箱或密码错误"
+
+    def test_profile_payload_cannot_modify_another_user(self, client):
+        victim = _register_unique_user(client, "stage7_victim")
+        assert_success(client.logout())
+
+        attacker = _register_unique_user(client, "stage7_attacker")
+        attacker_new_username = f"stage7_attacker_{uuid.uuid4().hex[:8]}"
+
+        resp = client.put("/api/user/profile", json={
+            "userId": victim["user"]["userId"],
+            "username": attacker_new_username,
+            "nickname": "stage7 attacker nickname",
+        })
+
+        assert resp.status_code == 200
+        attacker_profile = client.get("/api/user/profile").json()
+        assert attacker_profile["userId"] == attacker["user"]["userId"]
+        assert attacker_profile["username"] == attacker_new_username
+
+        assert_success(client.logout())
+        assert_success(client.login(victim["email"], victim["password"]))
+        victim_profile = client.get("/api/user/profile").json()
+        assert victim_profile["userId"] == victim["user"]["userId"]
+        assert victim_profile["username"] == victim["username"]
+
+    def test_normal_user_cannot_access_admin_user_interfaces(self, user_client):
+        list_resp = user_client.get("/api/users")
+        create_resp = user_client.post("/api/users", json={
+            "username": f"stage7_admin_api_{uuid.uuid4().hex[:8]}",
+            "email": _unique_email("stage7_admin_api"),
+            "password": "Password123",
+            "roleIds": [],
+        })
+
+        assert list_resp.status_code == 403
+        assert create_resp.status_code == 403
+
+    def test_admin_can_create_role_and_assign_role_to_user(self, admin_client, client):
+        created = _register_unique_user(client, "stage7_assign")
+        role_name = f"stage7_role_{uuid.uuid4().hex[:8]}"
+
+        role_resp = admin_client.create_role(role_name, "阶段7角色分配测试")
+        assert role_resp.status_code == 201, role_resp.text
+        role_id = _role_id(role_resp.json())
+
+        assign_resp = admin_client.assign_roles_to_user(created["user"]["userId"], [role_id])
+        assert assign_resp.status_code == 200
+        assert assign_resp.json()["message"] == "角色分配成功"
+
+        roles_resp = admin_client.get_user_roles(created["user"]["userId"])
+        assert roles_resp.status_code == 200
+        assigned_role_ids = [_role_id(role) for role in roles_resp.json()]
+        assert role_id in assigned_role_ids

@@ -319,8 +319,9 @@ public class UserController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpPost("avatar")]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxAvatarBytes)]
-    public async Task<ActionResult> UploadAvatar([FromForm] IFormFile? file)
+    public async Task<ActionResult> UploadAvatar(IFormFile? file)
     {
         var currentUserId = GetCurrentUserId();
         if (currentUserId == 0)
