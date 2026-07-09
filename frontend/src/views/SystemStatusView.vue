@@ -160,9 +160,14 @@
               <td>
                 <div class="credit-cell">
                   <strong>{{ user.credit }}</strong>
-                  <button class="btn credit-adjust-button" type="button" @click="openCreditDialog(user)">
-                    调整
-                  </button>
+                  <div class="credit-actions">
+                    <button class="btn credit-mini-button" type="button" @click="openCreditDialog(user)">
+                      调整
+                    </button>
+                    <button class="btn credit-mini-button" type="button" @click="openCreditHistoryDialog(user)">
+                      记录
+                    </button>
+                  </div>
                 </div>
               </td>
               <td>Lv.{{ user.userLevel || 1 }} / {{ user.totalCredit || 0 }}</td>
@@ -363,6 +368,42 @@
         </div>
       </form>
     </div>
+
+    <div v-if="selectedCreditHistoryUser" class="modal-backdrop" @click.self="closeCreditHistoryDialog">
+      <section class="credit-dialog credit-history-dialog">
+        <div class="modal-header">
+          <div>
+            <h3>信用分调整记录</h3>
+            <p>{{ selectedCreditHistoryUser.username }} · 当前信用分 {{ selectedCreditHistoryUser.credit }}</p>
+          </div>
+          <button class="modal-close" type="button" aria-label="关闭" @click="closeCreditHistoryDialog">×</button>
+        </div>
+
+        <div v-if="loadingCreditHistory" class="loading">加载中...</div>
+        <div v-else-if="creditHistoryRecords.length === 0" class="muted">暂无信用分调整记录</div>
+        <div v-else class="credit-history-list">
+          <article
+            v-for="record in creditHistoryRecords"
+            :key="record.creditAdjustmentId"
+            class="credit-history-item"
+          >
+            <div>
+              <strong>{{ record.description || '信用分调整' }}</strong>
+              <small>
+                {{ formatDate(record.adjustTime) }}
+                <template v-if="record.operatorName"> · 操作人：{{ record.operatorName }}</template>
+              </small>
+              <small v-if="record.beforeCredit != null && record.afterCredit != null">
+                {{ record.beforeCredit }} -> {{ record.afterCredit }}
+              </small>
+            </div>
+            <b :class="record.changePoints >= 0 ? 'credit-up' : 'credit-down'">
+              {{ record.changePoints >= 0 ? '+' : '' }}{{ record.changePoints }}
+            </b>
+          </article>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -391,6 +432,7 @@ import {
   getDisputes,
   getRoles,
   getUserRoles,
+  getUserCreditAdjustments,
   getUsers,
   rejectPostAudit,
   removeForumManager,
@@ -413,6 +455,9 @@ const disputeDrafts = ref({})
 const forumManagerDrafts = ref({})
 const creditDrafts = ref({})
 const selectedCreditUser = ref(null)
+const selectedCreditHistoryUser = ref(null)
+const creditHistoryRecords = ref([])
+const loadingCreditHistory = ref(false)
 const postStatusFilter = ref('')
 const selectedRoleId = ref(null)
 const selectedPermissionIds = ref([])
@@ -772,6 +817,29 @@ const closeCreditDialog = () => {
   selectedCreditUser.value = null
 }
 
+const openCreditHistoryDialog = async (user) => {
+  selectedCreditHistoryUser.value = user
+  creditHistoryRecords.value = []
+  loadingCreditHistory.value = true
+
+  try {
+    clearMessage('users')
+    const res = await getUserCreditAdjustments(user.userID)
+    creditHistoryRecords.value = res.data
+  } catch (e) {
+    showMessage('users', 'error', e.response?.data?.message || '信用分记录加载失败')
+    closeCreditHistoryDialog()
+  } finally {
+    loadingCreditHistory.value = false
+  }
+}
+
+const closeCreditHistoryDialog = () => {
+  selectedCreditHistoryUser.value = null
+  creditHistoryRecords.value = []
+  loadingCreditHistory.value = false
+}
+
 const handleAdjustCredit = async (userId) => {
   const draft = creditDrafts.value[userId]
   if (!draft) return
@@ -959,8 +1027,21 @@ textarea {
   font-size: 1.05rem;
 }
 
-.credit-adjust-button {
+.credit-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.credit-mini-button {
   padding: 0.35rem 0.65rem;
+}
+
+.credit-up {
+  color: #15803d;
+}
+
+.credit-down {
+  color: #dc2626;
 }
 
 .role-cell {
@@ -1270,6 +1351,40 @@ textarea {
 .credit-dialog textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+.credit-history-dialog {
+  max-height: min(720px, 90vh);
+  max-width: 560px;
+}
+
+.credit-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.credit-history-item {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+}
+
+.credit-history-item small {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.credit-history-item b {
+  white-space: nowrap;
 }
 
 .dialog-actions {
