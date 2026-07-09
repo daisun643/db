@@ -33,6 +33,8 @@ export const getUser = (id) => api.get(`/users/${id}`)
 export const createUser = (data) => api.post('/users', data)
 export const getProfile = () => api.get('/user/profile')
 export const getCreditAdjustments = () => api.get('/user/credit-adjustments')
+export const getUserCreditAdjustments = (userId) => api.get(`/user/${userId}/credit-adjustments`)
+export const adjustCredit = (data) => api.post('/user/credit/add', data)
 export const updateProfile = (data) => api.put('/user/profile', data)
 export const uploadAvatar = (file) => {
   const formData = new FormData()

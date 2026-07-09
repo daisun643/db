@@ -116,6 +116,10 @@
             <div>
               <strong>{{ item.description || '信用变更' }}</strong>
               <span>{{ formatDate(item.adjustTime) }}</span>
+              <small v-if="item.beforeCredit !== null && item.afterCredit !== null">
+                {{ item.beforeCredit }} -> {{ item.afterCredit }}
+                <template v-if="item.operatorName"> · 操作人：{{ item.operatorName }}</template>
+              </small>
             </div>
             <b :class="item.changePoints >= 0 ? 'credit-up' : 'credit-down'">
               {{ item.changePoints >= 0 ? '+' : '' }}{{ item.changePoints }}
@@ -477,6 +481,13 @@ onMounted(loadProfile)
 .credit-item span {
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.credit-item small {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 0.2rem;
 }
 
 .credit-up {

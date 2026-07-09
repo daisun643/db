@@ -34,6 +34,22 @@ class AuthAPI(BaseAPIClient):
             "file": (filename, content, content_type),
         })
 
+    def get_user_credit(self, user_id: int) -> requests.Response:
+        return self.get(f"/api/user/{user_id}/credit")
+
+    def get_credit_adjustments(self) -> requests.Response:
+        return self.get("/api/user/credit-adjustments")
+
+    def get_user_credit_adjustments(self, user_id: int) -> requests.Response:
+        return self.get(f"/api/user/{user_id}/credit-adjustments")
+
+    def adjust_credit(self, user_id: int, credit: int, reason: str) -> requests.Response:
+        return self.post("/api/user/credit/add", json={
+            "userId": user_id,
+            "credit": credit,
+            "reason": reason,
+        })
+
     def forgot_password(self, email: str, debug_expires_in_minutes: int | None = None) -> requests.Response:
         payload = {"email": email}
         if debug_expires_in_minutes is not None:

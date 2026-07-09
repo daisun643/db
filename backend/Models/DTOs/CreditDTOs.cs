@@ -6,6 +6,7 @@ public class AddCreditRequest
 {
     public int UserId { get; set; }
     public int Credit { get; set; }
+    public int? OperatorId { get; set; }
     public string Reason { get; set; } = string.Empty;
 }
 
@@ -34,6 +35,10 @@ public class CreditAdjustmentResponse
     public int? UserId { get; set; }
     public string Description { get; set; } = string.Empty;
     public int ChangePoints { get; set; }
+    public int? BeforeCredit { get; set; }
+    public int? AfterCredit { get; set; }
+    public int? OperatorId { get; set; }
+    public string? OperatorName { get; set; }
     public DateTime? AdjustTime { get; set; }
 }
 

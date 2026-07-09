@@ -349,7 +349,18 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.ChangePoints).HasColumnName("changePoints");
+            e.Property(x => x.BeforeCredit).HasColumnName("beforeCredit");
+            e.Property(x => x.AfterCredit).HasColumnName("afterCredit");
+            e.Property(x => x.OperatorID).HasColumnName("operatorId");
             e.Property(x => x.AdjustTime).HasColumnName("adjustTime");
+            e.HasOne(x => x.User)
+                .WithMany(u => u.CreditAdjustments)
+                .HasForeignKey(x => x.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Operator)
+                .WithMany()
+                .HasForeignKey(x => x.OperatorID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Notification>(e =>

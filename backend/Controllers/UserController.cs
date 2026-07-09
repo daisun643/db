@@ -82,9 +82,17 @@ public class UserController : ControllerBase
     /// <summary>
     /// 获取用户积分详情
     /// </summary>
+    [Authorize]
     [HttpGet("{userId}/credit")]
     public async Task<ActionResult<UserCreditResponse>> GetUserCredit(int userId)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        if (currentUserId != userId && !CanManageCredit())
+            return Forbid();
+
         var user = await _db.Users
             .Where(u => u.UserID == userId)
             .Select(u => new UserCreditResponse
@@ -113,20 +121,32 @@ public class UserController : ControllerBase
             return Unauthorized(new { message = "无法获取用户信息" });
 
         var adjustments = await _db.CreditAdjustments
+            .Include(a => a.Operator)
             .Where(a => a.UserID == currentUserId)
             .OrderByDescending(a => a.AdjustTime)
             .Take(50)
-            .Select(a => new CreditAdjustmentResponse
-            {
-                CreditAdjustmentId = a.CreditAdjustmentID,
-                UserId = a.UserID,
-                Description = a.Description ?? "",
-                ChangePoints = a.ChangePoints ?? 0,
-                AdjustTime = a.AdjustTime
-            })
             .ToListAsync();
 
-        return Ok(adjustments);
+        return Ok(adjustments.Select(MapCreditAdjustment).ToList());
+    }
+
+    [Authorize]
+    [RequirePermission("users.view", "dashboard.view")]
+    [HttpGet("{userId}/credit-adjustments")]
+    public async Task<ActionResult<List<CreditAdjustmentResponse>>> GetUserCreditAdjustments(int userId)
+    {
+        var userExists = await _db.Users.CountAsync(u => u.UserID == userId) > 0;
+        if (!userExists)
+            return NotFound(new { message = "用户不存在" });
+
+        var adjustments = await _db.CreditAdjustments
+            .Include(a => a.Operator)
+            .Where(a => a.UserID == userId)
+            .OrderByDescending(a => a.AdjustTime)
+            .Take(50)
+            .ToListAsync();
+
+        return Ok(adjustments.Select(MapCreditAdjustment).ToList());
     }
 
     /// <summary>
@@ -137,16 +157,37 @@ public class UserController : ControllerBase
     [HttpPost("credit/add")]
     public async Task<ActionResult> AddCredit([FromBody] AddCreditRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
+        if (request.Credit == 0)
+            return BadRequest(new { message = "调整分值不能为 0" });
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(new { message = "调整原因不能为空" });
+
         var user = await _db.Users.FindAsync(request.UserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
-        await _creditService.AddCreditAsync(request.UserId, request.Credit, request.Reason);
+        var operatorId = GetCurrentUserId();
+        var adjustment = await _creditService.AdjustCreditAsync(
+            request.UserId,
+            request.Credit,
+            request.Reason,
+            operatorId == 0 ? null : operatorId);
 
-        _logger.LogInformation("用户 {UserId} 添加积分: {Credit}，原因: {Reason}", 
-            request.UserId, request.Credit, request.Reason);
+        if (adjustment == null)
+            return NotFound(new { message = "用户不存在" });
 
-        return Ok(new { message = "积分添加成功" });
+        await _db.Entry(adjustment).Reference(a => a.Operator).LoadAsync();
+
+        return Ok(new
+        {
+            message = "信用分调整成功",
+            adjustment = MapCreditAdjustment(adjustment)
+        });
+
     }
 
     /// <summary>
@@ -362,6 +403,38 @@ public class UserController : ControllerBase
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(userId, out var id) ? id : 0;
+    }
+
+    private bool CanManageCredit()
+    {
+        if (User.IsInRole("Admin"))
+            return true;
+
+        var permissions = User.Claims
+            .Where(c => c.Type == "Permission")
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return permissions.Contains("users.view") ||
+               permissions.Contains("users.edit") ||
+               permissions.Contains("users.ban") ||
+               permissions.Contains("dashboard.view");
+    }
+
+    private static CreditAdjustmentResponse MapCreditAdjustment(CreditAdjustment adjustment)
+    {
+        return new CreditAdjustmentResponse
+        {
+            CreditAdjustmentId = adjustment.CreditAdjustmentID,
+            UserId = adjustment.UserID,
+            Description = adjustment.Description ?? "",
+            ChangePoints = adjustment.ChangePoints ?? 0,
+            BeforeCredit = adjustment.BeforeCredit,
+            AfterCredit = adjustment.AfterCredit,
+            OperatorId = adjustment.OperatorID,
+            OperatorName = adjustment.Operator?.Username ?? adjustment.Operator?.Email,
+            AdjustTime = adjustment.AdjustTime
+        };
     }
 
     private static string? NormalizeProfileField(string? value, int maxLength)

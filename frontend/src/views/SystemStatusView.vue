@@ -147,6 +147,7 @@
               <th>用户名</th>
               <th>邮箱</th>
               <th>信用分</th>
+              <th>等级积分</th>
               <th>状态</th>
               <th>角色</th>
               <th>操作</th>
@@ -158,6 +159,7 @@
               <td>{{ user.username }}</td>
               <td>{{ user.email }}</td>
               <td>{{ user.credit }}</td>
+              <td>Lv.{{ user.userLevel || 1 }} / {{ user.totalCredit || 0 }}</td>
               <td>
                 <span :class="['badge', user.status === 'Active' ? 'badge-green' : 'badge-yellow']">
                   {{ user.status || '未知' }}
@@ -176,11 +178,31 @@
                 </div>
               </td>
               <td>
-                <button class="btn" @click="saveUserRoles(user.userID)">保存</button>
+                <div class="user-actions">
+                  <button class="btn" @click="saveUserRoles(user.userID)">保存角色</button>
+                  <form class="credit-adjust-form" @submit.prevent="handleAdjustCredit(user.userID)">
+                    <input
+                      v-model.number="creditDrafts[user.userID].credit"
+                      type="number"
+                      min="-1000"
+                      max="1000"
+                      placeholder="分值"
+                      required
+                    />
+                    <input
+                      v-model="creditDrafts[user.userID].reason"
+                      type="text"
+                      maxlength="500"
+                      placeholder="调整原因"
+                      required
+                    />
+                    <button class="btn" type="submit">调分</button>
+                  </form>
+                </div>
               </td>
             </tr>
             <tr v-if="users.length === 0">
-              <td colspan="7" class="empty-cell">暂无数据</td>
+              <td colspan="8" class="empty-cell">暂无数据</td>
             </tr>
           </tbody>
         </table>
@@ -320,6 +342,7 @@
 <script setup>
 import { ref, onMounted, h } from 'vue'
 import {
+  adjustCredit,
   approvePostAudit,
   assignPermissionsToRole,
   assignForumManager,
@@ -361,6 +384,7 @@ const managedPosts = ref([])
 const disputes = ref([])
 const disputeDrafts = ref({})
 const forumManagerDrafts = ref({})
+const creditDrafts = ref({})
 const postStatusFilter = ref('')
 const selectedRoleId = ref(null)
 const selectedPermissionIds = ref([])
@@ -475,8 +499,22 @@ const loadStats = async () => {
     products: products.status === 'fulfilled' ? products.value.data.length : 0,
   }
   health.value = healthRes.status === 'fulfilled' ? healthRes.value.data : { status: 'unhealthy' }
-  if (usersRes.status === 'fulfilled') users.value = usersRes.value.data
+  if (usersRes.status === 'fulfilled') {
+    users.value = usersRes.value.data
+    syncCreditDrafts()
+  }
   if (forumsRes.status === 'fulfilled') forums.value = forumsRes.value.data
+}
+
+const syncCreditDrafts = () => {
+  const next = {}
+  for (const user of users.value) {
+    next[user.userID] = creditDrafts.value[user.userID] || {
+      credit: 0,
+      reason: '',
+    }
+  }
+  creditDrafts.value = next
 }
 
 const loadRbac = async () => {
@@ -694,6 +732,28 @@ const saveUserRoles = async (userId) => {
   }
 }
 
+const handleAdjustCredit = async (userId) => {
+  const draft = creditDrafts.value[userId]
+  if (!draft) return
+
+  try {
+    clearMessage('users')
+    await adjustCredit({
+      userId,
+      credit: Number(draft.credit),
+      reason: draft.reason,
+    })
+    creditDrafts.value = {
+      ...creditDrafts.value,
+      [userId]: { credit: 0, reason: '' },
+    }
+    await loadStats()
+    showMessage('users', 'success', '信用分已调整')
+  } catch (e) {
+    showMessage('users', 'error', e.response?.data?.message || '信用分调整失败')
+  }
+}
+
 const handleReviewReport = async (report, action) => {
   try {
     clearMessage('reports')
@@ -843,6 +903,31 @@ select {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.user-actions,
+.credit-adjust-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.user-actions {
+  align-items: flex-start;
+  flex-direction: column;
+  min-width: 280px;
+}
+
+.credit-adjust-form {
+  flex-wrap: wrap;
+}
+
+.credit-adjust-form input[type='number'] {
+  width: 88px;
+}
+
+.credit-adjust-form input[type='text'] {
+  min-width: 150px;
+  flex: 1;
 }
 
 .role-list {

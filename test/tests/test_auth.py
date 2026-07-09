@@ -512,3 +512,87 @@ class TestStage5BackendEntryAccess:
         assert resp.status_code == 200
         assert resp.json()["path"] == "/unknown-admin"
         assert resp.json()["hasAccess"] is False
+
+
+class TestStage6Credit:
+
+    def test_profile_exposes_credit_level_and_total_credit(self, user_client):
+        resp = user_client.get("/api/user/profile")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data["credit"], int)
+        assert isinstance(data["userLevel"], int)
+        assert isinstance(data["totalCredit"], int)
+
+    def test_admin_can_view_user_credit(self, admin_client):
+        resp = admin_client.get_user_credit(4)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["userId"] == 4
+        assert isinstance(data["credit"], int)
+        assert isinstance(data["userLevel"], int)
+        assert isinstance(data["totalCredit"], int)
+
+    def test_normal_user_cannot_adjust_credit(self, user_client):
+        resp = user_client.adjust_credit(4, 10, "stage6 forbidden")
+
+        assert resp.status_code == 403
+
+    def test_admin_adjust_credit_records_full_audit_fields(self, admin_client, client):
+        created = _register_unique_user(client, "stage6_credit")
+        user_id = created["user"]["userId"]
+        before = admin_client.get_user_credit(user_id).json()["credit"]
+
+        resp = admin_client.adjust_credit(user_id, 15, "stage6 audit")
+
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["message"] == "信用分调整成功"
+
+        adjustment = data["adjustment"]
+        assert adjustment["userId"] == user_id
+        assert adjustment["description"] == "stage6 audit"
+        assert adjustment["beforeCredit"] == before
+        assert adjustment["afterCredit"] == before + 15
+        assert adjustment["changePoints"] == 15
+        assert adjustment["operatorId"] == 1
+        assert adjustment["operatorName"]
+        assert adjustment["adjustTime"]
+
+        current_user_records = client.get_credit_adjustments()
+        assert current_user_records.status_code == 200
+        assert any(item["creditAdjustmentId"] == adjustment["creditAdjustmentId"] for item in current_user_records.json())
+
+        admin_records = admin_client.get_user_credit_adjustments(user_id)
+        assert admin_records.status_code == 200
+        assert any(item["creditAdjustmentId"] == adjustment["creditAdjustmentId"] for item in admin_records.json())
+
+    def test_credit_adjustment_is_clamped_to_bounds(self, admin_client, client):
+        created = _register_unique_user(client, "stage6_clamp")
+        user_id = created["user"]["userId"]
+        before = admin_client.get_user_credit(user_id).json()["credit"]
+
+        down_resp = admin_client.adjust_credit(user_id, -5000, "stage6 clamp down")
+
+        assert down_resp.status_code == 200, down_resp.text
+        down_adjustment = down_resp.json()["adjustment"]
+        assert down_adjustment["beforeCredit"] == before
+        assert down_adjustment["afterCredit"] == 0
+        assert down_adjustment["changePoints"] == -before
+
+        up_resp = admin_client.adjust_credit(user_id, 5000, "stage6 clamp up")
+
+        assert up_resp.status_code == 200, up_resp.text
+        up_adjustment = up_resp.json()["adjustment"]
+        assert up_adjustment["beforeCredit"] == 0
+        assert up_adjustment["afterCredit"] == 1000
+        assert up_adjustment["changePoints"] == 1000
+
+    def test_adjust_credit_requires_reason_and_nonzero_change(self, admin_client):
+        zero_resp = admin_client.adjust_credit(4, 0, "stage6 zero")
+        blank_reason_resp = admin_client.adjust_credit(4, 10, "   ")
+
+        assert zero_resp.status_code == 400
+        assert blank_reason_resp.status_code == 400

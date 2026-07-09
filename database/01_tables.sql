@@ -120,9 +120,13 @@ CREATE TABLE "CreditAdjustment" (
     "userId"             NUMBER,
     "description"        VARCHAR2(500),
     "changePoints"       NUMBER,
+    "beforeCredit"       NUMBER,
+    "afterCredit"        NUMBER,
+    "operatorId"         NUMBER,
     "adjustTime"         TIMESTAMP,
     CONSTRAINT "PK_CreditAdjustment" PRIMARY KEY ("creditAdjustmentId"),
-    CONSTRAINT "FK_CreditAdj_User" FOREIGN KEY ("userId") REFERENCES "User"("userId")
+    CONSTRAINT "FK_CreditAdj_User" FOREIGN KEY ("userId") REFERENCES "User"("userId"),
+    CONSTRAINT "FK_CreditAdj_Operator" FOREIGN KEY ("operatorId") REFERENCES "User"("userId")
 );
 
 CREATE TABLE "FavoriteFolder" (

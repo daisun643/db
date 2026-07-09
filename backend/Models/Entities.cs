@@ -462,6 +462,11 @@ public class CreditAdjustment
     [MaxLength(500)]
     public string? Description { get; set; }
     public int? ChangePoints { get; set; }
+    public int? BeforeCredit { get; set; }
+    public int? AfterCredit { get; set; }
+    public int? OperatorID { get; set; }
+    [ForeignKey("OperatorID")]
+    public User? Operator { get; set; }
     public DateTime? AdjustTime { get; set; }
 }
 
