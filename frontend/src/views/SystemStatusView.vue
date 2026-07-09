@@ -150,7 +150,6 @@
               <th>等级积分</th>
               <th>状态</th>
               <th>角色</th>
-              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -158,7 +157,14 @@
               <td>{{ user.userID }}</td>
               <td>{{ user.username }}</td>
               <td>{{ user.email }}</td>
-              <td>{{ user.credit }}</td>
+              <td>
+                <div class="credit-cell">
+                  <strong>{{ user.credit }}</strong>
+                  <button class="btn credit-adjust-button" type="button" @click="openCreditDialog(user)">
+                    调整
+                  </button>
+                </div>
+              </td>
               <td>Lv.{{ user.userLevel || 1 }} / {{ user.totalCredit || 0 }}</td>
               <td>
                 <span :class="['badge', user.status === 'Active' ? 'badge-green' : 'badge-yellow']">
@@ -166,43 +172,25 @@
                 </span>
               </td>
               <td>
-                <div class="role-checks">
-                  <label v-for="role in roles" :key="roleId(role)" class="mini-check">
-                    <input
-                      :checked="userRoleIds[user.userID]?.includes(roleId(role))"
-                      type="checkbox"
-                      @change="toggleUserRole(user.userID, roleId(role), $event.target.checked)"
-                    />
-                    <span>{{ role.roleName }}</span>
-                  </label>
-                </div>
-              </td>
-              <td>
-                <div class="user-actions">
-                  <button class="btn" @click="saveUserRoles(user.userID)">保存角色</button>
-                  <form class="credit-adjust-form" @submit.prevent="handleAdjustCredit(user.userID)">
-                    <input
-                      v-model.number="creditDrafts[user.userID].credit"
-                      type="number"
-                      min="-1000"
-                      max="1000"
-                      placeholder="分值"
-                      required
-                    />
-                    <input
-                      v-model="creditDrafts[user.userID].reason"
-                      type="text"
-                      maxlength="500"
-                      placeholder="调整原因"
-                      required
-                    />
-                    <button class="btn" type="submit">调分</button>
-                  </form>
+                <div class="role-cell">
+                  <div class="role-checks">
+                    <label v-for="role in roles" :key="roleId(role)" class="mini-check">
+                      <input
+                        :checked="userRoleIds[user.userID]?.includes(roleId(role))"
+                        type="checkbox"
+                        @change="toggleUserRole(user.userID, roleId(role), $event.target.checked)"
+                      />
+                      <span>{{ role.roleName }}</span>
+                    </label>
+                  </div>
+                  <button class="btn role-save-button" type="button" @click="saveUserRoles(user.userID)">
+                    保存角色
+                  </button>
                 </div>
               </td>
             </tr>
             <tr v-if="users.length === 0">
-              <td colspan="8" class="empty-cell">暂无数据</td>
+              <td colspan="7" class="empty-cell">暂无数据</td>
             </tr>
           </tbody>
         </table>
@@ -336,6 +324,45 @@
         </article>
       </div>
     </div>
+
+    <div v-if="selectedCreditUser" class="modal-backdrop" @click.self="closeCreditDialog">
+      <form class="credit-dialog" @submit.prevent="handleAdjustCredit(selectedCreditUser.userID)">
+        <div class="modal-header">
+          <div>
+            <h3>调整信用分</h3>
+            <p>{{ selectedCreditUser.username }} · 当前信用分 {{ selectedCreditUser.credit }}</p>
+          </div>
+          <button class="modal-close" type="button" aria-label="关闭" @click="closeCreditDialog">×</button>
+        </div>
+
+        <label>
+          调整分值
+          <input
+            v-model.number="creditDrafts[selectedCreditUser.userID].credit"
+            type="number"
+            min="-1000"
+            max="1000"
+            placeholder="正数加分，负数扣分"
+            required
+          />
+        </label>
+
+        <label>
+          调整原因
+          <textarea
+            v-model="creditDrafts[selectedCreditUser.userID].reason"
+            maxlength="500"
+            placeholder="请填写本次调整原因"
+            required
+          />
+        </label>
+
+        <div class="dialog-actions">
+          <button class="btn" type="button" @click="closeCreditDialog">取消</button>
+          <button class="btn btn-primary" type="submit">确认调整</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -385,6 +412,7 @@ const disputes = ref([])
 const disputeDrafts = ref({})
 const forumManagerDrafts = ref({})
 const creditDrafts = ref({})
+const selectedCreditUser = ref(null)
 const postStatusFilter = ref('')
 const selectedRoleId = ref(null)
 const selectedPermissionIds = ref([])
@@ -732,6 +760,18 @@ const saveUserRoles = async (userId) => {
   }
 }
 
+const openCreditDialog = (user) => {
+  selectedCreditUser.value = user
+  creditDrafts.value = {
+    ...creditDrafts.value,
+    [user.userID]: creditDrafts.value[user.userID] || { credit: 0, reason: '' },
+  }
+}
+
+const closeCreditDialog = () => {
+  selectedCreditUser.value = null
+}
+
 const handleAdjustCredit = async (userId) => {
   const draft = creditDrafts.value[userId]
   if (!draft) return
@@ -748,6 +788,7 @@ const handleAdjustCredit = async (userId) => {
       [userId]: { credit: 0, reason: '' },
     }
     await loadStats()
+    closeCreditDialog()
     showMessage('users', 'success', '信用分已调整')
   } catch (e) {
     showMessage('users', 'error', e.response?.data?.message || '信用分调整失败')
@@ -881,7 +922,8 @@ onMounted(async () => {
 }
 
 input,
-select {
+select,
+textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font: inherit;
@@ -905,29 +947,32 @@ select {
   gap: 0.5rem;
 }
 
-.user-actions,
-.credit-adjust-form {
+.credit-cell {
+  align-items: flex-start;
   display: flex;
   gap: 0.5rem;
-}
-
-.user-actions {
-  align-items: flex-start;
   flex-direction: column;
-  min-width: 280px;
+  min-width: 90px;
 }
 
-.credit-adjust-form {
-  flex-wrap: wrap;
+.credit-cell strong {
+  font-size: 1.05rem;
 }
 
-.credit-adjust-form input[type='number'] {
-  width: 88px;
+.credit-adjust-button {
+  padding: 0.35rem 0.65rem;
 }
 
-.credit-adjust-form input[type='text'] {
+.role-cell {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   min-width: 150px;
-  flex: 1;
+}
+
+.role-save-button {
+  align-self: flex-start;
 }
 
 .role-list {
@@ -1161,6 +1206,76 @@ select {
 
 .btn-danger:hover {
   background: #fee2e2;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 50;
+}
+
+.credit-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 420px;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.modal-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.modal-header h3,
+.modal-header p {
+  margin: 0;
+}
+
+.modal-header p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.credit-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.credit-dialog textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 @media (max-width: 900px) {
