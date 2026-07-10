@@ -129,7 +129,7 @@ public class PostAuditsController : ControllerBase
                         $"你的帖子《{post.Title}》因命中敏感内容未通过审核，信用分 -15",
                         "Post",
                         post.PostID,
-                        $"/forums/posts/{post.PostID}",
+                        $"/forums",
                         $"audit:post:{post.PostID}:rejected:{post.UserID.Value}");
                 }
                 else if (auditStatus == "Approved" && post.UserID.HasValue)
@@ -140,7 +140,7 @@ public class PostAuditsController : ControllerBase
                         $"你的帖子《{post.Title}》已通过审核",
                         "Post",
                         post.PostID,
-                        $"/forums/posts/{post.PostID}",
+                        $"/forums",
                         $"audit:post:{post.PostID}:approved:{post.UserID.Value}");
                 }
             }

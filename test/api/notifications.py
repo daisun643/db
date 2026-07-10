@@ -44,3 +44,16 @@ class NotificationAPI(BaseAPIClient):
 
     def reject_audit(self, audit_id: int) -> requests.Response:
         return self.post(f"{self.PREFIX}/audits/posts/{audit_id}/reject")
+
+    def create_report(self, target_type: str, target_id: int, reason: str) -> requests.Response:
+        return self.post(f"{self.PREFIX}/reports", json={
+            "targetType": target_type,
+            "targetID": target_id,
+            "reason": reason,
+        })
+
+    def review_report(self, report_id: int, action: str, result: str) -> requests.Response:
+        return self.post(f"{self.PREFIX}/reports/{report_id}/review", json={
+            "action": action,
+            "result": result,
+        })

@@ -96,10 +96,14 @@
         <select v-model="notificationType" @change="resetAndLoadNotifications">
           <option value="">全部类型</option>
           <option value="Mention">@提及</option>
+          <option value="Reply">评论/回复</option>
           <option value="Transaction">交易</option>
           <option value="Audit">审核</option>
           <option value="Report">举报</option>
           <option value="Dispute">纠纷</option>
+          <option value="Forum">论坛管理</option>
+          <option value="Friend">好友</option>
+          <option value="Message">私信</option>
           <option value="System">系统</option>
         </select>
         <select v-model="notificationReadFilter" @change="resetAndLoadNotifications">
@@ -123,7 +127,7 @@
           <div class="notification-icon">{{ typeIcon(notification.type) }}</div>
           <div class="notification-content">
             <div class="notification-heading">
-              <h4>{{ notification.title }}</h4>
+              <h4 :class="{ 'has-link': notification.link }" @click="notification.link && handleOpenNotification(notification)">{{ notification.title }}</h4>
               <span class="notification-type">{{ notification.type || 'System' }}</span>
             </div>
             <p>{{ notification.content }}</p>
@@ -147,6 +151,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -182,6 +187,7 @@ const notificationReadFilter = ref('')
 const notificationPage = ref(1)
 const notificationPageSize = ref(20)
 const notificationTotal = ref(0)
+const router = useRouter()
 
 const notificationTotalPages = computed(() => Math.max(1, Math.ceil(notificationTotal.value / notificationPageSize.value)))
 
@@ -293,6 +299,17 @@ const handleMarkAllRead = async () => {
   await Promise.all([loadMessages(), loadUnreadCount()])
 }
 
+const handleOpenNotification = async (notification) => {
+  if (!notification.isRead) {
+    await markNotificationRead(notification.notificationID)
+    notification.isRead = true
+    await loadUnreadNotifications()
+  }
+  if (notification.link) {
+    router.push(notification.link)
+  }
+}
+
 const handleReadNotification = async (notification) => {
   await markNotificationRead(notification.notificationID)
   await Promise.all([loadNotifications(), loadUnreadNotifications()])
@@ -309,7 +326,7 @@ const handleDeleteNotification = async (notification) => {
 }
 
 const typeIcon = (type) => {
-  const map = { System: '系', Mention: '@', Transaction: '交', Audit: '审', Report: '举', Dispute: '纠' }
+  const map = { System: '系', Mention: '@', Reply: '回', Transaction: '交', Audit: '审', Report: '举', Dispute: '纠', Forum: '版', Friend: '友', Message: '私' }
   return map[type] || (type?.slice(0, 1) || '!')
 }
 
@@ -476,6 +493,15 @@ onMounted(async () => {
 .message-sender,
 .notification-heading h4 {
   font-weight: 600;
+}
+
+.notification-heading h4.has-link {
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.notification-heading h4.has-link:hover {
+  text-decoration: underline;
 }
 
 .message-time,

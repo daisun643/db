@@ -302,7 +302,7 @@ public class DisputesController : ControllerBase
             TargetType = "Transaction",
             TargetID = transactionId,
             TransactionID = transactionId,
-            Link = $"/products/orders/{transactionId}",
+            Link = $"/products",
             EventKey = $"dispute:{transactionId}:{userId}:{title}"
         });
     }

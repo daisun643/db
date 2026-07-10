@@ -79,7 +79,8 @@ public class MessagesController : ControllerBase
         };
 
         _db.PrivateMessages.Add(message);
-        await CreateNotificationAsync(receiver.UserID, "新的私信", "你收到了一条新的私信");
+        await _db.SaveChangesAsync();
+        await CreateNotificationAsync(receiver.UserID, "新的私信", "你收到了一条新的私信", message.MessageID);
         await _db.SaveChangesAsync();
 
         message.Sender = await _db.Users.FindAsync(currentUserId);
@@ -127,7 +128,7 @@ public class MessagesController : ControllerBase
 
     private int CurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
-    private async Task CreateNotificationAsync(int userId, string title, string content)
+    private async Task CreateNotificationAsync(int userId, string title, string content, int messageId = 0)
     {
         await _notificationService.CreateAsync(new CreateNotificationOptions
         {
@@ -135,7 +136,10 @@ public class MessagesController : ControllerBase
             Type = "Message",
             Title = title,
             Content = content,
-            EventKey = $"message:{userId}:{title}"
+            TargetType = "Message",
+            TargetID = messageId > 0 ? messageId : null,
+            Link = "/messages",
+            EventKey = $"message:{messageId}:{userId}"
         });
     }
 

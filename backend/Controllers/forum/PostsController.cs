@@ -163,7 +163,7 @@ public class PostsController : ControllerBase
         await _db.SaveChangesAsync();
 
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -208,7 +208,7 @@ public class PostsController : ControllerBase
 
         await _db.SaveChangesAsync();
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -461,7 +461,7 @@ public class PostsController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
-        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums/posts/{post.PostID}");
+        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums");
 
         // 评论回复通知：两个独立判断
         // 1. 只要评论者不是帖子作者 → 通知帖子作者
@@ -475,7 +475,7 @@ public class PostsController : ControllerBase
                 Content = $"有人在帖子《{post.Title}》中发表了评论",
                 TargetType = "Post",
                 TargetID = post.PostID,
-                Link = $"/forums/posts/{post.PostID}",
+                Link = $"/forums",
                 EventKey = $"reply:post:{comment.CommentID}:{post.UserID.Value}"
             });
         }
@@ -496,7 +496,7 @@ public class PostsController : ControllerBase
                     Content = $"有人在帖子《{post.Title}》中回复了你的评论",
                     TargetType = "Comment",
                     TargetID = parentComment.CommentID,
-                    Link = $"/forums/posts/{post.PostID}",
+                    Link = $"/forums",
                     EventKey = $"reply:comment:{comment.CommentID}:{parentComment.UserID.Value}"
                 });
             }

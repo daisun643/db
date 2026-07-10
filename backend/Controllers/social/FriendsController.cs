@@ -80,7 +80,8 @@ public class FriendsController : ControllerBase
                 existing.FriendID = target.UserID;
                 existing.Status = "Pending";
                 existing.UpdateTime = DateTime.Now;
-                await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友");
+                await _db.SaveChangesAsync();
+                await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友", existing.FriendshipID, "request");
                 await _db.SaveChangesAsync();
                 existing.User = await _db.Users.FindAsync(existing.UserID);
                 existing.Friend = await _db.Users.FindAsync(existing.FriendID);
@@ -100,7 +101,8 @@ public class FriendsController : ControllerBase
         };
 
         _db.FriendShips.Add(friendship);
-        await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友");
+        await _db.SaveChangesAsync();
+        await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友", friendship.FriendshipID, "request");
         await _db.SaveChangesAsync();
 
         friendship.User = await _db.Users.FindAsync(userId);
@@ -120,7 +122,7 @@ public class FriendsController : ControllerBase
         friendship.Status = "Accepted";
         friendship.UpdateTime = DateTime.Now;
         if (friendship.UserID.HasValue)
-            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已通过", "你的好友申请已被接受");
+            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已通过", "你的好友申请已被接受", id, "accepted");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已接受好友申请" });
     }
@@ -137,7 +139,7 @@ public class FriendsController : ControllerBase
         friendship.Status = "Rejected";
         friendship.UpdateTime = DateTime.Now;
         if (friendship.UserID.HasValue)
-            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已拒绝", "你的好友申请已被拒绝");
+            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已拒绝", "你的好友申请已被拒绝", id, "rejected");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已拒绝好友申请" });
     }
@@ -155,14 +157,14 @@ public class FriendsController : ControllerBase
         var notifyUserId = friendship.UserID == userId ? friendship.FriendID : friendship.UserID;
         _db.FriendShips.Remove(friendship);
         if (notifyUserId.HasValue)
-            await CreateNotificationAsync(notifyUserId.Value, "好友关系已解除", "有用户与你解除了好友关系");
+            await CreateNotificationAsync(notifyUserId.Value, "好友关系已解除", "有用户与你解除了好友关系", id, "deleted");
         await _db.SaveChangesAsync();
         return Ok(new { message = "好友关系已删除" });
     }
 
     private int CurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
-    private async Task CreateNotificationAsync(int userId, string title, string content)
+    private async Task CreateNotificationAsync(int userId, string title, string content, int friendshipId, string action)
     {
         await _notificationService.CreateAsync(new CreateNotificationOptions
         {
@@ -170,7 +172,10 @@ public class FriendsController : ControllerBase
             Type = "Friend",
             Title = title,
             Content = content,
-            EventKey = $"friend:{userId}:{title}"
+            TargetType = "Friendship",
+            TargetID = friendshipId,
+            Link = "/messages",
+            EventKey = $"friend:{friendshipId}:{userId}:{action}"
         });
     }
 

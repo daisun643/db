@@ -334,7 +334,7 @@ public class TransactionsController : ControllerBase
             TargetType = "Transaction",
             TargetID = transactionId,
             TransactionID = transactionId,
-            Link = $"/products/orders/{transactionId}",
+            Link = $"/products",
             EventKey = $"transaction:{transactionId}:{userId}:{title}"
         });
     }
