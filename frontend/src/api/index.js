@@ -119,3 +119,7 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
 export const getHealth = () => api.get('/health')
 
 export default api
+
+// ========== 资金流水 ==========
+export const getFinanceFlows = () => api.get('/finance/flows')
+export const getFinanceSummary = () => api.get('/finance/summary')
