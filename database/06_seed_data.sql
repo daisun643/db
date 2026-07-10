@@ -339,4 +339,50 @@ WHERE u4."email" = '4@tongji.edu.cn'
   AND m."senderId" = adminUser."userId"
   AND m."content" LIKE '我看到了你在 Oracle%'
 AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:message:user4:admin-message');
+
+-- Admin User：系统维护和已完成交易通知，便于演示管理员自己的通知列表
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
+SELECT '系统维护提醒', '今晚 23:00 将进行短时系统维护，请管理员关注服务状态和用户反馈。', SYSTIMESTAMP - INTERVAL '15' MINUTE, 'System', 'System', NULL, NULL, '0', NULL, 'seed:notification:system:user1:maintenance', u."userId"
+FROM "User" u
+WHERE u."email" = '1@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:system:user1:maintenance');
+
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "transactionId", "userId")
+SELECT '交易完成', '你发布的《算法导论》第四版已完成交易，资金已结算。', SYSTIMESTAMP - INTERVAL '12' MINUTE, 'Transaction', 'Transaction', t."transactionId", '/products', '1', SYSTIMESTAMP - INTERVAL '8' MINUTE, 'seed:notification:transaction:user1:algorithm-sold', t."transactionId", seller."userId"
+FROM "User" seller, "Transaction" t, "Product" pr
+WHERE seller."email" = '1@tongji.edu.cn'
+  AND pr."userId" = seller."userId"
+  AND t."productId" = pr."productId"
+  AND pr."title" = '《算法导论》第四版'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:transaction:user1:algorithm-sold');
+
+-- Manager User：二手交易版主管理通知和商品相关通知
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
+SELECT '版主权限已分配', '你已成为“二手交易”版块版主，请协助维护商品帖和交易秩序。', SYSTIMESTAMP - INTERVAL '50' MINUTE, 'Forum', 'Forum', f."forumId", '/forums', '0', NULL, 'seed:notification:forum:user2:market-manager', u."userId"
+FROM "User" u, "Forum" f
+WHERE u."email" = '2@tongji.edu.cn'
+  AND f."forumName" = '二手交易'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:forum:user2:market-manager');
+
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
+SELECT '商品收到咨询', '有同学对你发布的“机械键盘 Cherry MX 青轴”感兴趣，建议及时查看私信。', SYSTIMESTAMP - INTERVAL '45' MINUTE, 'Message', 'Product', pr."productId", '/messages', '0', NULL, 'seed:notification:message:user2:keyboard-inquiry', u."userId"
+FROM "User" u, "Product" pr
+WHERE u."email" = '2@tongji.edu.cn'
+  AND pr."title" = '机械键盘 Cherry MX 青轴'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:message:user2:keyboard-inquiry');
+
+-- Moderator User：校园生活版主通知和帖子互动通知
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
+SELECT '帖子新评论', '你的《食堂新出的菜品测评来了！》收到新的评论，大家正在讨论食堂新品。', SYSTIMESTAMP - INTERVAL '55' MINUTE, 'Reply', 'Post', p."postId", '/forums', '0', NULL, 'seed:notification:reply:user3:canteen-comment', u."userId"
+FROM "User" u, "Post" p
+WHERE u."email" = '3@tongji.edu.cn'
+  AND p."title" = '食堂新出的菜品测评来了！'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:reply:user3:canteen-comment');
+
+INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
+SELECT '帖子提及', 'Admin User 在技术讨论中提到了你的 Vue 3 教程，建议你补充项目结构说明。', SYSTIMESTAMP - INTERVAL '42' MINUTE, 'Mention', 'Post', p."postId", '/forums', '1', SYSTIMESTAMP - INTERVAL '30' MINUTE, 'seed:notification:mention:user3:vue-followup', u."userId"
+FROM "User" u, "Post" p
+WHERE u."email" = '3@tongji.edu.cn'
+  AND p."title" = 'Vue 3 + TypeScript 项目搭建教程'
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:mention:user3:vue-followup');
 COMMIT;
