@@ -134,6 +134,8 @@ CREATE TABLE "Product" (
     "title"       VARCHAR2(200),
     "description" VARCHAR2(4000),
     "imageUrls"   CLOB,
+    "category"    VARCHAR2(50),
+    "condition"   VARCHAR2(50),
     "price"       NUMBER,
     "stock"       NUMBER,
     "status"      VARCHAR2(20),

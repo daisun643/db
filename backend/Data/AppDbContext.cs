@@ -230,6 +230,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasColumnName("title");
             e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.ImageUrls).HasColumnName("imageUrls");
+            e.Property(x => x.Category).HasColumnName("category");
+            e.Property(x => x.Condition).HasColumnName("condition");
             e.Property(x => x.Price).HasColumnName("price").HasPrecision(18, 2);
             e.Property(x => x.Stock).HasColumnName("stock");
             e.Property(x => x.Status).HasColumnName("status");

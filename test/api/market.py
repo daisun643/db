@@ -34,24 +34,30 @@ class MarketAPI(BaseAPIClient):
         return self.get(f"{self.PREFIX}/products/{product_id}")
 
     def create_product(self, title: str, price: float, stock: int = 10,
-                       description: str = "", image_urls: list[str] | None = None) -> requests.Response:
+                       description: str = "", image_urls: list[str] | None = None,
+                       category: str = "其他", condition: str = "良好") -> requests.Response:
         return self.post(f"{self.PREFIX}/products", json={
             "title": title,
             "description": description,
             "price": price,
             "stock": stock,
+            "category": category,
+            "condition": condition,
             "imageUrls": image_urls or [],
         })
 
     def update_product(self, product_id: int, title: str, price: float, stock: int = 10,
                        description: str = "", status: str = "Active",
-                       image_urls: list[str] | None = None) -> requests.Response:
+                       image_urls: list[str] | None = None,
+                       category: str = "其他", condition: str = "良好") -> requests.Response:
         return self.put(f"{self.PREFIX}/products/{product_id}", json={
             "title": title,
             "description": description,
             "price": price,
             "stock": stock,
             "status": status,
+            "category": category,
+            "condition": condition,
             "imageUrls": image_urls or [],
         })
 

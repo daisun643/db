@@ -38,6 +38,19 @@
         <textarea v-model="productForm.description" placeholder="商品描述"></textarea>
         <input v-model="productImageText" type="text" placeholder="图片 URL，用逗号分隔" />
         <div class="form-row">
+          <select v-model="productForm.category">
+            <option value="教材资料">教材资料</option>
+            <option value="数码设备">数码设备</option>
+            <option value="生活用品">生活用品</option>
+            <option value="交通出行">交通出行</option>
+            <option value="其他">其他</option>
+          </select>
+          <select v-model="productForm.condition">
+            <option value="全新">全新</option>
+            <option value="几乎全新">几乎全新</option>
+            <option value="良好">良好</option>
+            <option value="有使用痕迹">有使用痕迹</option>
+          </select>
           <input v-model.number="productForm.price" type="number" min="0.01" step="0.01" placeholder="价格" required />
           <input v-model.number="productForm.stock" type="number" min="1" step="1" placeholder="库存" required />
           <button class="btn btn-primary" type="submit" :disabled="submitting">
@@ -62,6 +75,8 @@
           <div class="product-meta">
             <strong>¥{{ product.price }}</strong>
             <span>库存 {{ product.stock }}</span>
+            <span>{{ product.category || '其他' }}</span>
+            <span>{{ product.condition || '良好' }}</span>
             <span>{{ product.sellerName || '匿名卖家' }}</span>
           </div>
           <button class="btn" @click="openProductDetail(product)">查看详情</button>
@@ -94,9 +109,9 @@
             </div>
           </div>
           <div class="row-actions">
-            <button class="btn" @click="openEditProduct(product)">编辑</button>
-            <button class="btn" @click="handleProductStatus(product, 'restore')">上架</button>
-            <button class="btn" @click="handleProductStatus(product, 'off-shelf')">下架</button>
+            <button class="btn" :disabled="!canEditProduct(product)" @click="openEditProduct(product)">编辑</button>
+            <button class="btn" :disabled="!canRestoreProduct(product)" @click="handleProductStatus(product, 'restore')">上架</button>
+            <button class="btn" :disabled="!canOffShelfProduct(product)" @click="handleProductStatus(product, 'off-shelf')">下架</button>
             <button class="btn" @click="loadSales">刷新订单</button>
           </div>
         </article>
@@ -206,6 +221,8 @@
             <p>{{ selectedProduct.description || '暂无描述' }}</p>
             <div class="product-meta">
               <span>库存 {{ selectedProduct.stock }}</span>
+              <span>{{ selectedProduct.category || '其他' }}</span>
+              <span>{{ selectedProduct.condition || '良好' }}</span>
               <span>卖家 {{ selectedProduct.sellerName || '匿名卖家' }}</span>
               <span>{{ formatDate(selectedProduct.publishTime) }}</span>
             </div>
@@ -235,14 +252,21 @@
         <textarea v-model="editForm.description" placeholder="商品描述"></textarea>
         <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
         <div class="form-row">
+          <select v-model="editForm.category">
+            <option value="教材资料">教材资料</option>
+            <option value="数码设备">数码设备</option>
+            <option value="生活用品">生活用品</option>
+            <option value="交通出行">交通出行</option>
+            <option value="其他">其他</option>
+          </select>
+          <select v-model="editForm.condition">
+            <option value="全新">全新</option>
+            <option value="几乎全新">几乎全新</option>
+            <option value="良好">良好</option>
+            <option value="有使用痕迹">有使用痕迹</option>
+          </select>
           <input v-model.number="editForm.price" type="number" min="0.01" step="0.01" placeholder="价格" required />
           <input v-model.number="editForm.stock" type="number" min="1" step="1" placeholder="库存" required />
-          <select v-model="editForm.status">
-            <option value="Active">发布中</option>
-            <option value="Locked">已锁定</option>
-            <option value="Sold">已售出</option>
-            <option value="Inactive">已下架</option>
-          </select>
         </div>
         <button class="btn btn-primary" type="submit" :disabled="editingSaving">
           {{ editingSaving ? '保存中...' : '保存商品' }}
@@ -306,6 +330,8 @@ const editImageText = ref('')
 const productForm = ref({
   title: '',
   description: '',
+  category: '其他',
+  condition: '良好',
   price: null,
   stock: 1,
 })
@@ -313,9 +339,10 @@ const productForm = ref({
 const editForm = ref({
   title: '',
   description: '',
+  category: '其他',
+  condition: '良好',
   price: null,
   stock: 1,
-  status: 'Active',
 })
 
 const loadProducts = async () => {
@@ -370,7 +397,7 @@ const handleCreateProduct = async () => {
     error.value = null
     const imageUrls = productImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
     await createProduct({ ...productForm.value, imageUrls })
-    productForm.value = { title: '', description: '', price: null, stock: 1 }
+    productForm.value = { title: '', description: '', category: '其他', condition: '良好', price: null, stock: 1 }
     productImageText.value = ''
     await Promise.all([loadProducts(), loadMyProducts()])
   } catch (e) {
@@ -415,9 +442,10 @@ const openEditProduct = (product) => {
   editForm.value = {
     title: product.title || '',
     description: product.description || '',
+    category: product.category || '其他',
+    condition: product.condition || '良好',
     price: product.price,
     stock: product.stock || 1,
-    status: product.status || 'Active',
   }
   editImageText.value = (product.imageUrls || []).join(', ')
 }
@@ -466,8 +494,13 @@ const handleDeposit = async () => {
 }
 
 const handleProductStatus = async (product, action) => {
-  await changeProductStatus(product.productID, { action })
-  await Promise.all([loadProducts(), loadMyProducts()])
+  try {
+    error.value = null
+    await changeProductStatus(product.productID, { action })
+    await Promise.all([loadProducts(), loadMyProducts()])
+  } catch (e) {
+    error.value = '状态更新失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const handlePay = async (order) => {
@@ -541,6 +574,18 @@ const handleSendOrderMessage = async () => {
 
 const canDispute = (order) => {
   return order.transactionStatus === 'Paid'
+}
+
+const canEditProduct = (product) => {
+  return product.status === 'Active'
+}
+
+const canRestoreProduct = (product) => {
+  return product.status === 'Inactive' && product.stock > 0
+}
+
+const canOffShelfProduct = (product) => {
+  return product.status === 'Active' || product.status === 'Locked'
 }
 
 const isOrderArchived = (order) => {
@@ -655,6 +700,7 @@ onMounted(async () => {
 }
 
 .product-form input,
+.product-form select,
 .product-form textarea,
 .product-edit-form input,
 .product-edit-form select,

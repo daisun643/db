@@ -47,6 +47,29 @@ END;
 /
 
 BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "Product" ADD "category" VARCHAR2(50)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "Product" ADD "condition" VARCHAR2(50)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+UPDATE "Product" SET "category" = '其他' WHERE "category" IS NULL;
+UPDATE "Product" SET "condition" = '良好' WHERE "condition" IS NULL;
+
+BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE "AuditRecord" ADD "targetType" VARCHAR2(50) DEFAULT ''Post''';
 EXCEPTION
     WHEN OTHERS THEN
