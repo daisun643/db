@@ -22,7 +22,6 @@ public class AuthController : ControllerBase
         ["/system-status"] = ["dashboard.view", "roles.manage", "permissions.manage"],
         ["/forums"] = ["forums.view", "posts.view"],
         ["/products"] = ["products.view"],
-        ["/disputes"] = ["disputes.view", "disputes.resolve"],
         ["/messages"] = [],
         ["/profile"] = [],
         ["/"] = []

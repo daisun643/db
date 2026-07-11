@@ -38,11 +38,6 @@ const routes = [
     meta: { requiresAuth: true, requiresBackendRouteCheck: true }
   },
   { 
-    path: '/disputes', 
-    component: () => import('../views/DisputesView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
-  },
-  { 
     path: '/profile', 
     component: () => import('../views/ProfileView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true }

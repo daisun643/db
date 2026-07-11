@@ -41,14 +41,6 @@
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
 
-        <router-link v-if="canAccess('/disputes')" to="/disputes" class="nav-item">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 3l7 4v5c0 5-3.2 8-7 9-3.8-1-7-4-7-9V7l7-4z" />
-            <path d="M9 12l2 2 4-4" />
-          </svg>
-          <span class="nav-label" v-if="!isCollapsed">纠纷仲裁</span>
-        </router-link>
-
         <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9" />
@@ -93,7 +85,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const isCollapsed = ref(true)
-const protectedMenuPaths = ['/forums', '/products', '/messages', '/disputes', '/system-status']
+const protectedMenuPaths = ['/forums', '/products', '/messages', '/system-status']
 const routeAccess = ref({})
 
 const toggleSidebar = () => {

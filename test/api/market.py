@@ -101,34 +101,13 @@ class MarketAPI(BaseAPIClient):
     def get_disputes(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/disputes")
 
-    def get_dispute(self, dispute_id: int) -> requests.Response:
-        return self.get(f"{self.PREFIX}/disputes/{dispute_id}")
-
     def create_dispute(self, transaction_id: int, reason: str) -> requests.Response:
         return self.post(f"{self.PREFIX}/disputes/transactions/{transaction_id}", json={
             "reason": reason,
         })
 
-    def request_dispute_supplement(self, dispute_id: int, message: str) -> requests.Response:
-        return self.post(f"{self.PREFIX}/disputes/{dispute_id}/supplement", json={
-            "message": message,
-        })
-
-    def resolve_dispute(self, dispute_id: int, decision: str, refund_amount: float = 0,
-                        responsibility_party: str = "None") -> requests.Response:
+    def resolve_dispute(self, dispute_id: int, decision: str, refund_amount: float = 0) -> requests.Response:
         return self.post(f"{self.PREFIX}/disputes/{dispute_id}/resolve", json={
             "decision": decision,
             "refundAmount": refund_amount,
-            "responsibilityParty": responsibility_party,
         })
-
-    # ---- Notifications / credit ----
-
-    def get_notifications(self) -> requests.Response:
-        return self.get(f"{self.PREFIX}/notifications")
-
-    def get_profile(self) -> requests.Response:
-        return self.get(f"{self.PREFIX}/user/profile")
-
-    def get_credit_adjustments(self) -> requests.Response:
-        return self.get(f"{self.PREFIX}/user/credit-adjustments")
