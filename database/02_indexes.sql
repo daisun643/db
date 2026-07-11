@@ -22,9 +22,3 @@ CREATE INDEX "idx_emailcode_email" ON "EmailCode"("email");
 CREATE INDEX "idx_emailcode_sendtime" ON "EmailCode"("sendTime");
 
 COMMIT;
-
--- 纠纷仲裁查询/唯一进行中纠纷辅助索引
-CREATE INDEX "idx_dispute_transaction_status" ON "DisputeTicket"("transactionId", "status");
-CREATE INDEX "idx_dispute_arbitrator_status" ON "DisputeTicket"("arbitratorId", "status");
-
-COMMIT;
