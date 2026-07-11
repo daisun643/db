@@ -33,6 +33,17 @@ public class PrivateMessageResponse
     public string ReceiverName { get; set; } = string.Empty;
 }
 
+public class ConversationResponse
+{
+    public int FriendshipID { get; set; }
+    public int UserID { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? LatestMessageContent { get; set; }
+    public DateTime? LatestMessageTime { get; set; }
+    public bool LatestMessageIsMine { get; set; }
+    public int UnreadCount { get; set; }
+}
 public class SendPrivateMessageRequest
 {
     [Range(1, int.MaxValue)]

@@ -14,6 +14,12 @@ def _login(role):
     return client, logged_in_user
 
 
+def _conversation_for(client, user_id):
+    response = client.get_conversations()
+    assert response.status_code == 200, response.text
+    return next((item for item in response.json() if item["userID"] == user_id), None)
+
+
 def _remove_pair(client_a, user_a, client_b, user_b):
     """Best-effort cleanup so this module can be run repeatedly."""
     for client, other_user in ((client_a, user_b), (client_b, user_a)):
@@ -52,6 +58,7 @@ def test_social_endpoints_require_login():
         assert client.get_friends().status_code == 401
         assert client.get_sent_friend_requests().status_code == 401
         assert client.get_messages().status_code == 401
+        assert client.get_conversations().status_code == 401
         assert client.get_unread_count().status_code == 401
     finally:
         client.close()
@@ -109,16 +116,35 @@ def test_friendship_and_private_message_flow(social_users):
     assert any(friend["userID"] == user_b["userID"] for friend in client_a.get_friends().json())
     assert any(friend["userID"] == user_a["userID"] for friend in client_b.get_friends().json())
 
-    assert client_c.send_message(user_a["userID"], "越权消息").status_code == 400
-    assert client_a.send_message(user_a["userID"], "发给自己").status_code == 400
+    conversation_a = _conversation_for(client_a, user_b["userID"])
+    conversation_b = _conversation_for(client_b, user_a["userID"])
+    assert conversation_a is not None
+    assert conversation_b is not None
+    if client_a.get_messages(user_b["userID"]).json() == []:
+        assert conversation_a["latestMessageContent"] is None
+        assert conversation_a["latestMessageTime"] is None
+        assert conversation_a["unreadCount"] == 0
+
+    assert client_c.send_message(user_a["userID"], "outsider message").status_code == 400
+    assert client_a.send_message(user_a["userID"], "message to self").status_code == 400
     assert client_a.send_message(user_b["userID"], "   ").status_code == 400
 
+    conversation_before = _conversation_for(client_b, user_a["userID"])
+    unread_before_conversation = conversation_before["unreadCount"]
     unread_before = client_b.get_unread_count().json()["count"]
-    sent = client_a.send_message(user_b["userID"], "第一条测试私信")
+    sent = client_a.send_message(user_b["userID"], "first test private message")
     assert sent.status_code == 200, sent.text
     message = sent.json()
     assert message["isRead"] is False
     assert client_b.get_unread_count().json()["count"] == unread_before + 1
+
+    conversation_a = _conversation_for(client_a, user_b["userID"])
+    conversation_b = _conversation_for(client_b, user_a["userID"])
+    assert conversation_a["latestMessageContent"] == message["content"]
+    assert conversation_a["latestMessageIsMine"] is True
+    assert conversation_b["latestMessageContent"] == message["content"]
+    assert conversation_b["latestMessageIsMine"] is False
+    assert conversation_b["unreadCount"] == unread_before_conversation + 1
 
     history = client_b.get_messages(user_a["userID"])
     assert history.status_code == 200, history.text
@@ -135,10 +161,14 @@ def test_friendship_and_private_message_flow(social_users):
     assert marked.status_code == 200, marked.text
     assert marked.json()["count"] >= 1
     assert client_b.get_unread_count().json()["count"] == unread_before
+    conversation_b = _conversation_for(client_b, user_a["userID"])
+    assert conversation_b["unreadCount"] == 0
 
     deleted = client_a.delete_friend(friendship_id)
     assert deleted.status_code == 200, deleted.text
-    assert client_a.send_message(user_b["userID"], "删除好友后发送").status_code == 400
+    assert client_a.send_message(user_b["userID"], "message after deleting friend").status_code == 400
+    assert _conversation_for(client_a, user_b["userID"]) is None
+    assert _conversation_for(client_b, user_a["userID"]) is None
 
     retained_history = client_b.get_messages(user_a["userID"]).json()
-    assert message["messageID"] in [item["messageID"] for item in retained_history]
+    assert message["messageID"] in [item["messageID"] for item in retained_history]

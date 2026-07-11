@@ -37,25 +37,38 @@
         </section>
 
         <section class="friend-list">
-          <h2>好友</h2>
-          <div
-            v-for="friend in friends"
-            :key="friend.friendshipID"
-            :class="['friend-row', { active: selectedFriend?.userID === friend.userID }]"
-          >
-            <button class="friend-item" @click="selectFriend(friend)">
-              <span class="friend-name">{{ friend.username || friend.email }}</span>
-              <small>{{ friend.email }}</small>
-            </button>
-            <button class="friend-delete" @click.stop="handleDeleteFriend(friend)">删除</button>
+          <div class="list-title-row">
+            <h2>好友</h2>
+            <small v-if="conversations.length > 0">{{ conversations.length }} 位</small>
           </div>
-          <div v-if="friends.length === 0" class="empty-inline">暂无好友</div>
+          <input v-model="friendSearch" class="friend-search" type="search" placeholder="搜索好友昵称 / 邮箱" />
+
+          <div
+            v-for="conversation in filteredConversations"
+            :key="conversation.friendshipID"
+            :class="['friend-row', { active: selectedFriend?.userID === conversation.userID }]"
+          >
+            <button class="friend-item" @click="selectFriend(conversation)">
+              <span class="friend-title-line">
+                <span class="friend-name">{{ conversation.username || conversation.email }}</span>
+                <span class="badge badge-red conversation-badge" v-if="conversation.unreadCount > 0">
+                  {{ conversation.unreadCount }}
+                </span>
+              </span>
+              <span class="conversation-preview">{{ conversationPreview(conversation) }}</span>
+              <small class="conversation-time">{{ formatDate(conversation.latestMessageTime) }}</small>
+            </button>
+            <button class="friend-delete" @click.stop="handleDeleteFriend(conversation)">删除</button>
+          </div>
+
+          <div v-if="conversations.length === 0" class="empty-inline">暂无好友，可以通过邮箱添加同学。</div>
+          <div v-else-if="filteredConversations.length === 0" class="empty-inline">没有匹配的好友</div>
         </section>
       </aside>
 
       <main class="conversation-panel">
         <div v-if="!selectedFriend" class="empty-state">
-          <p>选择一个好友开始私信</p>
+          <p>选择好友开始聊天</p>
         </div>
         <template v-else>
           <div class="conversation-header">
@@ -78,13 +91,15 @@
               </div>
             </article>
             <div v-if="messages.length === 0" class="empty-state compact">
-              <p>暂无私信</p>
+              <p>还没有聊天记录，发一句问候吧。</p>
             </div>
           </div>
 
           <form class="message-form" @submit.prevent="handleSendMessage">
-            <input v-model="messageText" type="text" placeholder="输入私信内容" required />
-            <button class="btn btn-primary" type="submit">发送</button>
+            <input v-model="messageText" type="text" placeholder="输入私信内容" :disabled="sending" required />
+            <button class="btn btn-primary" type="submit" :disabled="isSendDisabled">
+              {{ sending ? '发送中...' : '发送' }}
+            </button>
           </form>
         </template>
       </main>
@@ -111,14 +126,14 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   acceptFriendRequest,
   createFriendRequest,
   deleteFriend,
   deleteNotification,
+  getConversations,
   getFriendRequests,
-  getFriends,
   getMessages,
   getNotifications,
   getSentFriendRequests,
@@ -130,8 +145,9 @@ import {
 
 const activeTab = ref('messages')
 const loading = ref(false)
+const sending = ref(false)
 const unreadMessages = ref(0)
-const friends = ref([])
+const conversations = ref([])
 const friendRequests = ref([])
 const sentFriendRequests = ref([])
 const messages = ref([])
@@ -139,6 +155,7 @@ const notifications = ref([])
 const selectedFriend = ref(null)
 const messageListRef = ref(null)
 const friendEmail = ref('')
+const friendSearch = ref('')
 const messageText = ref('')
 const error = ref(null)
 const success = ref(null)
@@ -148,7 +165,18 @@ let refreshTimer = null
 let refreshing = false
 const errorMessage = (e) => e.response?.data?.message || e.message || '操作失败'
 
+const filteredConversations = computed(() => {
+  const keyword = friendSearch.value.trim().toLowerCase()
+  if (!keyword) return conversations.value
 
+  return conversations.value.filter((conversation) => {
+    const name = (conversation.username || '').toLowerCase()
+    const email = (conversation.email || '').toLowerCase()
+    return name.includes(keyword) || email.includes(keyword)
+  })
+})
+
+const isSendDisabled = computed(() => !selectedFriend.value || sending.value || messageText.value.trim().length === 0)
 
 const latestMessageId = (list) => list.length > 0 ? list[list.length - 1].messageID : null
 
@@ -168,22 +196,36 @@ const updateLatestFriendRequestMessage = () => {
 
   latestSentFriendRequest.value = latest
   if (latest.status === 'Pending') {
-    success.value = `好友申请已发送，等待对方处理。`
+    success.value = '好友申请已发送，等待对方处理。'
     return
   }
 
   success.value = null
   latestSentFriendRequest.value = null
 }
+
+const syncSelectedConversation = () => {
+  if (!selectedFriend.value) return
+
+  const latest = conversations.value.find((conversation) => conversation.friendshipID === selectedFriend.value.friendshipID)
+  if (latest) {
+    selectedFriend.value = latest
+  } else {
+    selectedFriend.value = null
+    messages.value = []
+  }
+}
+
 const loadFriends = async () => {
-  const [friendsRes, requestsRes, sentRequestsRes] = await Promise.all([
-    getFriends(),
+  const [conversationsRes, requestsRes, sentRequestsRes] = await Promise.all([
+    getConversations(),
     getFriendRequests(),
     getSentFriendRequests(),
   ])
-  friends.value = friendsRes.data
+  conversations.value = conversationsRes.data
   friendRequests.value = requestsRes.data
   sentFriendRequests.value = sentRequestsRes.data
+  syncSelectedConversation()
   updateLatestFriendRequestMessage()
 }
 
@@ -209,6 +251,7 @@ const loadMessages = async (silent = false, scrollMode = 'always') => {
 
   if (shouldScroll) await scrollMessagesToBottom()
 }
+
 const loadNotifications = async () => {
   try {
     loading.value = true
@@ -233,7 +276,7 @@ const selectFriend = async (friend) => {
   messages.value = messages.value.map((message) =>
     message.senderID === friend.userID ? { ...message, isRead: true } : message,
   )
-  await loadUnreadCount()
+  await Promise.all([loadUnreadCount(), loadFriends()])
 }
 
 const handleAddFriend = async () => {
@@ -272,26 +315,30 @@ const handleReject = async (request) => {
 }
 
 const handleSendMessage = async () => {
-  if (!selectedFriend.value) return
+  if (isSendDisabled.value) return
+
   try {
+    sending.value = true
     error.value = null
     await sendMessage({
       receiverID: selectedFriend.value.userID,
-      content: messageText.value,
+      content: messageText.value.trim(),
     })
     messageText.value = ''
-    await loadMessages()
+    await loadMessages(false, 'always')
+    await Promise.all([loadFriends(), loadUnreadCount()])
   } catch (e) {
     error.value = '发送私信失败: ' + errorMessage(e)
+  } finally {
+    sending.value = false
   }
 }
-
 
 const handleMarkAllRead = async () => {
   if (!selectedFriend.value) return
   try {
     await markAllMessagesRead(selectedFriend.value.userID)
-    await Promise.all([loadMessages(), loadUnreadCount()])
+    await Promise.all([loadMessages(), loadUnreadCount(), loadFriends()])
   } catch (e) {
     error.value = '刷新消息失败: ' + errorMessage(e)
   }
@@ -319,12 +366,28 @@ const handleDeleteNotification = async (notification) => {
 
 const formatDate = (value) => {
   if (!value) return ''
-  return new Date(value).toLocaleString('zh-CN', {
+
+  const date = new Date(value)
+  const now = new Date()
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOfToday - startOfDate) / 86400000)
+
+  if (diffDays === 0) return time
+  if (diffDays === 1) return `昨天 ${time}`
+
+  const datePart = date.toLocaleDateString('zh-CN', {
+    year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
     month: '2-digit',
     day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
   })
+  return `${datePart} ${time}`
+}
+
+const conversationPreview = (conversation) => {
+  if (!conversation.latestMessageContent) return '还没有聊天记录'
+  return conversation.latestMessageIsMine ? `我：${conversation.latestMessageContent}` : conversation.latestMessageContent
 }
 
 const refreshMessagesPanel = async () => {
@@ -340,7 +403,7 @@ const refreshMessagesPanel = async () => {
       messages.value = messages.value.map((message) =>
         message.senderID === selectedUserId ? { ...message, isRead: true } : message,
       )
-      await loadUnreadCount()
+      await Promise.all([loadUnreadCount(), loadFriends()])
     }
   } catch (e) {
     // 自动刷新失败时不打断用户当前操作，下一轮刷新会继续尝试。
@@ -359,6 +422,7 @@ const stopAutoRefresh = () => {
   window.clearInterval(refreshTimer)
   refreshTimer = null
 }
+
 watch(activeTab, async (tab) => {
   if (tab === 'messages') {
     await Promise.all([loadFriends(), loadUnreadCount()])
@@ -418,7 +482,8 @@ onUnmounted(() => {
 }
 
 .friend-form input,
-.message-form input {
+.message-form input,
+.friend-search {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
@@ -427,9 +492,26 @@ onUnmounted(() => {
   font: inherit;
 }
 
+.message-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .request-list,
 .friend-list {
   margin-top: 1rem;
+}
+
+.list-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.list-title-row small {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 .request-list h2,
@@ -439,8 +521,14 @@ onUnmounted(() => {
   margin-bottom: 0.5rem;
 }
 
+.friend-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.75rem;
+}
+
 .request-item,
-.friend-item,
+.friend-row,
 .conversation-header {
   display: flex;
   align-items: center;
@@ -465,8 +553,6 @@ onUnmounted(() => {
 }
 
 .friend-row {
-  display: flex;
-  align-items: center;
   gap: 0.25rem;
   width: 100%;
   border-radius: var(--radius);
@@ -493,10 +579,38 @@ onUnmounted(() => {
   text-align: left;
 }
 
+.friend-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .friend-name {
   display: block;
   font-size: 0.98rem;
   font-weight: 600;
+  margin-bottom: 0.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-badge {
+  flex-shrink: 0;
+}
+
+.conversation-preview,
+.conversation-time {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-preview {
   margin-bottom: 0.2rem;
 }
 
@@ -521,15 +635,6 @@ onUnmounted(() => {
 
 .friend-delete:hover {
   text-decoration: underline;
-}
-
-.friend-item small {
-  color: var(--text-secondary);
-  display: block;
-  font-size: 0.82rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .message-list,
@@ -705,4 +810,4 @@ onUnmounted(() => {
     max-width: 88%;
   }
 }
-</style>
+</style>

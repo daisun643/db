@@ -31,6 +31,9 @@ class SocialAPI(AuthAPI):
     def delete_friend(self, friendship_id):
         return self.delete(f"{self.FRIENDS_PREFIX}/{friendship_id}")
 
+    def get_conversations(self):
+        return self.get(f"{self.MESSAGES_PREFIX}/conversations")
+
     def get_messages(self, user_id=None):
         params = {"userId": user_id} if user_id is not None else None
         return self.get(self.MESSAGES_PREFIX, params=params)

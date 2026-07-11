@@ -23,6 +23,56 @@ public class MessagesController : ControllerBase
 
     public MessagesController(AppDbContext db) => _db = db;
 
+
+    [HttpGet("conversations")]
+    public async Task<ActionResult<List<ConversationResponse>>> GetConversations()
+    {
+        var currentUserId = CurrentUserId();
+        var friendships = await _db.FriendShips
+            .Include(f => f.User)
+            .Include(f => f.Friend)
+            .Where(f => (f.UserID == currentUserId || f.FriendID == currentUserId) && f.Status == "Accepted")
+            .ToListAsync();
+
+        var conversations = new List<ConversationResponse>();
+        foreach (var friendship in friendships)
+        {
+            var otherUserId = friendship.UserID == currentUserId ? friendship.FriendID : friendship.UserID;
+            var otherUser = friendship.UserID == currentUserId ? friendship.Friend : friendship.User;
+
+            var latestMessage = await _db.PrivateMessages
+                .Where(m =>
+                    (m.SenderID == currentUserId && m.ReceiverID == otherUserId) ||
+                    (m.SenderID == otherUserId && m.ReceiverID == currentUserId))
+                .OrderByDescending(m => m.SendTime)
+                .FirstOrDefaultAsync();
+
+            var unreadCount = await _db.PrivateMessages.CountAsync(m =>
+                m.SenderID == otherUserId &&
+                m.ReceiverID == currentUserId &&
+                m.IsRead != "1");
+
+            conversations.Add(new ConversationResponse
+            {
+                FriendshipID = friendship.FriendshipID,
+                UserID = otherUser?.UserID ?? otherUserId,
+                Username = otherUser?.Username ?? string.Empty,
+                Email = otherUser?.Email ?? string.Empty,
+                LatestMessageContent = latestMessage?.Content,
+                LatestMessageTime = latestMessage?.SendTime,
+                LatestMessageIsMine = latestMessage?.SenderID == currentUserId,
+                UnreadCount = unreadCount
+            });
+        }
+
+        var ordered = conversations
+            .OrderByDescending(c => c.LatestMessageTime.HasValue)
+            .ThenByDescending(c => c.LatestMessageTime ?? DateTime.MinValue)
+            .ThenBy(c => string.IsNullOrWhiteSpace(c.Username) ? c.Email : c.Username)
+            .ToList();
+
+        return Ok(ordered);
+    }
     [HttpGet]
     public async Task<ActionResult<List<PrivateMessageResponse>>> GetMessages([FromQuery] int? userId)
     {
