@@ -82,8 +82,11 @@ public class DisputeTicketResponse
     public DateTime? AssignTime { get; set; }
     public int? TransactionID { get; set; }
     public decimal TransactionAmount { get; set; }
+    public string OrderStatus { get; set; } = string.Empty;
     public string ProductTitle { get; set; } = string.Empty;
+    public int? BuyerID { get; set; }
     public string BuyerName { get; set; } = string.Empty;
+    public int? SellerID { get; set; }
     public string SellerName { get; set; } = string.Empty;
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
@@ -91,7 +94,15 @@ public class DisputeTicketResponse
     public string ArbitratorName { get; set; } = string.Empty;
     public string Decision { get; set; } = string.Empty;
     public decimal? RefundAmount { get; set; }
+    public decimal? SellerSettlementAmount { get; set; }
     public DateTime? ResolvedTime { get; set; }
+}
+
+public class RequestSupplementRequest
+{
+    [Required]
+    [StringLength(500, MinimumLength = 2)]
+    public string Message { get; set; } = string.Empty;
 }
 
 public class ResolveDisputeRequest
@@ -102,6 +113,11 @@ public class ResolveDisputeRequest
 
     [Range(0, 99999999)]
     public decimal RefundAmount { get; set; }
+
+    // Buyer / Seller / Both / None. Used only during this resolve request for credit deduction.
+    // It is intentionally not stored as a database column in the lightweight version.
+    [StringLength(20)]
+    public string ResponsibilityParty { get; set; } = string.Empty;
 }
 
 public class WalletResponse

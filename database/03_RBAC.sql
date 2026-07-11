@@ -113,3 +113,29 @@ AND p."permissionName" IN (
 );
 
 COMMIT;
+
+-- ============================================================
+-- 纠纷仲裁权限（成员 8）
+-- ============================================================
+
+INSERT INTO "Permission" ("permissionName", "description", "resource", "action")
+SELECT 'disputes.view', '查看纠纷仲裁工单', 'disputes', 'view'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM "Permission" WHERE "permissionName" = 'disputes.view');
+
+INSERT INTO "Permission" ("permissionName", "description", "resource", "action")
+SELECT 'disputes.resolve', '处理纠纷仲裁工单', 'disputes', 'resolve'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM "Permission" WHERE "permissionName" = 'disputes.resolve');
+
+INSERT INTO "RolePermission" ("roleId", "permissionId")
+SELECT r."roleId", p."permissionId"
+FROM "Role" r, "Permission" p
+WHERE r."roleName" = 'Moderator'
+  AND p."permissionName" IN ('disputes.view', 'disputes.resolve')
+  AND NOT EXISTS (
+      SELECT 1 FROM "RolePermission" rp
+      WHERE rp."roleId" = r."roleId" AND rp."permissionId" = p."permissionId"
+  );
+
+COMMIT;
