@@ -16,6 +16,14 @@ public class User
     public string? PasswordHash { get; set; }
     [MaxLength(50)]
     public string? UserCode { get; set; }
+    [MaxLength(50)]
+    public string? Nickname { get; set; }
+    [MaxLength(500)]
+    public string? AvatarUrl { get; set; }
+    [MaxLength(100)]
+    public string? Contact { get; set; }
+    [MaxLength(500)]
+    public string? Bio { get; set; }
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
@@ -96,6 +104,8 @@ public class EmailCode
     public string? Email { get; set; }
     [MaxLength(10)]
     public string? Code { get; set; }
+    [MaxLength(30)]
+    public string? Purpose { get; set; }
     public DateTime? SendTime { get; set; }
     public DateTime? ExpireTime { get; set; }
     [MaxLength(1)]
@@ -455,6 +465,11 @@ public class CreditAdjustment
     [MaxLength(500)]
     public string? Description { get; set; }
     public int? ChangePoints { get; set; }
+    public int? BeforeCredit { get; set; }
+    public int? AfterCredit { get; set; }
+    public int? OperatorID { get; set; }
+    [ForeignKey("OperatorID")]
+    public User? Operator { get; set; }
     public DateTime? AdjustTime { get; set; }
 }
 

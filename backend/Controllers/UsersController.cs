@@ -64,7 +64,7 @@ public class UsersController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var email = request.Email.Trim();
+        var email = request.Email.Trim().ToLowerInvariant();
         var username = request.Username.Trim();
         if (!ValidateEmailDomain(email))
             return BadRequest(new { message = $"仅支持 @{_emailSettings.AllowedDomain} 邮箱" });
@@ -72,9 +72,13 @@ public class UsersController : ControllerBase
         if (!ValidatePassword(request.Password))
             return BadRequest(new { message = "密码必须包含大小写字母和数字" });
 
-        var exists = await _db.Users.CountAsync(u => u.Email == email) > 0;
+        var exists = await _db.Users.CountAsync(u => u.Email != null && u.Email.ToLower() == email) > 0;
         if (exists)
             return BadRequest(new { message = "该邮箱已存在" });
+
+        var usernameExists = await _db.Users.CountAsync(u => u.Username != null && u.Username.ToLower() == username.ToLower()) > 0;
+        if (usernameExists)
+            return BadRequest(new { message = "该用户名已存在" });
 
         var roleIds = request.RoleIds.Distinct().ToList();
         if (roleIds.Count == 0)

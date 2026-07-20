@@ -33,7 +33,16 @@ export const getUser = (id) => api.get(`/users/${id}`)
 export const createUser = (data) => api.post('/users', data)
 export const getProfile = () => api.get('/user/profile')
 export const getCreditAdjustments = () => api.get('/user/credit-adjustments')
+export const getUserCreditAdjustments = (userId) => api.get(`/user/${userId}/credit-adjustments`)
+export const adjustCredit = (data) => api.post('/user/credit/add', data)
 export const updateProfile = (data) => api.put('/user/profile', data)
+export const uploadAvatar = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/user/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const changePassword = (data) => api.post('/user/password', data)
 export const getRoles = () => api.get('/rbac/roles')
 export const createRole = (data) => api.post('/rbac/roles', data)
@@ -41,6 +50,7 @@ export const updateRole = (id, data) => api.put(`/rbac/roles/${id}`, data)
 export const deleteRole = (id) => api.delete(`/rbac/roles/${id}`)
 export const getPermissions = () => api.get('/rbac/permissions')
 export const createPermission = (data) => api.post('/rbac/permissions', data)
+export const deletePermission = (id) => api.delete(`/rbac/permissions/${id}`)
 export const assignPermissionsToRole = (roleId, permissionIds) =>
   api.post(`/rbac/roles/${roleId}/permissions`, { permissionIds })
 export const getUserRoles = (userId) => api.get(`/rbac/users/${userId}/roles`)

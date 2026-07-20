@@ -46,6 +46,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.PasswordHash).HasColumnName("passwordHash");
             e.Property(x => x.UserCode).HasColumnName("userCode");
+            e.Property(x => x.Nickname).HasColumnName("nickname");
+            e.Property(x => x.AvatarUrl).HasColumnName("avatarUrl");
+            e.Property(x => x.Contact).HasColumnName("contact");
+            e.Property(x => x.Bio).HasColumnName("bio");
             e.Property(x => x.Credit).HasColumnName("credit");
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.UserLevel).HasColumnName("userLevel");
@@ -97,6 +101,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.EmailCodeID).HasColumnName("emailCodeId").ValueGeneratedOnAdd();
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.Code).HasColumnName("code");
+            e.Property(x => x.Purpose).HasColumnName("purpose");
             e.Property(x => x.SendTime).HasColumnName("sendTime");
             e.Property(x => x.ExpireTime).HasColumnName("expireTime");
             e.Property(x => x.IsUsed).HasColumnName("isUsed");
@@ -344,7 +349,18 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.ChangePoints).HasColumnName("changePoints");
+            e.Property(x => x.BeforeCredit).HasColumnName("beforeCredit");
+            e.Property(x => x.AfterCredit).HasColumnName("afterCredit");
+            e.Property(x => x.OperatorID).HasColumnName("operatorId");
             e.Property(x => x.AdjustTime).HasColumnName("adjustTime");
+            e.HasOne(x => x.User)
+                .WithMany(u => u.CreditAdjustments)
+                .HasForeignKey(x => x.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Operator)
+                .WithMany()
+                .HasForeignKey(x => x.OperatorID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Notification>(e =>
