@@ -1,4 +1,24 @@
 services:
+  minio:
+    image: coollabsio/minio:latest
+    container_name: minio
+    command: server /data --address ":9000" --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --timeout=2 http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
   oracle-db:
     image: gvenzl/oracle-xe:18-slim
     container_name: oracle-db
@@ -27,15 +47,22 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      MediaStorage__Provider: s3
+      MediaStorage__S3__Endpoint: minio:9000
+      MediaStorage__S3__Bucket: forum-media
+      MediaStorage__S3__AccessKey: minioadmin
+      MediaStorage__S3__SecretKey: minioadmin
+      MediaStorage__S3__UseSsl: "false"
       ConnectionStrings__Oracle: "User Id=appuser;Password=AppUserPass123!;Data Source=oracle-db:1521/XEPDB1"
     depends_on:
       oracle-db:
         condition: service_healthy
+      minio:
+        condition: service_started
     ports:
       - "8080:8080"
     volumes:
       - ./backend:/app/src
-      - ./backend/wwwroot/uploads:/app/wwwroot/uploads
     networks:
       - app-network
 
@@ -59,6 +86,7 @@ services:
 volumes:
   oracle_data:
   frontend_node_modules:
+  minio_data:
 
 networks:
   app-network:

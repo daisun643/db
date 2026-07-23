@@ -5,7 +5,7 @@ using Backend.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +15,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("AuthSettings"));
+builder.Services.Configure<MediaStorageSettings>(builder.Configuration.GetSection("MediaStorage"));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseOracle(builder.Configuration.GetConnectionString("Oracle")));
@@ -22,6 +23,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IMediaStorageService>((sp) =>
+{
+    var mediaStorageSettings = sp.GetRequiredService<IOptions<MediaStorageSettings>>().Value;
+    if (!string.Equals(mediaStorageSettings.Provider, "s3", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Only MediaStorage.Provider=s3 is supported in this deployment mode.");
+    }
+
+    var logger = sp.GetRequiredService<ILogger<S3MediaStorageService>>();
+    return new S3MediaStorageService(
+        sp.GetRequiredService<IOptions<MediaStorageSettings>>(),
+        logger);
+});
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -67,10 +81,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-var webRootPath = app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
-Directory.CreateDirectory(Path.Combine(webRootPath, "uploads", "avatars"));
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -78,9 +88,27 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.UseStaticFiles(new StaticFileOptions
+app.MapGet("/uploads/{bucket}/{*objectKey}", async (string bucket, string? objectKey, IMediaStorageService mediaStorageService) =>
 {
-    FileProvider = new PhysicalFileProvider(webRootPath)
+    bucket = bucket?.Trim().ToLowerInvariant() ?? string.Empty;
+    if (bucket is not ("posts" or "products" or "avatars"))
+    {
+        return Results.NotFound();
+    }
+
+    if (string.IsNullOrWhiteSpace(objectKey) || !MediaStorageShared.IsSafeObjectKey(objectKey))
+    {
+        return Results.BadRequest();
+    }
+
+    var objectPath = $"{bucket}/{objectKey}";
+    var stored = await mediaStorageService.ReadObjectAsync(objectPath);
+    if (stored == null)
+    {
+        return Results.NotFound();
+    }
+
+    return Results.File(stored.Content, stored.ContentType, stored.FileName);
 });
 app.UseAuthentication();
 app.UseAuthorization();

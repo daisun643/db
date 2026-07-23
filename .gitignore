@@ -9,7 +9,7 @@ obj/
 
 __pycache__
 
-backend/wwwroot/uploads/
+AGENTS.md
 
 .*
 !.gitignore

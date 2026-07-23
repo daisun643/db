@@ -43,6 +43,16 @@ export const uploadAvatar = (file) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
+export const uploadImages = (files, bucket = 'posts') => {
+  const formData = new FormData()
+  files.forEach(file => {
+    formData.append('files', file)
+  })
+  return api.post('/media/images', formData, {
+    params: { bucket },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const changePassword = (data) => api.post('/user/password', data)
 export const getRoles = () => api.get('/rbac/roles')
 export const createRole = (data) => api.post('/rbac/roles', data)

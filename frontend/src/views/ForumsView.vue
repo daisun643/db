@@ -265,8 +265,21 @@
             <textarea v-model="postForm.content" placeholder="有什么新鲜事？" required autofocus></textarea>
             <div class="composer-row">
               <input v-model="tagText" type="text" placeholder="标签，用逗号分隔" />
-              <input v-model="imageText" type="text" placeholder="图片 URL，用逗号分隔" />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                :disabled="submitting"
+                @change="handlePickCreateImages"
+              />
             </div>
+            <div v-if="createImagePreviewUrls.length" class="image-strip">
+              <div v-for="(url, index) in createImagePreviewUrls" :key="url" class="image-preview-item">
+                <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
+                <button type="button" class="image-remove" @click="removeCreateImage(index)">移除</button>
+              </div>
+            </div>
+            <p class="field-hint">最多可上传 6 张，单张不超过 5MB，仅支持 JPG/PNG/GIF/WebP。</p>
             <div class="composer-tools">
               <button class="link-button" type="button" @click="handleSuggestTags">推荐标签</button>
             </div>
@@ -395,8 +408,21 @@
             <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
             <div class="composer-row">
               <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
-              <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                :disabled="editingSaving"
+                @change="handlePickEditImages"
+              />
             </div>
+            <div v-if="combinedEditImageList.length" class="image-strip">
+              <div v-for="(item, index) in combinedEditImageList" :key="`${item.source}-${index}`" class="image-preview-item">
+                <img :src="item.url" :alt="`图片 ${index + 1}`" loading="lazy" />
+                <button type="button" class="image-remove" @click="removeEditImage(index)">移除</button>
+              </div>
+            </div>
+            <p v-if="combinedEditImageList.length" class="field-hint">最多 6 张，编辑时新老图片会按列表顺序提交。</p>
           </div>
         </div>
       </form>
@@ -478,6 +504,7 @@ import {
   likePost,
   removePostFromFavoriteFolder,
   suggestTags,
+  uploadImages,
   unfavoritePost,
   unlikePost,
   updateFavoriteFolder,
@@ -501,7 +528,6 @@ const commentSubmitting = ref(false)
 const composerOpen = ref(false)
 const error = ref(null)
 const tagText = ref('')
-const imageText = ref('')
 const folderName = ref('')
 const folderRenameName = ref('')
 const selectedFolderId = ref('')
@@ -516,13 +542,20 @@ const replyText = ref('')
 const editingPost = ref(null)
 const editingSaving = ref(false)
 const editTagText = ref('')
-const editImageText = ref('')
+const editImageUrls = ref([])
+const editImageNewUrls = ref([])
+const editImageFiles = ref([])
+const createImageFiles = ref([])
+const createImagePreviewUrls = ref([])
 const reportTarget = ref(null)
 const reportReason = ref('')
 const folderPickerOpen = ref(false)
 const folderPickerTarget = ref(null)
 const pickerFolderName = ref('')
 const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGE_COUNT = 6
 
 const postMetricItems = (post) => [
   { key: 'heat', label: '热度', value: post?.heatScore || 0, icon: flameIcon },
@@ -530,6 +563,21 @@ const postMetricItems = (post) => [
   { key: 'likes', label: '点赞', value: post?.likeCount || 0, icon: heartIcon },
   { key: 'comments', label: '评论', value: post?.commentCount || 0, icon: commentIcon },
 ]
+
+const combinedEditImageList = computed(() => {
+  const fromRemote = editImageUrls.value.map((url, index) => ({
+    source: 'remote',
+    key: `remote-${index}`,
+    url,
+  }))
+  const fromLocal = editImageNewUrls.value.map((url, index) => ({
+    source: 'local',
+    key: `local-${index}`,
+    url,
+  }))
+
+  return [...fromRemote, ...fromLocal]
+})
 
 const iconMaskStyle = (icon) => ({
   '--icon-url': `url("${icon}")`,
@@ -617,13 +665,113 @@ const selectForum = async (forumId) => {
   await loadPosts()
 }
 
+const clearCreateImageState = () => {
+  createImagePreviewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  createImageFiles.value = []
+  createImagePreviewUrls.value = []
+}
+
+const clearEditImageState = () => {
+  editImageNewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  editImageFiles.value = []
+  editImageNewUrls.value = []
+  editImageUrls.value = []
+}
+
+const validateImageFile = (file) => {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return '仅支持 JPG、PNG、GIF、WebP 图片'
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return '单张图片不能超过5MB'
+  }
+  return null
+}
+
+const handlePickCreateImages = async (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = createImageFiles.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  createImageFiles.value = [...createImageFiles.value, ...files]
+  const addedUrls = files.map(file => URL.createObjectURL(file))
+  createImagePreviewUrls.value = [...createImagePreviewUrls.value, ...addedUrls]
+  error.value = null
+}
+
+const removeCreateImage = (index) => {
+  const removedUrl = createImagePreviewUrls.value[index]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  createImagePreviewUrls.value.splice(index, 1)
+  createImageFiles.value.splice(index, 1)
+}
+
+const handlePickEditImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = editImageUrls.value.length + editImageNewUrls.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const addedUrls = files.map(file => URL.createObjectURL(file))
+  editImageFiles.value = [...editImageFiles.value, ...files]
+  editImageNewUrls.value = [...editImageNewUrls.value, ...addedUrls]
+  error.value = null
+}
+
+const removeEditImage = (index) => {
+  const remoteCount = editImageUrls.value.length
+  if (index < remoteCount) {
+    editImageUrls.value = editImageUrls.value.filter((_, i) => i !== index)
+    return
+  }
+
+  const localIndex = index - remoteCount
+  const removedUrl = editImageNewUrls.value[localIndex]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  editImageNewUrls.value.splice(localIndex, 1)
+  editImageFiles.value.splice(localIndex, 1)
+}
+
 const openComposer = () => {
   error.value = null
+  clearCreateImageState()
   composerOpen.value = true
 }
 
 const closeComposer = () => {
   if (submitting.value) return
+  clearCreateImageState()
   composerOpen.value = false
 }
 
@@ -632,7 +780,11 @@ const handleCreatePost = async () => {
     submitting.value = true
     error.value = null
     const tagNames = tagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
-    const imageUrls = imageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = createImageFiles.value.length > 0
+      ? await uploadImages(createImageFiles.value, 'posts')
+      : null
+    const imageUrls = (uploaded?.data?.urls || []).slice(0, MAX_IMAGE_COUNT)
+
     await createPost({
       ...postForm.value,
       tagNames,
@@ -641,7 +793,7 @@ const handleCreatePost = async () => {
     postForm.value.title = ''
     postForm.value.content = ''
     tagText.value = ''
-    imageText.value = ''
+    clearCreateImageState()
     composerOpen.value = false
     await Promise.all([loadPosts(), loadMyPosts()])
   } catch (e) {
@@ -752,12 +904,13 @@ const openEditPost = async (post) => {
     error.value = null
     const res = await getPost(post.postID)
     editingPost.value = res.data
+    clearEditImageState()
     editForm.value = {
       title: res.data.title || '',
       content: res.data.content || '',
     }
     editTagText.value = (res.data.tags || []).join(', ')
-    editImageText.value = (res.data.imageUrls || []).join(', ')
+    editImageUrls.value = [...(res.data.imageUrls || [])]
   } catch (e) {
     error.value = '无法加载编辑内容: ' + (e.response?.data?.message || e.message)
   }
@@ -766,7 +919,7 @@ const openEditPost = async (post) => {
 const closeEditPost = () => {
   editingPost.value = null
   editTagText.value = ''
-  editImageText.value = ''
+  clearEditImageState()
 }
 
 const handleUpdatePost = async () => {
@@ -776,7 +929,13 @@ const handleUpdatePost = async () => {
     editingSaving.value = true
     error.value = null
     const tagNames = editTagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
-    const imageUrls = editImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = editImageFiles.value.length > 0
+      ? await uploadImages(editImageFiles.value, 'posts')
+      : null
+    const imageUrls = [
+      ...editImageUrls.value,
+      ...(uploaded?.data?.urls || []),
+    ].slice(0, MAX_IMAGE_COUNT)
     const res = await updatePost(editingPost.value.postID, {
       ...editForm.value,
       tagNames,
@@ -1508,8 +1667,43 @@ onMounted(async () => {
   aspect-ratio: 4 / 3;
 }
 
+.image-preview-item {
+  position: relative;
+}
+
+.image-remove {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  border: none;
+  border-radius: 9999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  position: absolute;
+  right: 0.375rem;
+  top: 0.375rem;
+}
+
 .detail-images {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.image-preview-item .image-remove {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.image-preview-item:hover .image-remove,
+.image-preview-item:focus-within .image-remove {
+  opacity: 1;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin: 0;
 }
 
 .detail-images img {

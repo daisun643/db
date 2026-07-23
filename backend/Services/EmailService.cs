@@ -10,6 +10,7 @@ public class EmailService : IEmailService
 {
     private readonly EmailSettings _settings;
     private readonly ILogger<EmailService> _logger;
+    private const int SmtpTimeoutMilliseconds = 5000;
 
     public EmailService(IOptions<EmailSettings> settings, ILogger<EmailService> logger)
     {
@@ -70,8 +71,14 @@ public class EmailService : IEmailService
             message.Body = bodyBuilder.ToMessageBody();
 
             using var client = new SmtpClient();
+            client.Timeout = SmtpTimeoutMilliseconds;
             
-            await client.ConnectAsync(_settings.SmtpServer, _settings.SmtpPort, _settings.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls);
+            using var cts = new CancellationTokenSource(SmtpTimeoutMilliseconds);
+            await client.ConnectAsync(
+                _settings.SmtpServer,
+                _settings.SmtpPort,
+                _settings.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls,
+                cts.Token);
             await client.AuthenticateAsync(_settings.SenderEmail, _settings.SenderPassword);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);

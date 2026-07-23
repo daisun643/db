@@ -15,29 +15,19 @@ namespace Backend.Controllers;
 public class UserController : ControllerBase
 {
     private const long MaxAvatarBytes = 2 * 1024 * 1024;
-    private static readonly Dictionary<string, string> AllowedAvatarTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["image/jpeg"] = ".jpg",
-        ["image/png"] = ".png",
-        ["image/gif"] = ".gif",
-        ["image/webp"] = ".webp"
-    };
 
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
-    private readonly ILogger<UserController> _logger;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IMediaStorageService _mediaStorageService;
 
     public UserController(
         AppDbContext db,
         ICreditService creditService,
-        ILogger<UserController> logger,
-        IWebHostEnvironment environment)
+        IMediaStorageService mediaStorageService)
     {
         _db = db;
         _creditService = creditService;
-        _logger = logger;
-        _environment = environment;
+        _mediaStorageService = mediaStorageService;
     }
 
     /// <summary>
@@ -333,31 +323,26 @@ public class UserController : ControllerBase
         if (file.Length > MaxAvatarBytes)
             return BadRequest(new { message = "头像文件不能超过2MB" });
 
-        if (!AllowedAvatarTypes.TryGetValue(file.ContentType, out var extension))
-            return BadRequest(new { message = "仅支持 JPG、PNG、GIF、WebP 图片" });
-
-        if (!HasValidImageSignature(file, extension))
-            return BadRequest(new { message = "头像文件格式不正确" });
-
         var user = await _db.Users.FindAsync(currentUserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
-        var webRootPath = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
-        var avatarDirectory = Path.Combine(webRootPath, "uploads", "avatars");
-        Directory.CreateDirectory(avatarDirectory);
-
-        var fileName = $"{currentUserId}_{Guid.NewGuid():N}{extension}";
-        var filePath = Path.Combine(avatarDirectory, fileName);
-
-        await using (var stream = System.IO.File.Create(filePath))
+        StoredImage storedImage;
+        try
         {
-            await file.CopyToAsync(stream);
+            storedImage = await _mediaStorageService.StoreImageAsync(file, "avatars", currentUserId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
 
-        DeleteOldLocalAvatar(webRootPath, user.AvatarUrl);
+        var oldAvatarUrl = user.AvatarUrl;
+        user.AvatarUrl = storedImage.Url;
+        await DeleteOldLocalAvatar(oldAvatarUrl);
 
-        user.AvatarUrl = $"/uploads/avatars/{fileName}";
+        // 写入头像关联元数据（保留兼容字段 user.AvatarUrl）
+        await SyncUserAvatarMediaAsync(currentUserId, storedImage);
         await _db.SaveChangesAsync();
 
         return Ok(new
@@ -461,44 +446,60 @@ public class UserController : ControllerBase
             : null;
     }
 
-    private static bool HasValidImageSignature(IFormFile file, string extension)
+    private static bool IsInternalAvatarUrl(string? value)
     {
-        Span<byte> header = stackalloc byte[12];
-        using var stream = file.OpenReadStream();
-        var bytesRead = stream.Read(header);
-
-        return extension switch
-        {
-            ".jpg" => bytesRead >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
-            ".png" => bytesRead >= 8 &&
-                      header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47 &&
-                      header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A,
-            ".gif" => bytesRead >= 6 &&
-                      header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 &&
-                      header[3] == 0x38 && (header[4] == 0x37 || header[4] == 0x39) && header[5] == 0x61,
-            ".webp" => bytesRead >= 12 &&
-                       header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
-                       header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
-            _ => false
-        };
+        return value != null &&
+            value.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void DeleteOldLocalAvatar(string webRootPath, string? avatarUrl)
+    private async Task DeleteOldLocalAvatar(string? avatarUrl)
     {
-        if (string.IsNullOrWhiteSpace(avatarUrl) ||
-            !avatarUrl.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase))
+        if (!IsInternalAvatarUrl(avatarUrl))
         {
             return;
         }
 
-        var fileName = Path.GetFileName(avatarUrl);
-        if (string.IsNullOrWhiteSpace(fileName)) return;
+        await _mediaStorageService.DeleteByUrlAsync(avatarUrl);
+    }
 
-        var oldPath = Path.Combine(webRootPath, "uploads", "avatars", fileName);
-        if (System.IO.File.Exists(oldPath))
+    private async Task SyncUserAvatarMediaAsync(int userId, StoredImage storedImage)
+    {
+        var existingAvatar = await _db.MediaFiles.FirstOrDefaultAsync(m =>
+            m.OwnerType == "User" &&
+            m.OwnerID == userId &&
+            m.UploadedByUserID == userId &&
+            m.ObjectKey == storedImage.ObjectKey);
+
+        if (existingAvatar != null)
+            return;
+
+        var existingItems = await _db.MediaFiles.Where(m =>
+            m.OwnerType == "User" &&
+            m.OwnerID == userId &&
+            (m.ObjectKey != null || m.Url != null)).ToListAsync();
+
+        foreach (var item in existingItems)
         {
-            System.IO.File.Delete(oldPath);
+            await _mediaStorageService.DeleteByUrlAsync(item.Url);
+            _db.MediaFiles.Remove(item);
         }
+
+        _db.MediaFiles.Add(new MediaFile
+        {
+            OwnerType = "User",
+            OwnerID = userId,
+            StorageProvider = storedImage.StorageProvider,
+            ObjectKey = storedImage.ObjectKey,
+            FileName = storedImage.FileName,
+            OriginalFileName = storedImage.OriginalFileName,
+            Url = storedImage.Url,
+            MimeType = storedImage.MimeType,
+            SizeBytes = storedImage.SizeBytes,
+            ContentHash = storedImage.ContentHash,
+            UploadTime = DateTime.UtcNow,
+            UploadedByUserID = userId,
+            DisplayOrder = 1
+        });
     }
 
     private static bool IsValidPassword(string? password)

@@ -20,12 +20,15 @@ public class PostsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly IMediaStorageService _mediaStorageService;
     private static readonly string[] SensitiveWords = ["违禁", "敏感词", "spam"];
+    private const string OwnerType = "Post";
 
-    public PostsController(AppDbContext db, ICreditService creditService)
+    public PostsController(AppDbContext db, ICreditService creditService, IMediaStorageService mediaStorageService)
     {
         _db = db;
         _creditService = creditService;
+        _mediaStorageService = mediaStorageService;
     }
 
     [HttpGet]
@@ -142,12 +145,13 @@ public class PostsController : ControllerBase
             return BadRequest(new { message = "论坛不存在或不可用" });
 
         var hitWord = FindSensitiveWord(request.Title, request.Content);
+        var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         var post = new Post
         {
             ForumID = request.ForumID,
             Title = request.Title.Trim(),
             Content = request.Content,
-            ImageUrls = SerializeImageUrls(request.ImageUrls),
+            ImageUrls = SerializeImageUrls(normalizedImageUrls),
             UserID = userId,
             CreateTime = DateTime.Now,
             UpdateTime = DateTime.Now,
@@ -159,6 +163,7 @@ public class PostsController : ControllerBase
 
         _db.Posts.Add(post);
         await _db.SaveChangesAsync();
+        await ReplaceMediaForOwnerAsync(post.PostID, userId, normalizedImageUrls);
 
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
         await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你");
@@ -198,11 +203,13 @@ public class PostsController : ControllerBase
             return Forbid();
 
         var hitWord = FindSensitiveWord(request.Title, request.Content);
+        var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         post.Title = request.Title.Trim();
         post.Content = request.Content;
-        post.ImageUrls = SerializeImageUrls(request.ImageUrls);
+        post.ImageUrls = SerializeImageUrls(normalizedImageUrls);
         post.UpdateTime = DateTime.Now;
         post.Status = hitWord == null ? post.Status : "PendingReview";
+        await ReplaceMediaForOwnerAsync(post.PostID, userId, normalizedImageUrls);
 
         await _db.SaveChangesAsync();
         await ReplacePostTagsAsync(post.PostID, request.TagNames);
@@ -556,6 +563,13 @@ public class PostsController : ControllerBase
             .Include(tp => tp.Tag)
             .Where(tp => postIds.Contains(tp.PostID))
             .ToListAsync();
+        var mediaRows = await _db.MediaFiles
+            .Where(m => m.OwnerType == OwnerType &&
+                        m.OwnerID.HasValue &&
+                        postIds.Contains(m.OwnerID.Value))
+            .OrderBy(m => m.DisplayOrder ?? int.MaxValue)
+            .ThenBy(m => m.MediaID)
+            .ToListAsync();
         var commentCounts = await _db.PostComments
             .Where(c => c.PostID.HasValue && postIds.Contains(c.PostID.Value) && c.Status != "Deleted")
             .GroupBy(c => c.PostID!.Value)
@@ -580,6 +594,11 @@ public class PostsController : ControllerBase
             : new List<int>();
         var favoritedPostIds = favoritedPostIdList.ToHashSet();
 
+        var mediaByPost = mediaRows
+            .Where(m => m.OwnerID.HasValue)
+            .GroupBy(m => m.OwnerID!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.Url).Where(HasUrl).ToList());
+
         return postList.Select(p => new PostListItemResponse
         {
             PostID = p.PostID,
@@ -600,10 +619,22 @@ public class PostsController : ControllerBase
                 .Where(t => t.PostID == p.PostID && t.Tag?.TagName != null)
                 .Select(t => t.Tag!.TagName!)
                 .ToList(),
-            ImageUrls = DeserializeImageUrls(p.ImageUrls),
+            ImageUrls = ResolveImageUrls(mediaByPost, p),
             IsLiked = likedPostIds.Contains(p.PostID),
             IsFavorited = favoritedPostIds.Contains(p.PostID)
         }).ToList();
+    }
+
+    private static List<string> ResolveImageUrls(Dictionary<int, List<string>> mediaByPost, Post post)
+    {
+        if (post.PostID != 0 &&
+            mediaByPost.TryGetValue(post.PostID, out var mediaImageUrls) &&
+            mediaImageUrls.Count > 0)
+        {
+            return mediaImageUrls.Take(6).ToList();
+        }
+
+        return DeserializeImageUrls(post.ImageUrls);
     }
 
     private async Task<PostDetailResponse> MapPostDetailAsync(Post post, bool incrementView = false)
@@ -721,15 +752,93 @@ public class PostsController : ControllerBase
 
     private static string SerializeImageUrls(IEnumerable<string> urls)
     {
-        var normalized = urls
-            .Select(url => url.Trim())
-            .Where(url => Uri.TryCreate(url, UriKind.Absolute, out var parsed) &&
-                (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+        var normalized = NormalizeImageUrls(urls);
+        return JsonSerializer.Serialize(normalized.Take(6).ToList());
+    }
+
+    private static List<string> NormalizeImageUrls(IEnumerable<string>? urls)
+    {
+        if (urls == null)
+            return new List<string>();
+
+        return urls
+            .Select(url => url?.Trim())
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Where(IsValidImageUrl)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(6)
             .ToList();
+    }
 
-        return JsonSerializer.Serialize(normalized);
+    private static bool IsValidImageUrl(string url)
+    {
+        if (url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var parsed) &&
+            (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static bool HasUrl(string? url)
+    {
+        return !string.IsNullOrWhiteSpace(url);
+    }
+
+    private async Task ReplaceMediaForOwnerAsync(int ownerId, int? uploadedByUserId, IEnumerable<string> imageUrls)
+    {
+        var normalized = NormalizeImageUrls(imageUrls);
+
+        var existing = await _db.MediaFiles
+            .Where(m => m.OwnerType == OwnerType && m.OwnerID == ownerId)
+            .ToListAsync();
+
+        var existingLookup = existing
+            .Where(x => !string.IsNullOrWhiteSpace(x.Url))
+            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+
+        var incomingSet = normalized.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var removed in existing.Where(m => !incomingSet.Contains(m.Url ?? ""))
+            .ToList())
+        {
+            await _mediaStorageService.DeleteByUrlAsync(removed.Url);
+            _db.MediaFiles.Remove(removed);
+        }
+
+        var existingRetained = existing
+            .Where(m => incomingSet.Contains(m.Url ?? ""))
+            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < normalized.Count; i++)
+        {
+            var url = normalized[i];
+            if (existingRetained.TryGetValue(url, out var matched))
+            {
+                matched.DisplayOrder = i;
+                matched.UploadTime = DateTime.UtcNow;
+                continue;
+            }
+
+            var item = existingLookup.GetValueOrDefault(url);
+            if (item != null)
+            {
+                item.OwnerID = ownerId;
+                item.DisplayOrder = i;
+                item.UploadTime = DateTime.UtcNow;
+                continue;
+            }
+
+            _db.MediaFiles.Add(new MediaFile
+            {
+                OwnerType = OwnerType,
+                OwnerID = ownerId,
+                StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
+                Url = url,
+                UploadedByUserID = uploadedByUserId,
+                DisplayOrder = i,
+                UploadTime = DateTime.UtcNow
+            });
+        }
     }
 
     private static List<string> DeserializeImageUrls(string? value)

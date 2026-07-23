@@ -29,12 +29,44 @@ public class User
     public string? Status { get; set; }
     public int UserLevel { get; set; } = 1;
     public int TotalCredit { get; set; } = 0;
+
+    public ICollection<MediaFile> UploadedMedia { get; set; } = new List<MediaFile>();
     
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<PostLike> PostLikes { get; set; } = new List<PostLike>();
     public ICollection<FavoriteFolder> FavoriteFolders { get; set; } = new List<FavoriteFolder>();
     public ICollection<FriendShip> FriendShips { get; set; } = new List<FriendShip>();
     public ICollection<CreditAdjustment> CreditAdjustments { get; set; } = new List<CreditAdjustment>();
+}
+
+[Table("MediaFile")]
+public class MediaFile
+{
+    [Key]
+    public int MediaID { get; set; }
+    [MaxLength(30)]
+    public string? OwnerType { get; set; }
+    public int? OwnerID { get; set; }
+    [MaxLength(50)]
+    public string StorageProvider { get; set; } = "s3";
+    [MaxLength(500)]
+    public string? ObjectKey { get; set; }
+    [MaxLength(4000)]
+    public string? FileName { get; set; }
+    [MaxLength(4000)]
+    public string? OriginalFileName { get; set; }
+    [MaxLength(500)]
+    public string? Url { get; set; }
+    [MaxLength(100)]
+    public string? MimeType { get; set; }
+    public long? SizeBytes { get; set; }
+    [MaxLength(64)]
+    public string? ContentHash { get; set; }
+    public DateTime? UploadTime { get; set; }
+    public int? UploadedByUserID { get; set; }
+    [ForeignKey("UploadedByUserID")]
+    public User? UploadedByUser { get; set; }
+    public int? DisplayOrder { get; set; }
 }
 
 [Table("Role")]

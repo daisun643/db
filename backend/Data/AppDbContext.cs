@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Wallet> Wallets => Set<Wallet>();
     public DbSet<Forum> Forums => Set<Forum>();
     public DbSet<Post> Posts => Set<Post>();
+    public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<TagPost> TagPosts => Set<TagPost>();
@@ -54,6 +55,36 @@ public class AppDbContext : DbContext
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.UserLevel).HasColumnName("userLevel");
             e.Property(x => x.TotalCredit).HasColumnName("totalCredit");
+            e.HasMany(u => u.UploadedMedia)
+                .WithOne(m => m.UploadedByUser)
+                .HasForeignKey(m => m.UploadedByUserID)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<MediaFile>(e =>
+        {
+            e.ToTable("MediaFile");
+            e.HasKey(x => x.MediaID);
+            e.Property(x => x.MediaID).HasColumnName("mediaId").ValueGeneratedOnAdd();
+            e.Property(x => x.OwnerType).HasColumnName("ownerType");
+            e.Property(x => x.OwnerID).HasColumnName("ownerId");
+            e.Property(x => x.StorageProvider).HasColumnName("storageProvider").HasDefaultValue("s3");
+            e.Property(x => x.ObjectKey).HasColumnName("objectKey");
+            e.Property(x => x.FileName).HasColumnName("fileName");
+            e.Property(x => x.OriginalFileName).HasColumnName("originalFileName");
+            e.Property(x => x.Url).HasColumnName("url");
+            e.Property(x => x.MimeType).HasColumnName("mimeType");
+            e.Property(x => x.SizeBytes).HasColumnName("sizeBytes");
+            e.Property(x => x.ContentHash).HasColumnName("contentHash");
+            e.Property(x => x.UploadTime).HasColumnName("uploadTime").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            e.Property(x => x.UploadedByUserID).HasColumnName("uploadedByUserId");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => new { x.OwnerType, x.OwnerID });
+            e.HasIndex(x => x.UploadedByUserID);
+            e.HasOne(x => x.UploadedByUser)
+                .WithMany(u => u.UploadedMedia)
+                .HasForeignKey(x => x.UploadedByUserID)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Role>(e =>
