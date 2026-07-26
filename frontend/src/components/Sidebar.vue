@@ -33,6 +33,14 @@
           <span class="nav-label" v-if="!isCollapsed">交易</span>
         </router-link>
 
+        <router-link to="/finance" class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+          <span class="nav-label" v-if="!isCollapsed">资金流水</span>
+        </router-link>
+
         <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -80,19 +88,20 @@
 import { onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAccess'
 
 const authStore = useAuthStore()
 const router = useRouter()
-
-const isCollapsed = ref(true)
-const protectedMenuPaths = ['/forums', '/products', '/messages', '/system-status']
 const routeAccess = ref({})
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
-const canAccess = (path) => routeAccess.value[path] === true
+const canAccess = (path) => {
+  const requiredPermissions = getRequiredPermissions(path)
+  return authStore.hasAnyPermission(requiredPermissions || []) && routeAccess.value[path] === true
+}
 
 const updateRouteAccess = async () => {
   if (!authStore.isAuthenticated) {
@@ -101,7 +110,10 @@ const updateRouteAccess = async () => {
   }
 
   const entries = await Promise.all(
-    protectedMenuPaths.map(async (path) => [path, await authStore.checkRouteAccess(path)])
+    PROTECTED_MENU_PATHS.map(async (path) => [
+      path,
+      await authStore.checkRouteAccess(path, getRequiredPermissions(path) || []),
+    ])
   )
   routeAccess.value = Object.fromEntries(entries)
 }
@@ -115,7 +127,7 @@ const handleLogout = async () => {
 onMounted(updateRouteAccess)
 
 watch(
-  () => authStore.isAuthenticated,
+  () => [authStore.isAuthenticated, authStore.user?.roles, authStore.user?.permissions],
   () => {
     updateRouteAccess()
   }

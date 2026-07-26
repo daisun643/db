@@ -14,15 +14,20 @@ namespace Backend.Controllers;
 [Route("api/[controller]")]
 public class UserController : ControllerBase
 {
+    private const long MaxAvatarBytes = 2 * 1024 * 1024;
+
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
-    private readonly ILogger<UserController> _logger;
+    private readonly IMediaStorageService _mediaStorageService;
 
-    public UserController(AppDbContext db, ICreditService creditService, ILogger<UserController> logger)
+    public UserController(
+        AppDbContext db,
+        ICreditService creditService,
+        IMediaStorageService mediaStorageService)
     {
         _db = db;
         _creditService = creditService;
-        _logger = logger;
+        _mediaStorageService = mediaStorageService;
     }
 
     /// <summary>
@@ -67,9 +72,17 @@ public class UserController : ControllerBase
     /// <summary>
     /// 获取用户积分详情
     /// </summary>
+    [Authorize]
     [HttpGet("{userId}/credit")]
     public async Task<ActionResult<UserCreditResponse>> GetUserCredit(int userId)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        if (currentUserId != userId && !CanManageCredit())
+            return Forbid();
+
         var user = await _db.Users
             .Where(u => u.UserID == userId)
             .Select(u => new UserCreditResponse
@@ -98,20 +111,32 @@ public class UserController : ControllerBase
             return Unauthorized(new { message = "无法获取用户信息" });
 
         var adjustments = await _db.CreditAdjustments
+            .Include(a => a.Operator)
             .Where(a => a.UserID == currentUserId)
             .OrderByDescending(a => a.AdjustTime)
             .Take(50)
-            .Select(a => new CreditAdjustmentResponse
-            {
-                CreditAdjustmentId = a.CreditAdjustmentID,
-                UserId = a.UserID,
-                Description = a.Description ?? "",
-                ChangePoints = a.ChangePoints ?? 0,
-                AdjustTime = a.AdjustTime
-            })
             .ToListAsync();
 
-        return Ok(adjustments);
+        return Ok(adjustments.Select(MapCreditAdjustment).ToList());
+    }
+
+    [Authorize]
+    [RequirePermission("users.view", "dashboard.view")]
+    [HttpGet("{userId}/credit-adjustments")]
+    public async Task<ActionResult<List<CreditAdjustmentResponse>>> GetUserCreditAdjustments(int userId)
+    {
+        var userExists = await _db.Users.CountAsync(u => u.UserID == userId) > 0;
+        if (!userExists)
+            return NotFound(new { message = "用户不存在" });
+
+        var adjustments = await _db.CreditAdjustments
+            .Include(a => a.Operator)
+            .Where(a => a.UserID == userId)
+            .OrderByDescending(a => a.AdjustTime)
+            .Take(50)
+            .ToListAsync();
+
+        return Ok(adjustments.Select(MapCreditAdjustment).ToList());
     }
 
     /// <summary>
@@ -122,16 +147,37 @@ public class UserController : ControllerBase
     [HttpPost("credit/add")]
     public async Task<ActionResult> AddCredit([FromBody] AddCreditRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
+        if (request.Credit == 0)
+            return BadRequest(new { message = "调整分值不能为 0" });
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(new { message = "调整原因不能为空" });
+
         var user = await _db.Users.FindAsync(request.UserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
-        await _creditService.AddCreditAsync(request.UserId, request.Credit, request.Reason);
+        var operatorId = GetCurrentUserId();
+        var adjustment = await _creditService.AdjustCreditAsync(
+            request.UserId,
+            request.Credit,
+            request.Reason,
+            operatorId == 0 ? null : operatorId);
 
-        _logger.LogInformation("用户 {UserId} 添加积分: {Credit}，原因: {Reason}", 
-            request.UserId, request.Credit, request.Reason);
+        if (adjustment == null)
+            return NotFound(new { message = "用户不存在" });
 
-        return Ok(new { message = "积分添加成功" });
+        await _db.Entry(adjustment).Reference(a => a.Operator).LoadAsync();
+
+        return Ok(new
+        {
+            message = "信用分调整成功",
+            adjustment = MapCreditAdjustment(adjustment)
+        });
+
     }
 
     /// <summary>
@@ -178,6 +224,10 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
+            nickname = user.Nickname,
+            avatarUrl = user.AvatarUrl,
+            contact = user.Contact,
+            bio = user.Bio,
             userLevel = user.UserLevel,
             totalCredit = user.TotalCredit,
             credit = user.Credit,
@@ -194,19 +244,47 @@ public class UserController : ControllerBase
     [HttpPut("profile")]
     public async Task<ActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
         var currentUserId = GetCurrentUserId();
         if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
-
-        var username = request.Username.Trim();
-        if (username.Length < 2 || username.Length > 50)
-            return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
 
         var user = await _db.Users.FindAsync(currentUserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
-        user.Username = username;
+        if (request.Username != null)
+        {
+            var username = request.Username.Trim();
+            if (username.Length < 2 || username.Length > 50)
+                return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
+
+            var existingUsernameUserId = await _db.Users
+                .Where(u => u.UserID != currentUserId &&
+                            u.Username != null &&
+                            u.Username.ToLower() == username.ToLower())
+                .Select(u => u.UserID)
+                .FirstOrDefaultAsync();
+            if (existingUsernameUserId != 0)
+                return BadRequest(new { message = "该用户名已被使用" });
+
+            user.Username = username;
+        }
+
+        if (request.Nickname != null)
+            user.Nickname = NormalizeProfileField(request.Nickname, 50);
+        if (request.AvatarUrl != null)
+        {
+            var avatarPath = NormalizeAvatarPath(request.AvatarUrl);
+            if (avatarPath != null || string.IsNullOrWhiteSpace(request.AvatarUrl))
+                user.AvatarUrl = avatarPath;
+        }
+        if (request.Contact != null)
+            user.Contact = NormalizeProfileField(request.Contact, 100);
+        if (request.Bio != null)
+            user.Bio = NormalizeProfileField(request.Bio, 500);
         await _db.SaveChangesAsync();
 
         return Ok(new
@@ -215,10 +293,62 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
+            nickname = user.Nickname,
+            avatarUrl = user.AvatarUrl,
+            contact = user.Contact,
+            bio = user.Bio,
             userLevel = user.UserLevel,
             totalCredit = user.TotalCredit,
             credit = user.Credit,
             status = user.Status
+        });
+    }
+
+    /// <summary>
+    /// 上传当前登录用户头像
+    /// </summary>
+    [Authorize]
+    [HttpPost("avatar")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxAvatarBytes)]
+    public async Task<ActionResult> UploadAvatar(IFormFile? file)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == 0)
+            return Unauthorized(new { message = "无法获取用户信息" });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "请选择头像文件" });
+
+        if (file.Length > MaxAvatarBytes)
+            return BadRequest(new { message = "头像文件不能超过2MB" });
+
+        var user = await _db.Users.FindAsync(currentUserId);
+        if (user == null)
+            return NotFound(new { message = "用户不存在" });
+
+        StoredImage storedImage;
+        try
+        {
+            storedImage = await _mediaStorageService.StoreImageAsync(file, "avatars", currentUserId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+
+        var oldAvatarUrl = user.AvatarUrl;
+        user.AvatarUrl = storedImage.Url;
+        await DeleteOldLocalAvatar(oldAvatarUrl);
+
+        // 写入头像关联元数据（保留兼容字段 user.AvatarUrl）
+        await SyncUserAvatarMediaAsync(currentUserId, storedImage);
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "头像已上传",
+            avatarUrl = user.AvatarUrl
         });
     }
 
@@ -229,6 +359,9 @@ public class UserController : ControllerBase
     [HttpPost("password")]
     public async Task<ActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
+        if (request == null)
+            return BadRequest(new { message = "请求体不能为空" });
+
         var currentUserId = GetCurrentUserId();
         if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
@@ -258,8 +391,120 @@ public class UserController : ControllerBase
         return int.TryParse(userId, out var id) ? id : 0;
     }
 
-    private static bool IsValidPassword(string password)
+    private bool CanManageCredit()
     {
+        if (User.IsInRole("Admin"))
+            return true;
+
+        var permissions = User.Claims
+            .Where(c => c.Type == "Permission")
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return permissions.Contains("users.view") ||
+               permissions.Contains("users.edit") ||
+               permissions.Contains("users.ban") ||
+               permissions.Contains("dashboard.view");
+    }
+
+    private static CreditAdjustmentResponse MapCreditAdjustment(CreditAdjustment adjustment)
+    {
+        return new CreditAdjustmentResponse
+        {
+            CreditAdjustmentId = adjustment.CreditAdjustmentID,
+            UserId = adjustment.UserID,
+            Description = adjustment.Description ?? "",
+            ChangePoints = adjustment.ChangePoints ?? 0,
+            BeforeCredit = adjustment.BeforeCredit,
+            AfterCredit = adjustment.AfterCredit,
+            OperatorId = adjustment.OperatorID,
+            OperatorName = adjustment.Operator?.Username ?? adjustment.Operator?.Email,
+            AdjustTime = adjustment.AdjustTime
+        };
+    }
+
+    private static string? NormalizeProfileField(string? value, int maxLength)
+    {
+        if (value == null) return null;
+
+        var trimmed = value.Trim();
+        if (trimmed.Length > maxLength)
+        {
+            trimmed = trimmed[..maxLength];
+        }
+
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static string? NormalizeAvatarPath(string? value)
+    {
+        var normalized = NormalizeProfileField(value, 500);
+        if (normalized == null) return null;
+
+        return normalized.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase)
+            ? normalized
+            : null;
+    }
+
+    private static bool IsInternalAvatarUrl(string? value)
+    {
+        return value != null &&
+            value.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task DeleteOldLocalAvatar(string? avatarUrl)
+    {
+        if (!IsInternalAvatarUrl(avatarUrl))
+        {
+            return;
+        }
+
+        await _mediaStorageService.DeleteByUrlAsync(avatarUrl);
+    }
+
+    private async Task SyncUserAvatarMediaAsync(int userId, StoredImage storedImage)
+    {
+        var existingAvatar = await _db.MediaFiles.FirstOrDefaultAsync(m =>
+            m.OwnerType == "User" &&
+            m.OwnerID == userId &&
+            m.UploadedByUserID == userId &&
+            m.ObjectKey == storedImage.ObjectKey);
+
+        if (existingAvatar != null)
+            return;
+
+        var existingItems = await _db.MediaFiles.Where(m =>
+            m.OwnerType == "User" &&
+            m.OwnerID == userId &&
+            (m.ObjectKey != null || m.Url != null)).ToListAsync();
+
+        foreach (var item in existingItems)
+        {
+            await _mediaStorageService.DeleteByUrlAsync(item.Url);
+            _db.MediaFiles.Remove(item);
+        }
+
+        _db.MediaFiles.Add(new MediaFile
+        {
+            OwnerType = "User",
+            OwnerID = userId,
+            StorageProvider = storedImage.StorageProvider,
+            ObjectKey = storedImage.ObjectKey,
+            FileName = storedImage.FileName,
+            OriginalFileName = storedImage.OriginalFileName,
+            Url = storedImage.Url,
+            MimeType = storedImage.MimeType,
+            SizeBytes = storedImage.SizeBytes,
+            ContentHash = storedImage.ContentHash,
+            UploadTime = DateTime.UtcNow,
+            UploadedByUserID = userId,
+            DisplayOrder = 1
+        });
+    }
+
+    private static bool IsValidPassword(string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password)) return false;
         if (password.Length < 8) return false;
 
         return password.Any(char.IsUpper) &&
