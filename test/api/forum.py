@@ -131,6 +131,27 @@ class ForumAPI(BaseAPIClient):
     def delete_comment(self, comment_id: int) -> requests.Response:
         return self.delete(f"/api/comments/{comment_id}")
 
+    # ---- Reports ----
+
+    def create_report(self, target_type: str, target_id: int, reason: str) -> requests.Response:
+        return self.post(f"{self.PREFIX}/reports", json={
+            "targetType": target_type,
+            "targetID": target_id,
+            "reason": reason,
+        })
+
+    def get_reports(self, status: str | None = None) -> requests.Response:
+        params = {}
+        if status is not None:
+            params["status"] = status
+        return self.get(f"{self.PREFIX}/reports", params=params)
+
+    def review_report(self, report_id: int, action: str, result: str = "") -> requests.Response:
+        return self.post(f"{self.PREFIX}/reports/{report_id}/review", json={
+            "action": action,
+            "result": result,
+        })
+
     # ---- Tags ----
 
     def get_tags(self, keyword: str = "") -> requests.Response:

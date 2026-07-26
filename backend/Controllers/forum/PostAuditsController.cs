@@ -1,16 +1,10 @@
+﻿using Backend.Authorization;
 using Backend.Data;
-using Backend.Models;
 using Backend.Models.DTOs;
-using Backend.Authorization;
 using Backend.Services;
-using Backend.Configuration;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using System.Security.Claims;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Backend.Controllers;
 
@@ -21,11 +15,13 @@ public class PostAuditsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
 
-    public PostAuditsController(AppDbContext db, ICreditService creditService)
+    public PostAuditsController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -127,23 +123,25 @@ public class PostAuditsController : ControllerBase
                 if (auditStatus == "Rejected" && post.UserID.HasValue)
                 {
                     await _creditService.AddCreditAsync(post.UserID.Value, -15, $"帖子审核拒绝：{post.Title}");
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = post.UserID.Value,
-                        Title = "帖子审核未通过",
-                        Content = $"你的帖子《{post.Title}》因命中敏感内容未通过审核，信用分 -15",
-                        CreateTime = DateTime.Now
-                    });
+                    await CreateAuditNotificationAsync(
+                        post.UserID.Value,
+                        "帖子审核未通过",
+                        $"你的帖子《{post.Title}》因命中敏感内容未通过审核，信用分 -15",
+                        "Post",
+                        post.PostID,
+                        $"/forums",
+                        $"audit:post:{post.PostID}:rejected:{post.UserID.Value}");
                 }
                 else if (auditStatus == "Approved" && post.UserID.HasValue)
                 {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = post.UserID.Value,
-                        Title = "帖子审核通过",
-                        Content = $"你的帖子《{post.Title}》已通过审核",
-                        CreateTime = DateTime.Now
-                    });
+                    await CreateAuditNotificationAsync(
+                        post.UserID.Value,
+                        "帖子审核通过",
+                        $"你的帖子《{post.Title}》已通过审核",
+                        "Post",
+                        post.PostID,
+                        $"/forums",
+                        $"audit:post:{post.PostID}:approved:{post.UserID.Value}");
                 }
             }
         }
@@ -157,23 +155,25 @@ public class PostAuditsController : ControllerBase
                 if (auditStatus == "Rejected" && comment.UserID.HasValue)
                 {
                     await _creditService.AddCreditAsync(comment.UserID.Value, -10, "评论审核拒绝");
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = comment.UserID.Value,
-                        Title = "评论审核未通过",
-                        Content = "你的评论因命中敏感内容未通过审核，信用分 -10",
-                        CreateTime = DateTime.Now
-                    });
+                    await CreateAuditNotificationAsync(
+                        comment.UserID.Value,
+                        "评论审核未通过",
+                        "你的评论因命中敏感内容未通过审核，信用分 -10",
+                        "Comment",
+                        comment.CommentID,
+                        null,
+                        $"audit:comment:{comment.CommentID}:rejected:{comment.UserID.Value}");
                 }
                 else if (auditStatus == "Approved" && comment.UserID.HasValue)
                 {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = comment.UserID.Value,
-                        Title = "评论审核通过",
-                        Content = "你的评论已通过审核",
-                        CreateTime = DateTime.Now
-                    });
+                    await CreateAuditNotificationAsync(
+                        comment.UserID.Value,
+                        "评论审核通过",
+                        "你的评论已通过审核",
+                        "Comment",
+                        comment.CommentID,
+                        null,
+                        $"audit:comment:{comment.CommentID}:approved:{comment.UserID.Value}");
                 }
             }
         }
@@ -183,6 +183,21 @@ public class PostAuditsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "审核完成", status = auditStatus });
+    }
+
+    private async Task CreateAuditNotificationAsync(int userId, string title, string content, string targetType, int targetId, string? link, string eventKey)
+    {
+        await _notificationService.CreateAsync(new CreateNotificationOptions
+        {
+            UserID = userId,
+            Type = "Audit",
+            Title = title,
+            Content = content,
+            TargetType = targetType,
+            TargetID = targetId,
+            Link = link,
+            EventKey = eventKey
+        });
     }
 
     private static string NormalizeAuditTargetType(string? targetType)
