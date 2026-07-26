@@ -90,6 +90,8 @@ public class TransactionsController : ControllerBase
             return BadRequest(new { message = "库存不足或商品已锁定" });
         }
 
+        await _db.Entry(product).ReloadAsync();
+
         var order = new Transaction
         {
             TransactionAmount = product.Price ?? 0,
