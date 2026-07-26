@@ -33,7 +33,26 @@ export const getUser = (id) => api.get(`/users/${id}`)
 export const createUser = (data) => api.post('/users', data)
 export const getProfile = () => api.get('/user/profile')
 export const getCreditAdjustments = () => api.get('/user/credit-adjustments')
+export const getUserCreditAdjustments = (userId) => api.get(`/user/${userId}/credit-adjustments`)
+export const adjustCredit = (data) => api.post('/user/credit/add', data)
 export const updateProfile = (data) => api.put('/user/profile', data)
+export const uploadAvatar = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/user/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+export const uploadImages = (files, bucket = 'posts') => {
+  const formData = new FormData()
+  files.forEach(file => {
+    formData.append('files', file)
+  })
+  return api.post('/media/images', formData, {
+    params: { bucket },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const changePassword = (data) => api.post('/user/password', data)
 export const getRoles = () => api.get('/rbac/roles')
 export const createRole = (data) => api.post('/rbac/roles', data)
@@ -41,6 +60,7 @@ export const updateRole = (id, data) => api.put(`/rbac/roles/${id}`, data)
 export const deleteRole = (id) => api.delete(`/rbac/roles/${id}`)
 export const getPermissions = () => api.get('/rbac/permissions')
 export const createPermission = (data) => api.post('/rbac/permissions', data)
+export const deletePermission = (id) => api.delete(`/rbac/permissions/${id}`)
 export const assignPermissionsToRole = (roleId, permissionIds) =>
   api.post(`/rbac/roles/${roleId}/permissions`, { permissionIds })
 export const getUserRoles = (userId) => api.get(`/rbac/users/${userId}/roles`)
@@ -75,6 +95,7 @@ export const deleteFavoriteFolder = (folderId) => api.delete(`/favorite-folders/
 export const getFavoriteFolderPosts = (folderId) => api.get(`/favorite-folders/${folderId}/posts`)
 export const addPostToFavoriteFolder = (folderId, postId) => api.post(`/favorite-folders/${folderId}/posts/${postId}`)
 export const removePostFromFavoriteFolder = (folderId, postId) => api.delete(`/favorite-folders/${folderId}/posts/${postId}`)
+export const unfavoritePost = (id) => api.delete(`/posts/${id}/favorite`)
 export const getPostAudits = () => api.get('/audits/posts')
 export const approvePostAudit = (auditId) => api.post(`/audits/posts/${auditId}/approve`)
 export const rejectPostAudit = (auditId) => api.post(`/audits/posts/${auditId}/reject`)
@@ -104,14 +125,16 @@ export const createReport = (data) => api.post('/reports', data)
 export const reviewReport = (id, data) => api.post(`/reports/${id}/review`, data)
 export const getFriends = () => api.get('/friends')
 export const getFriendRequests = () => api.get('/friends/requests')
+export const getSentFriendRequests = () => api.get('/friends/sent')
 export const createFriendRequest = (data) => api.post('/friends', data)
 export const acceptFriendRequest = (id) => api.post(`/friends/${id}/accept`)
 export const rejectFriendRequest = (id) => api.post(`/friends/${id}/reject`)
 export const deleteFriend = (id) => api.delete(`/friends/${id}`)
+export const getConversations = () => api.get('/messages/conversations')
 export const getMessages = (params = {}) => api.get('/messages', { params })
 export const sendMessage = (data) => api.post('/messages', data)
 export const markMessageRead = (id) => api.post(`/messages/${id}/read`)
-export const markAllMessagesRead = () => api.post('/messages/read-all')
+export const markAllMessagesRead = (userId) => api.post('/messages/read-all', null, { params: userId ? { userId } : {} })
 export const getUnreadMessageCount = () => api.get('/messages/unread-count')
 export const getNotifications = (params = {}) => api.get('/notifications', { params })
 export const getUnreadNotificationCount = () => api.get('/notifications/unread-count')

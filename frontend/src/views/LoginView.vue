@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -64,20 +64,46 @@ const form = ref({
 const loading = ref(false)
 const error = ref('')
 
+const MESSAGE_TIMEOUT_MS = 4000
+let messageTimer = null
+
+const clearMessageTimer = () => {
+  if (messageTimer) {
+    clearTimeout(messageTimer)
+    messageTimer = null
+  }
+}
+
+const clearMessages = () => {
+  clearMessageTimer()
+  error.value = ''
+}
+
+const showError = (message) => {
+  error.value = message
+  clearMessageTimer()
+  messageTimer = setTimeout(() => {
+    error.value = ''
+    messageTimer = null
+  }, MESSAGE_TIMEOUT_MS)
+}
+
+onBeforeUnmount(clearMessageTimer)
+
 const handleLogin = async () => {
   try {
     loading.value = true
-    error.value = ''
+    clearMessages()
 
     const result = await authStore.login(form.value)
     
     if (result.success) {
       router.push('/')
     } else {
-      error.value = result.message || '登录失败'
+      showError(result.message || '登录失败')
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '登录失败，请稍后重试'
+    showError(err.response?.data?.message || '登录失败，请稍后重试')
   } finally {
     loading.value = false
   }

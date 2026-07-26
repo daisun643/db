@@ -1,16 +1,12 @@
 using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
-using Backend.Authorization;
 using Backend.Services;
-using Backend.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Backend.Controllers;
 
@@ -20,11 +16,15 @@ public class ProductsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly IMediaStorageService _mediaStorageService;
+    private const string OwnerType = "Product";
+    private const int MaxImageCount = 6;
 
-    public ProductsController(AppDbContext db, ICreditService creditService)
+    public ProductsController(AppDbContext db, ICreditService creditService, IMediaStorageService mediaStorageService)
     {
         _db = db;
         _creditService = creditService;
+        _mediaStorageService = mediaStorageService;
     }
 
     [HttpGet]
@@ -41,7 +41,7 @@ public class ProductsController : ControllerBase
             .OrderByDescending(p => p.PublishTime)
             .ToListAsync();
 
-        return Ok(products.Select(MapProduct).ToList());
+        return Ok(await MapProductListAsync(products));
     }
 
     [HttpGet("{id}")]
@@ -49,7 +49,10 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ProductResponse>> GetById(int id)
     {
         var product = await _db.Products.Include(p => p.User).FirstOrDefaultAsync(p => p.ProductID == id);
-        return product is null ? NotFound() : Ok(MapProduct(product));
+        if (product is null)
+            return NotFound();
+
+        return Ok(await MapProductAsync(product));
     }
 
     [HttpPost]
@@ -70,11 +73,12 @@ public class ProductsController : ControllerBase
         if (user == null)
             return Forbid();
 
+        var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         var product = new Product
         {
             Title = request.Title.Trim(),
             Description = request.Description,
-            ImageUrls = SerializeImageUrls(request.ImageUrls),
+            ImageUrls = SerializeImageUrls(normalizedImageUrls),
             Price = request.Price,
             Stock = request.Stock,
             UserID = userId,
@@ -84,7 +88,11 @@ public class ProductsController : ControllerBase
 
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = product.ProductID }, MapProduct(product));
+        await ReplaceMediaForOwnerAsync(product.ProductID, userId, normalizedImageUrls);
+        await _db.SaveChangesAsync();
+
+        var mapped = await MapProductAsync(product);
+        return CreatedAtAction(nameof(GetById), new { id = product.ProductID }, mapped);
     }
 
     [HttpPut("{id}")]
@@ -106,15 +114,18 @@ public class ProductsController : ControllerBase
         if (product.Status == "Sold")
             return BadRequest(new { message = "已售出商品不可编辑" });
 
+        var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         product.Title = request.Title.Trim();
         product.Description = request.Description;
-        product.ImageUrls = SerializeImageUrls(request.ImageUrls);
+        product.ImageUrls = SerializeImageUrls(normalizedImageUrls);
         product.Price = request.Price;
         product.Stock = request.Stock;
         product.Status = NormalizeProductStatus(request.Status);
 
+        await ReplaceMediaForOwnerAsync(product.ProductID, userId, normalizedImageUrls);
         await _db.SaveChangesAsync();
-        return Ok(MapProduct(product));
+
+        return Ok(await MapProductAsync(product));
     }
 
     [HttpDelete("{id}")]
@@ -146,7 +157,7 @@ public class ProductsController : ControllerBase
             .OrderByDescending(p => p.PublishTime)
             .ToListAsync();
 
-        return Ok(products.Select(MapProduct).ToList());
+        return Ok(await MapProductListAsync(products));
     }
 
     [HttpPost("{id}/status")]
@@ -180,7 +191,20 @@ public class ProductsController : ControllerBase
         return Ok(new { message = "状态已更新", status = product.Status });
     }
 
-    private static ProductResponse MapProduct(Product product)
+    private async Task<List<ProductResponse>> MapProductListAsync(IEnumerable<Product> products)
+    {
+        var productList = products.ToList();
+        var mediaByProduct = await GetMediaByProductIdsAsync(productList.Select(p => p.ProductID));
+        return productList.Select(p => MapProduct(p, mediaByProduct)).ToList();
+    }
+
+    private async Task<ProductResponse> MapProductAsync(Product product)
+    {
+        var mapped = await MapProductListAsync(new[] { product });
+        return mapped.Single();
+    }
+
+    private static ProductResponse MapProduct(Product product, Dictionary<int, List<string>> mediaByProduct)
     {
         return new ProductResponse
         {
@@ -193,8 +217,95 @@ public class ProductsController : ControllerBase
             PublishTime = product.PublishTime,
             UserID = product.UserID,
             SellerName = product.User?.Username ?? "",
-            ImageUrls = DeserializeImageUrls(product.ImageUrls)
+            ImageUrls = ResolveImageUrls(mediaByProduct, product)
         };
+    }
+
+    private async Task<Dictionary<int, List<string>>> GetMediaByProductIdsAsync(IEnumerable<int> productIds)
+    {
+        var ids = productIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+            return new Dictionary<int, List<string>>();
+
+        var mediaRows = await _db.MediaFiles
+            .Where(m => m.OwnerType == OwnerType &&
+                        m.OwnerID.HasValue &&
+                        ids.Contains(m.OwnerID.Value))
+            .OrderBy(m => m.DisplayOrder ?? int.MaxValue)
+            .ThenBy(m => m.MediaID)
+            .ToListAsync();
+
+        return mediaRows
+            .Where(m => m.OwnerID.HasValue)
+            .GroupBy(m => m.OwnerID!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(m => m.Url).Where(HasUrl).ToList());
+    }
+
+    private static string SerializeImageUrls(IEnumerable<string> urls)
+    {
+        var normalized = NormalizeImageUrls(urls);
+        return JsonSerializer.Serialize(normalized.Take(MaxImageCount).ToList());
+    }
+
+    private static List<string> NormalizeImageUrls(IEnumerable<string>? urls)
+    {
+        if (urls == null)
+            return new List<string>();
+
+        return urls
+            .Select(url => url?.Trim())
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Where(IsValidImageUrl)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(MaxImageCount)
+            .ToList();
+    }
+
+    private static bool IsValidImageUrl(string url)
+    {
+        if (url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var parsed) &&
+            (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static bool HasUrl(string? url)
+    {
+        return !string.IsNullOrWhiteSpace(url);
+    }
+
+    private static List<string> ResolveImageUrls(Dictionary<int, List<string>> mediaByProduct, Product product)
+    {
+        if (product.ProductID != 0 &&
+            mediaByProduct.TryGetValue(product.ProductID, out var mediaImageUrls) &&
+            mediaImageUrls.Count > 0)
+        {
+            return mediaImageUrls.Take(MaxImageCount).ToList();
+        }
+
+        return DeserializeImageUrls(product.ImageUrls);
+    }
+
+    private static List<string> DeserializeImageUrls(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return new List<string>();
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(value) ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
     }
 
     private bool HasProductPermission(string permission)
@@ -219,31 +330,60 @@ public class ProductsController : ControllerBase
         };
     }
 
-    private static string SerializeImageUrls(IEnumerable<string> urls)
+    private async Task ReplaceMediaForOwnerAsync(int ownerId, int? uploadedByUserId, IEnumerable<string> imageUrls)
     {
-        var normalized = urls
-            .Select(url => url.Trim())
-            .Where(url => Uri.TryCreate(url, UriKind.Absolute, out var parsed) &&
-                (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(6)
-            .ToList();
+        var normalized = NormalizeImageUrls(imageUrls);
 
-        return JsonSerializer.Serialize(normalized);
-    }
+        var existing = await _db.MediaFiles
+            .Where(m => m.OwnerType == OwnerType && m.OwnerID == ownerId)
+            .ToListAsync();
 
-    private static List<string> DeserializeImageUrls(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return new List<string>();
+        var existingLookup = existing
+            .Where(x => !string.IsNullOrWhiteSpace(x.Url))
+            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
 
-        try
+        var incomingSet = normalized.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var removed in existing
+            .Where(m => !incomingSet.Contains(m.Url ?? ""))
+            .ToList())
         {
-            return JsonSerializer.Deserialize<List<string>>(value) ?? new List<string>();
+            await _mediaStorageService.DeleteByUrlAsync(removed.Url);
+            _db.MediaFiles.Remove(removed);
         }
-        catch
+
+        var existingRetained = existing
+            .Where(m => incomingSet.Contains(m.Url ?? ""))
+            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < normalized.Count; i++)
         {
-            return new List<string>();
+            var url = normalized[i];
+            if (existingRetained.TryGetValue(url, out var matched))
+            {
+                matched.DisplayOrder = i;
+                matched.UploadTime = DateTime.UtcNow;
+                continue;
+            }
+
+            if (existingLookup.TryGetValue(url, out var item))
+            {
+                item.OwnerID = ownerId;
+                item.DisplayOrder = i;
+                item.UploadTime = DateTime.UtcNow;
+                continue;
+            }
+
+            _db.MediaFiles.Add(new MediaFile
+            {
+                OwnerType = OwnerType,
+                OwnerID = ownerId,
+                StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
+                Url = url,
+                UploadedByUserID = uploadedByUserId,
+                DisplayOrder = i,
+                UploadTime = DateTime.UtcNow
+            });
         }
     }
 }
