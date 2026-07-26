@@ -1,0 +1,9 @@
+ALTER SESSION SET CONTAINER = XEPDB1;
+ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
+
+UPDATE "User"
+SET "credit" = 100
+WHERE "email" = '4@tongji.edu.cn'
+  AND NVL("credit", 0) < 100;
+
+COMMIT;
