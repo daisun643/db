@@ -6,25 +6,14 @@ namespace Backend.Services;
 
 public interface ICreditService
 {
-    /// <summary>
-    /// 添加积分并检查升级
-    /// </summary>
+    public const int MinCredit = 0;
+    public const int MaxCredit = 1000;
+
     Task AddCreditAsync(int userId, int credit, string reason);
+    Task<CreditAdjustment?> AdjustCreditAsync(int userId, int changePoints, string reason, int? operatorId = null);
     Task<bool> CanPerformAsync(int userId, string operation);
-    
-    /// <summary>
-    /// 获取用户当前等级
-    /// </summary>
     Task<int> GetUserLevelAsync(int userId);
-    
-    /// <summary>
-    /// 获取用户升级所需的积分
-    /// </summary>
     int GetLevelUpRequirement(int currentLevel);
-    
-    /// <summary>
-    /// 获取用户当前积分
-    /// </summary>
     Task<int> GetUserTotalCreditAsync(int userId);
 }
 
@@ -32,20 +21,19 @@ public class CreditService : ICreditService
 {
     private readonly AppDbContext _db;
     private readonly ILogger<CreditService> _logger;
-    
-    // 积分阈值配置：每个等级所需的累计积分
+
     private static readonly Dictionary<int, int> LevelThresholds = new()
     {
-        { 1, 0 },      // Lv.1: 0 积分起点
-        { 2, 100 },    // Lv.2: 100 积分
-        { 3, 250 },    // Lv.3: 250 积分
-        { 4, 450 },    // Lv.4: 450 积分
-        { 5, 700 },    // Lv.5: 700 积分
-        { 6, 1000 },   // Lv.6: 1000 积分
-        { 7, 1350 },   // Lv.7: 1350 积分
-        { 8, 1750 },   // Lv.8: 1750 积分
-        { 9, 2200 },   // Lv.9: 2200 积分
-        { 10, 2700 }   // Lv.10: 2700 积分
+        { 1, 0 },
+        { 2, 100 },
+        { 3, 250 },
+        { 4, 450 },
+        { 5, 700 },
+        { 6, 1000 },
+        { 7, 1350 },
+        { 8, 1750 },
+        { 9, 2200 },
+        { 10, 2700 }
     };
 
     public CreditService(AppDbContext db, ILogger<CreditService> logger)
@@ -56,36 +44,72 @@ public class CreditService : ICreditService
 
     public async Task AddCreditAsync(int userId, int credit, string reason)
     {
+        await AdjustCreditAsync(userId, credit, reason);
+    }
+
+    public async Task<CreditAdjustment?> AdjustCreditAsync(
+        int userId,
+        int changePoints,
+        string reason,
+        int? operatorId = null)
+    {
         var user = await _db.Users.FindAsync(userId);
         if (user == null)
         {
             _logger.LogWarning("用户不存在: {UserId}", userId);
-            return;
+            return null;
         }
 
-        user.Credit = Math.Clamp((user.Credit ?? 100) + credit, 0, 1000);
-        if (credit > 0)
-            user.TotalCredit += credit;
-        
-        // 检查是否升级
-        int newLevel = CalculateLevelFromCredit(user.TotalCredit);
+        var normalizedReason = NormalizeReason(reason);
+        var beforeCredit = user.Credit ?? 100;
+        var afterCredit = Math.Clamp(
+            beforeCredit + changePoints,
+            ICreditService.MinCredit,
+            ICreditService.MaxCredit);
+        var actualChange = afterCredit - beforeCredit;
+
+        user.Credit = afterCredit;
+        if (actualChange > 0)
+        {
+            user.TotalCredit += actualChange;
+        }
+
+        var newLevel = CalculateLevelFromCredit(user.TotalCredit);
         if (newLevel > user.UserLevel)
         {
             user.UserLevel = newLevel;
-            _logger.LogInformation("用户 {UserId} 升级到 Lv.{Level}，原因：{Reason}", userId, newLevel, reason);
+            _logger.LogInformation(
+                "用户 {UserId} 升级到 Lv.{Level}，原因：{Reason}",
+                userId,
+                newLevel,
+                normalizedReason);
         }
 
-        _db.CreditAdjustments.Add(new CreditAdjustment
+        var adjustment = new CreditAdjustment
         {
             UserID = userId,
-            Description = reason,
-            ChangePoints = credit,
+            Description = normalizedReason,
+            ChangePoints = actualChange,
+            BeforeCredit = beforeCredit,
+            AfterCredit = afterCredit,
+            OperatorID = operatorId,
             AdjustTime = DateTime.Now
-        });
+        };
 
+        _db.CreditAdjustments.Add(adjustment);
         await _db.SaveChangesAsync();
-        _logger.LogInformation("用户 {UserId} 信用变更 {Credit}，原因：{Reason}，当前信用：{CurrentCredit}，总积分：{TotalCredit}", 
-            userId, credit, reason, user.Credit, user.TotalCredit);
+
+        _logger.LogInformation(
+            "用户 {UserId} 信用变更 {ChangePoints}，原因：{Reason}，变更前：{BeforeCredit}，变更后：{AfterCredit}，操作人：{OperatorId}，总积分：{TotalCredit}",
+            userId,
+            actualChange,
+            normalizedReason,
+            beforeCredit,
+            afterCredit,
+            operatorId,
+            user.TotalCredit);
+
+        return adjustment;
     }
 
     public async Task<bool> CanPerformAsync(int userId, string operation)
@@ -114,7 +138,7 @@ public class CreditService : ICreditService
     public int GetLevelUpRequirement(int currentLevel)
     {
         if (currentLevel >= 10)
-            return 2700; // 最高等级无需升级
+            return 2700;
 
         if (LevelThresholds.TryGetValue(currentLevel + 1, out var nextLevelThreshold))
         {
@@ -131,18 +155,25 @@ public class CreditService : ICreditService
         return user?.TotalCredit ?? 0;
     }
 
-    /// <summary>
-    /// 根据总积分计算等级
-    /// </summary>
     private int CalculateLevelFromCredit(int totalCredit)
     {
-        for (int level = 10; level >= 1; level--)
+        for (var level = 10; level >= 1; level--)
         {
             if (LevelThresholds.TryGetValue(level, out var threshold) && totalCredit >= threshold)
             {
                 return level;
             }
         }
+
         return 1;
+    }
+
+    private static string NormalizeReason(string? reason)
+    {
+        var normalized = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return "信用分调整";
+
+        return normalized.Length <= 500 ? normalized : normalized[..500];
     }
 }

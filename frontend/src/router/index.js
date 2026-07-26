@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { getRequiredPermissions } from './routeAccess'
 
 const routes = [
   { 
@@ -25,27 +26,27 @@ const routes = [
   { 
     path: '/forums', 
     component: () => import('../views/ForumsView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/forums') }
   },
   { 
     path: '/products', 
     component: () => import('../views/ProductsView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/products') }
   },
   { 
     path: '/messages', 
     component: () => import('../views/MessagesView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/messages') }
   },
   { 
     path: '/profile', 
     component: () => import('../views/ProfileView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/profile') }
   },
   { 
     path: '/system-status', 
     component: () => import('../views/SystemStatusView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true }
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status') }
   },
   {
     path: '/finance',
@@ -71,7 +72,12 @@ router.beforeEach(async (to, from, next) => {
   } else if (to.meta.guest && authStore.isAuthenticated) {
     next('/')
   } else if (to.meta.requiresBackendRouteCheck) {
-    const hasAccess = await authStore.checkRouteAccess(to.path)
+    if (!authStore.hasAnyPermission(to.meta.requiredPermissions || [])) {
+      next('/')
+      return
+    }
+
+    const hasAccess = await authStore.checkRouteAccess(to.path, to.meta.requiredPermissions || [])
     if (hasAccess) {
       next()
     } else {

@@ -88,19 +88,20 @@
 import { onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAccess'
 
 const authStore = useAuthStore()
 const router = useRouter()
-
-const isCollapsed = ref(true)
-const protectedMenuPaths = ['/forums', '/products', '/finance','/messages', '/system-status']
 const routeAccess = ref({})
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
-const canAccess = (path) => routeAccess.value[path] === true
+const canAccess = (path) => {
+  const requiredPermissions = getRequiredPermissions(path)
+  return authStore.hasAnyPermission(requiredPermissions || []) && routeAccess.value[path] === true
+}
 
 const updateRouteAccess = async () => {
   if (!authStore.isAuthenticated) {
@@ -109,7 +110,10 @@ const updateRouteAccess = async () => {
   }
 
   const entries = await Promise.all(
-    protectedMenuPaths.map(async (path) => [path, await authStore.checkRouteAccess(path)])
+    PROTECTED_MENU_PATHS.map(async (path) => [
+      path,
+      await authStore.checkRouteAccess(path, getRequiredPermissions(path) || []),
+    ])
   )
   routeAccess.value = Object.fromEntries(entries)
 }
@@ -123,7 +127,7 @@ const handleLogout = async () => {
 onMounted(updateRouteAccess)
 
 watch(
-  () => authStore.isAuthenticated,
+  () => [authStore.isAuthenticated, authStore.user?.roles, authStore.user?.permissions],
   () => {
     updateRouteAccess()
   }

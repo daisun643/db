@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { sendCode } from '../api'
@@ -115,6 +115,45 @@ const error = ref('')
 const success = ref('')
 const countdown = ref(0)
 
+const MESSAGE_TIMEOUT_MS = 4000
+let messageTimer = null
+
+const clearMessageTimer = () => {
+  if (messageTimer) {
+    clearTimeout(messageTimer)
+    messageTimer = null
+  }
+}
+
+const scheduleClearMessages = () => {
+  clearMessageTimer()
+  messageTimer = setTimeout(() => {
+    error.value = ''
+    success.value = ''
+    messageTimer = null
+  }, MESSAGE_TIMEOUT_MS)
+}
+
+const clearMessages = () => {
+  clearMessageTimer()
+  error.value = ''
+  success.value = ''
+}
+
+const showError = (message) => {
+  error.value = message
+  success.value = ''
+  scheduleClearMessages()
+}
+
+const showSuccess = (message) => {
+  success.value = message
+  error.value = ''
+  scheduleClearMessages()
+}
+
+onBeforeUnmount(clearMessageTimer)
+
 const validateEmail = (email) => {
   return email.endsWith('@tongji.edu.cn')
 }
@@ -129,16 +168,15 @@ const validatePassword = (password) => {
 
 const handleSendCode = async () => {
   try {
-    error.value = ''
-    success.value = ''
+    clearMessages()
 
     if (!form.value.email) {
-      error.value = '请输入邮箱'
+      showError('请输入邮箱')
       return
     }
 
     if (!validateEmail(form.value.email)) {
-      error.value = '仅支持 @tongji.edu.cn 邮箱'
+      showError('仅支持 @tongji.edu.cn 邮箱')
       return
     }
 
@@ -146,7 +184,7 @@ const handleSendCode = async () => {
     const response = await sendCode(form.value.email)
 
     if (response.data.success) {
-      success.value = '验证码已发送，请查收邮件'
+      showSuccess('验证码已发送，请查收邮件')
       countdown.value = 60
       const timer = setInterval(() => {
         countdown.value--
@@ -155,10 +193,10 @@ const handleSendCode = async () => {
         }
       }, 1000)
     } else {
-      error.value = response.data.message || '发送失败'
+      showError(response.data.message || '发送失败')
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '发送失败，请稍后重试'
+    showError(err.response?.data?.message || '发送失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -167,21 +205,20 @@ const handleSendCode = async () => {
 const handleRegister = async () => {
   try {
     loading.value = true
-    error.value = ''
-    success.value = ''
+    clearMessages()
 
     if (!validateEmail(form.value.email)) {
-      error.value = '仅支持 @tongji.edu.cn 邮箱'
+      showError('仅支持 @tongji.edu.cn 邮箱')
       return
     }
 
     if (!validatePassword(form.value.password)) {
-      error.value = '密码必须至少8位，包含大小写字母和数字'
+      showError('密码必须至少8位，包含大小写字母和数字')
       return
     }
 
     if (form.value.password !== form.value.confirmPassword) {
-      error.value = '两次输入的密码不一致'
+      showError('两次输入的密码不一致')
       return
     }
 
@@ -195,10 +232,10 @@ const handleRegister = async () => {
     if (result.success) {
       router.push('/')
     } else {
-      error.value = result.message || '注册失败'
+      showError(result.message || '注册失败')
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '注册失败，请稍后重试'
+    showError(err.response?.data?.message || '注册失败，请稍后重试')
   } finally {
     loading.value = false
   }
