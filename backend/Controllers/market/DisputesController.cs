@@ -21,11 +21,13 @@ public class DisputesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
 
-    public DisputesController(AppDbContext db, ICreditService creditService)
+    public DisputesController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -291,15 +293,18 @@ public class DisputesController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content, int transactionId)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Dispute",
             Title = title,
             Content = content,
+            TargetType = "Transaction",
+            TargetID = transactionId,
             TransactionID = transactionId,
-            CreateTime = DateTime.Now
+            Link = $"/products",
+            EventKey = $"dispute:{transactionId}:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 
     private async Task ArchiveOrderMessagesAsync(int transactionId)

@@ -1,4 +1,4 @@
-using Backend.Authorization;
+﻿using Backend.Authorization;
 using Backend.Configuration;
 using Backend.Data;
 using Backend.Services;
@@ -23,6 +23,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IMediaStorageService>((sp) =>
 {
     var mediaStorageSettings = sp.GetRequiredService<IOptions<MediaStorageSettings>>().Value;
@@ -114,3 +115,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+
