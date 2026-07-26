@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Backend.Models.DTOs;
 
@@ -43,6 +44,8 @@ public class ForgotPasswordRequest
     [Required(ErrorMessage = "邮箱不能为空")]
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
+
+    public int? DebugExpiresInMinutes { get; set; }
 }
 
 public class ResetPasswordRequest
@@ -65,6 +68,8 @@ public class AuthResponse
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public UserInfo? User { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DebugCode { get; set; }
 }
 
 public class UserInfo
@@ -72,8 +77,16 @@ public class UserInfo
     public int UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string Nickname { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
+    public string Contact { get; set; } = string.Empty;
+    public string Bio { get; set; } = string.Empty;
     public int Credit { get; set; }
     public string Status { get; set; } = string.Empty;
+    public int UserLevel { get; set; }
+    public int TotalCredit { get; set; }
+    public List<string> Roles { get; set; } = new();
+    public List<string> Permissions { get; set; } = new();
 }
 
 public class RouteAccessRequest

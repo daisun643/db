@@ -9,6 +9,8 @@ obj/
 
 __pycache__
 
+AGENTS.md
+
 .*
 !.gitignore
 !.gitattributes

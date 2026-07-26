@@ -163,11 +163,11 @@
                 <span class="post-action-svg" :style="iconMaskStyle(openIcon)" aria-hidden="true"></span>
               </button>
               <button
-                class="post-icon-action"
+                :class="['post-icon-action', { favorited: post.isFavorited }]"
                 @click.stop="handleFavorite(post)"
-                :disabled="favoriteFolders.length === 0"
-                title="收藏"
-                aria-label="收藏"
+                :disabled="!post.isFavorited && favoriteFolders.length === 0"
+                :title="post.isFavorited ? '取消收藏' : '收藏'"
+                :aria-label="post.isFavorited ? '取消收藏' : '收藏'"
               >
                 <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
@@ -222,50 +222,79 @@
       </div>
     </div>
 
-    <div v-else-if="activeTab === 'favorites'" class="tab-content">
-      <div class="favorite-header">
-        <select v-model.number="selectedFolderId" @change="loadFavoritePosts">
-          <option disabled value="">选择收藏夹</option>
-          <option v-for="folder in favoriteFolders" :key="folder.folderID" :value="folder.folderID">
-            {{ folder.folderName }} ({{ folder.postCount || 0 }})
-          </option>
-        </select>
-        <form @submit.prevent="handleCreateFolder" class="folder-form">
-          <input v-model="folderName" type="text" placeholder="新收藏夹名称" required />
+    <div v-else-if="activeTab === 'favorites'" class="favorites-layout">
+      <aside class="favorites-sidebar">
+        <div class="section-title">收藏夹</div>
+        <form @submit.prevent="handleCreateFolder" class="folder-create-form">
+          <input v-model="folderName" type="text" placeholder="新建收藏夹名称" required />
           <button class="btn" type="submit">创建</button>
         </form>
-        <form v-if="selectedFolderId" @submit.prevent="handleRenameFolder" class="folder-form">
-          <input v-model="folderRenameName" type="text" placeholder="重命名收藏夹" required />
-          <button class="btn" type="submit">重命名</button>
-          <button class="btn" type="button" @click="handleDeleteFolder">删除收藏夹</button>
-        </form>
-      </div>
-
-      <div v-if="loadingFavorites" class="loading">加载中...</div>
-      <div v-else class="post-list">
-        <article
-          v-for="post in favoritePosts"
-          :key="post.postID"
-          class="post-item"
-          role="button"
-          tabindex="0"
-          @click="openPostDetail(post)"
-          @keydown.enter="openPostDetail(post)"
-        >
-          <div class="post-meta">
-            <span>{{ post.forumName || '未分区' }}</span>
-            <span>{{ post.username || '匿名用户' }}</span>
+        <div class="folder-list">
+          <div
+            v-for="folder in favoriteFolders"
+            :key="folder.folderID"
+            :class="['folder-item', { active: selectedFolderId === folder.folderID }]"
+            @click="selectFolder(folder.folderID)"
+          >
+            <div class="folder-item-row">
+              <template v-if="renamingFolderId === folder.folderID">
+                <input
+                  v-model="renameText"
+                  type="text"
+                  class="folder-rename-input"
+                  required
+                  @keyup.enter="handleRenameFolderInline(folder.folderID)"
+                  @keyup.escape="cancelRename"
+                  @click.stop
+                  ref="renameInput"
+                />
+              </template>
+              <template v-else>
+                <span class="folder-name">{{ folder.folderName }}</span>
+                <span class="folder-count">{{ folder.postCount || 0 }}</span>
+              </template>
+            </div>
+            <div class="folder-item-actions">
+              <span class="folder-action-link" @click.stop="startRename(folder)">重命名</span>
+              <span class="folder-action-link danger" @click.stop="handleDeleteFolderById(folder.folderID)">删除</span>
+            </div>
           </div>
-          <button class="post-title-button" @click.stop="openPostDetail(post)">
-            {{ post.title }}
-          </button>
-          <p>{{ post.contentPreview }}</p>
-          <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
-        </article>
-        <div v-if="favoritePosts.length === 0" class="empty-state">
-          <p>暂无收藏</p>
+          <div v-if="favoriteFolders.length === 0" class="folder-list-empty">
+            暂无收藏夹
+          </div>
         </div>
-      </div>
+      </aside>
+
+      <main class="favorites-main">
+        <div v-if="!selectedFolderId" class="empty-state">
+          <p>选择一个收藏夹查看帖子</p>
+        </div>
+        <div v-else-if="loadingFavorites" class="loading">加载中...</div>
+        <div v-else class="post-list">
+          <article
+            v-for="post in favoritePosts"
+            :key="post.postID"
+            class="post-item"
+            role="button"
+            tabindex="0"
+            @click="openPostDetail(post)"
+            @keydown.enter="openPostDetail(post)"
+          >
+            <div class="post-meta">
+              <span>{{ post.forumName || '未分区' }}</span>
+              <span>{{ post.username || '匿名用户' }}</span>
+            </div>
+            <button class="post-title-button" @click.stop="openPostDetail(post)">
+              {{ post.title }}
+            </button>
+            <p>{{ post.contentPreview }}</p>
+            <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
+          </article>
+          <div v-if="favoritePosts.length === 0" class="empty-state">
+            <p>暂无收藏帖子</p>
+          </div>
+        </div>
+      </main>
     </div>
 
     <div v-if="composerOpen" class="detail-backdrop" @click.self="closeComposer">
@@ -291,8 +320,21 @@
             <textarea v-model="postForm.content" placeholder="有什么新鲜事？" required autofocus></textarea>
             <div class="composer-row">
               <input v-model="tagText" type="text" placeholder="标签，用逗号分隔" />
-              <input v-model="imageText" type="text" placeholder="图片 URL，用逗号分隔" />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                :disabled="submitting"
+                @change="handlePickCreateImages"
+              />
             </div>
+            <div v-if="createImagePreviewUrls.length" class="image-strip">
+              <div v-for="(url, index) in createImagePreviewUrls" :key="url" class="image-preview-item">
+                <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
+                <button type="button" class="image-remove" @click="removeCreateImage(index)">移除</button>
+              </div>
+            </div>
+            <p class="field-hint">最多可上传 6 张，单张不超过 5MB，仅支持 JPG/PNG/GIF/WebP。</p>
             <div class="composer-tools">
               <button class="link-button" type="button" @click="handleSuggestTags">推荐标签</button>
             </div>
@@ -348,11 +390,11 @@
                 <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
               </button>
               <button
-                class="post-icon-action"
-                @click="handleFavorite(selectedPost)"
-                :disabled="favoriteFolders.length === 0"
-                title="收藏"
-                aria-label="收藏"
+                :class="['post-icon-action', { favorited: selectedPost.isFavorited }]"
+                @click.stop="handleFavorite(selectedPost)"
+                :disabled="!selectedPost.isFavorited && favoriteFolders.length === 0"
+                :title="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+                :aria-label="selectedPost.isFavorited ? '取消收藏' : '收藏'"
               >
                 <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
               </button>
@@ -405,21 +447,39 @@
     </div>
 
     <div v-if="editingPost" class="detail-backdrop" @click.self="closeEditPost">
-      <form class="post-detail-panel post-edit-form" @submit.prevent="handleUpdatePost">
-        <div class="detail-header">
-          <button class="link-button" type="button" @click="closeEditPost">取消编辑</button>
-          <span class="muted">帖子 #{{ editingPost.postID }}</span>
+      <form class="post-detail-panel composer-modal" @submit.prevent="handleUpdatePost">
+        <div class="modal-header">
+          <button class="icon-button" type="button" @click="closeEditPost" aria-label="关闭编辑窗口">
+            <span>×</span>
+          </button>
+          <button class="compose-submit" type="submit" :disabled="editingSaving">
+            {{ editingSaving ? '保存中...' : '保存' }}
+          </button>
         </div>
-        <h2>编辑帖子</h2>
-        <input v-model="editForm.title" type="text" placeholder="帖子标题" required />
-        <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
-        <div class="composer-row">
-          <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
-          <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <div class="composer-shell">
+          <div class="composer-avatar">{{ userInitial }}</div>
+          <div class="composer-fields">
+            <input v-model="editForm.title" type="text" placeholder="帖子标题" required />
+            <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
+            <div class="composer-row">
+              <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                :disabled="editingSaving"
+                @change="handlePickEditImages"
+              />
+            </div>
+            <div v-if="combinedEditImageList.length" class="image-strip">
+              <div v-for="(item, index) in combinedEditImageList" :key="`${item.source}-${index}`" class="image-preview-item">
+                <img :src="item.url" :alt="`图片 ${index + 1}`" loading="lazy" />
+                <button type="button" class="image-remove" @click="removeEditImage(index)">移除</button>
+              </div>
+            </div>
+            <p v-if="combinedEditImageList.length" class="field-hint">最多 6 张，编辑时新老图片会按列表顺序提交。</p>
+          </div>
         </div>
-        <button class="btn btn-primary" type="submit" :disabled="editingSaving">
-          {{ editingSaving ? '保存中...' : '保存帖子' }}
-        </button>
       </form>
     </div>
 
@@ -433,6 +493,38 @@
         <textarea v-model="reportReason" placeholder="描述违规原因" required></textarea>
         <button class="btn btn-primary" type="submit">提交举报</button>
       </form>
+    </div>
+
+    <div v-if="folderPickerOpen" class="detail-backdrop" @click.self="closeFolderPicker">
+      <div class="post-detail-panel folder-picker-panel" role="dialog" aria-label="选择收藏夹">
+        <div class="modal-header">
+          <button class="icon-button" @click="closeFolderPicker" aria-label="关闭收藏夹选择">
+            <span>×</span>
+          </button>
+          <span class="muted">选择收藏夹</span>
+        </div>
+        <ul class="folder-pick-list">
+          <li
+            v-for="folder in favoriteFolders"
+            :key="folder.folderID"
+            class="folder-pick-item"
+            role="button"
+            tabindex="0"
+            @click="selectFolderForFavorite(folder.folderID)"
+            @keydown.enter="selectFolderForFavorite(folder.folderID)"
+          >
+            <span>{{ folder.folderName }}</span>
+            <span class="folder-post-count">{{ folder.postCount || 0 }}</span>
+          </li>
+          <li v-if="favoriteFolders.length === 0" class="folder-pick-empty">
+            暂无收藏夹，请先创建一个
+          </li>
+        </ul>
+        <form @submit.prevent="handlePickerCreateFolder" class="folder-picker-form">
+          <input v-model="pickerFolderName" type="text" placeholder="新收藏夹名称" required />
+          <button class="btn" type="submit">创建并收藏</button>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -468,6 +560,8 @@ import {
   likePost,
   removePostFromFavoriteFolder,
   suggestTags,
+  uploadImages,
+  unfavoritePost,
   unlikePost,
   updateFavoriteFolder,
   updatePost,
@@ -492,10 +586,11 @@ const composerOpen = ref(false)
 const error = ref(null)
 const notice = ref('')
 const tagText = ref('')
-const imageText = ref('')
 const folderName = ref('')
 const folderRenameName = ref('')
 const selectedFolderId = ref('')
+const renamingFolderId = ref(null)
+const renameText = ref('')
 const detailOpen = ref(false)
 const selectedPost = ref(null)
 const comments = ref([])
@@ -505,10 +600,20 @@ const replyText = ref('')
 const editingPost = ref(null)
 const editingSaving = ref(false)
 const editTagText = ref('')
-const editImageText = ref('')
+const editImageUrls = ref([])
+const editImageNewUrls = ref([])
+const editImageFiles = ref([])
+const createImageFiles = ref([])
+const createImagePreviewUrls = ref([])
 const reportTarget = ref(null)
 const reportReason = ref('')
+const folderPickerOpen = ref(false)
+const folderPickerTarget = ref(null)
+const pickerFolderName = ref('')
 const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGE_COUNT = 6
 
 const postMetricItems = (post) => [
   { key: 'heat', label: '热度', value: post?.heatScore || 0, icon: flameIcon },
@@ -516,6 +621,21 @@ const postMetricItems = (post) => [
   { key: 'likes', label: '点赞', value: post?.likeCount || 0, icon: heartIcon },
   { key: 'comments', label: '评论', value: post?.commentCount || 0, icon: commentIcon },
 ]
+
+const combinedEditImageList = computed(() => {
+  const fromRemote = editImageUrls.value.map((url, index) => ({
+    source: 'remote',
+    key: `remote-${index}`,
+    url,
+  }))
+  const fromLocal = editImageNewUrls.value.map((url, index) => ({
+    source: 'local',
+    key: `local-${index}`,
+    url,
+  }))
+
+  return [...fromRemote, ...fromLocal]
+})
 
 const iconMaskStyle = (icon) => ({
   '--icon-url': `url("${icon}")`,
@@ -604,17 +724,9 @@ const loadMyPosts = async () => {
 const loadFavoriteFolders = async () => {
   const res = await getFavoriteFolders()
   favoriteFolders.value = res.data
-  if (!selectedFolderId.value && favoriteFolders.value.length > 0) {
-    selectedFolderId.value = favoriteFolders.value[0].folderID
-  }
-  const selected = favoriteFolders.value.find(folder => folder.folderID === selectedFolderId.value)
-  folderRenameName.value = selected?.folderName || ''
 }
 
 const loadFavoritePosts = async () => {
-  const selected = favoriteFolders.value.find(folder => folder.folderID === selectedFolderId.value)
-  folderRenameName.value = selected?.folderName || ''
-
   if (!selectedFolderId.value) {
     favoritePosts.value = []
     return
@@ -679,14 +791,112 @@ const resetFilters = async () => {
   await loadPosts()
 }
 
+const clearCreateImageState = () => {
+  createImagePreviewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  createImageFiles.value = []
+  createImagePreviewUrls.value = []
+}
+
+const clearEditImageState = () => {
+  editImageNewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  editImageFiles.value = []
+  editImageNewUrls.value = []
+  editImageUrls.value = []
+}
+
+const validateImageFile = (file) => {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return '仅支持 JPG、PNG、GIF、WebP 图片'
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return '单张图片不能超过5MB'
+  }
+  return null
+}
+
+const handlePickCreateImages = async (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = createImageFiles.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  createImageFiles.value = [...createImageFiles.value, ...files]
+  const addedUrls = files.map(file => URL.createObjectURL(file))
+  createImagePreviewUrls.value = [...createImagePreviewUrls.value, ...addedUrls]
+  error.value = null
+}
+
+const removeCreateImage = (index) => {
+  const removedUrl = createImagePreviewUrls.value[index]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  createImagePreviewUrls.value.splice(index, 1)
+  createImageFiles.value.splice(index, 1)
+}
+
+const handlePickEditImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = editImageUrls.value.length + editImageNewUrls.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const addedUrls = files.map(file => URL.createObjectURL(file))
+  editImageFiles.value = [...editImageFiles.value, ...files]
+  editImageNewUrls.value = [...editImageNewUrls.value, ...addedUrls]
+  error.value = null
+}
+
+const removeEditImage = (index) => {
+  const remoteCount = editImageUrls.value.length
+  if (index < remoteCount) {
+    editImageUrls.value = editImageUrls.value.filter((_, i) => i !== index)
+    return
+  }
+
+  const localIndex = index - remoteCount
+  const removedUrl = editImageNewUrls.value[localIndex]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  editImageNewUrls.value.splice(localIndex, 1)
+  editImageFiles.value.splice(localIndex, 1)
+}
+
 const openComposer = () => {
   error.value = null
-  notice.value = ''
   composerOpen.value = true
 }
 
 const closeComposer = () => {
   if (submitting.value) return
+  clearCreateImageState()
   composerOpen.value = false
 }
 
@@ -695,7 +905,11 @@ const handleCreatePost = async () => {
     submitting.value = true
     error.value = null
     const tagNames = tagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
-    const imageUrls = imageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = createImageFiles.value.length > 0
+      ? await uploadImages(createImageFiles.value, 'posts')
+      : null
+    const imageUrls = (uploaded?.data?.urls || []).slice(0, MAX_IMAGE_COUNT)
+
     const res = await createPost({
       ...postForm.value,
       tagNames,
@@ -707,7 +921,7 @@ const handleCreatePost = async () => {
     postForm.value.title = ''
     postForm.value.content = ''
     tagText.value = ''
-    imageText.value = ''
+    clearCreateImageState()
     composerOpen.value = false
     await Promise.all([loadPosts(), loadMyPosts()])
   } catch (e) {
@@ -747,10 +961,61 @@ const updatePostLikeState = (postId, isLiked, likeCount) => {
   }
 }
 
+const updatePostFavoriteState = (postId, isFavorited) => {
+  for (const collection of [posts.value, myPosts.value, favoritePosts.value]) {
+    const target = collection.find(item => item.postID === postId)
+    if (target) {
+      target.isFavorited = isFavorited
+    }
+  }
+
+  if (selectedPost.value?.postID === postId) {
+    selectedPost.value.isFavorited = isFavorited
+  }
+}
+
 const handleFavorite = async (post) => {
-  if (!selectedFolderId.value) return
-  await addPostToFavoriteFolder(selectedFolderId.value, post.postID)
+  if (post.isFavorited) {
+    await unfavoritePost(post.postID)
+    updatePostFavoriteState(post.postID, false)
+    await loadFavoriteFolders()
+    if (activeTab.value === 'favorites') await loadFavoritePosts()
+    return
+  }
+
+  if (favoriteFolders.value.length === 0) {
+    await createFavoriteFolder({ folderName: '默认收藏夹' })
+    await loadFavoriteFolders()
+  }
+  folderPickerTarget.value = post
+  folderPickerOpen.value = true
+}
+
+const selectFolderForFavorite = async (folderId) => {
+  if (!folderPickerTarget.value) return
+  await addPostToFavoriteFolder(folderId, folderPickerTarget.value.postID)
+  updatePostFavoriteState(folderPickerTarget.value.postID, true)
   await loadFavoriteFolders()
+  closeFolderPicker()
+}
+
+const handlePickerCreateFolder = async () => {
+  if (!pickerFolderName.value.trim()) return
+  const res = await createFavoriteFolder({ folderName: pickerFolderName.value.trim() })
+  pickerFolderName.value = ''
+  await loadFavoriteFolders()
+  if (folderPickerTarget.value) {
+    await addPostToFavoriteFolder(res.data.folderID, folderPickerTarget.value.postID)
+    updatePostFavoriteState(folderPickerTarget.value.postID, true)
+    await loadFavoriteFolders()
+  }
+  closeFolderPicker()
+}
+
+const closeFolderPicker = () => {
+  folderPickerOpen.value = false
+  folderPickerTarget.value = null
+  pickerFolderName.value = ''
 }
 
 const handleDeletePost = async (post) => {
@@ -767,12 +1032,13 @@ const openEditPost = async (post) => {
     error.value = null
     const res = await getPost(post.postID)
     editingPost.value = res.data
+    clearEditImageState()
     editForm.value = {
       title: res.data.title || '',
       content: res.data.content || '',
     }
     editTagText.value = (res.data.tags || []).join(', ')
-    editImageText.value = (res.data.imageUrls || []).join(', ')
+    editImageUrls.value = [...(res.data.imageUrls || [])]
   } catch (e) {
     error.value = '无法加载编辑内容: ' + (e.response?.data?.message || e.message)
   }
@@ -781,7 +1047,7 @@ const openEditPost = async (post) => {
 const closeEditPost = () => {
   editingPost.value = null
   editTagText.value = ''
-  editImageText.value = ''
+  clearEditImageState()
 }
 
 const handleUpdatePost = async () => {
@@ -791,7 +1057,13 @@ const handleUpdatePost = async () => {
     editingSaving.value = true
     error.value = null
     const tagNames = editTagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
-    const imageUrls = editImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = editImageFiles.value.length > 0
+      ? await uploadImages(editImageFiles.value, 'posts')
+      : null
+    const imageUrls = [
+      ...editImageUrls.value,
+      ...(uploaded?.data?.urls || []),
+    ].slice(0, MAX_IMAGE_COUNT)
     const res = await updatePost(editingPost.value.postID, {
       ...editForm.value,
       tagNames,
@@ -861,22 +1133,42 @@ const handleDeleteComment = async (comment) => {
 }
 
 const handleCreateFolder = async () => {
-  await createFavoriteFolder({ folderName: folderName.value })
+  const res = await createFavoriteFolder({ folderName: folderName.value })
   folderName.value = ''
   await loadFavoriteFolders()
+  selectedFolderId.value = res.data.folderID
+  await loadFavoritePosts()
 }
 
-const handleRenameFolder = async () => {
-  if (!selectedFolderId.value) return
-  await updateFavoriteFolder(selectedFolderId.value, { folderName: folderRenameName.value })
+const selectFolder = async (folderId) => {
+  selectedFolderId.value = folderId
+  await loadFavoritePosts()
+}
+
+const startRename = (folder) => {
+  renamingFolderId.value = folder.folderID
+  renameText.value = folder.folderName
+}
+
+const cancelRename = () => {
+  renamingFolderId.value = null
+  renameText.value = ''
+}
+
+const handleRenameFolderInline = async (folderId) => {
+  if (!renameText.value.trim()) return
+  await updateFavoriteFolder(folderId, { folderName: renameText.value.trim() })
+  renamingFolderId.value = null
+  renameText.value = ''
   await loadFavoriteFolders()
 }
 
-const handleDeleteFolder = async () => {
-  if (!selectedFolderId.value) return
-  await deleteFavoriteFolder(selectedFolderId.value)
-  selectedFolderId.value = ''
-  favoritePosts.value = []
+const handleDeleteFolderById = async (folderId) => {
+  await deleteFavoriteFolder(folderId)
+  if (selectedFolderId.value === folderId) {
+    selectedFolderId.value = ''
+    favoritePosts.value = []
+  }
   await loadFavoriteFolders()
   await loadFavoritePosts()
 }
@@ -884,6 +1176,13 @@ const handleDeleteFolder = async () => {
 const handleRemoveFavorite = async (post) => {
   if (!selectedFolderId.value) return
   await removePostFromFavoriteFolder(selectedFolderId.value, post.postID)
+  await Promise.all([loadFavoriteFolders(), loadFavoritePosts()])
+}
+
+const handleRemoveFavoriteFromCurrent = async (post) => {
+  if (!selectedFolderId.value) return
+  await removePostFromFavoriteFolder(selectedFolderId.value, post.postID)
+  updatePostFavoriteState(post.postID, false)
   await Promise.all([loadFavoriteFolders(), loadFavoritePosts()])
 }
 
@@ -987,29 +1286,23 @@ const CommentNode = defineComponent({
 
     const initial = (name) => (name || '?')[0]?.toUpperCase() || '?'
 
-    const renderNode = () => h('article', { class: 'comment-node' }, [
-      h('div', { class: 'comment-avatar' }, [
-        h('span', initial(props.comment.username)),
+    const isDeleted = props.comment.status === 'Deleted'
+
+    const renderNode = () => h('article', { class: isDeleted ? 'comment-node deleted' : 'comment-node' }, [
+      h('div', { class: isDeleted ? 'comment-avatar deleted' : 'comment-avatar' }, [
+        h('span', isDeleted ? '' : initial(props.comment.username)),
       ]),
       h('div', { class: 'comment-body' }, [
         h('div', { class: 'comment-header' }, [
-          h('span', { class: 'comment-author' }, props.comment.username || '用户'),
+          h('span', { class: 'comment-author' }, isDeleted ? '用户已删除' : (props.comment.username || '用户')),
           h('span', { class: 'comment-time' }, formatDate(props.comment.createTime)),
-          props.comment.status && props.comment.status !== 'Active'
-            ? h('span', { class: 'comment-status' }, props.comment.status)
-            : null,
         ]),
-        h('div', { class: 'comment-content' }, props.comment.content || ''),
-        h('div', { class: 'comment-actions' }, [
-          h('button', { class: 'comment-action-btn', onClick: () => emit('reply', props.comment) }, [
-            h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', class: 'action-icon' }, [
-              h('path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' }),
-            ]),
-            '回复',
-          ]),
-          h('button', { class: 'comment-action-btn danger', onClick: () => emit('report', props.comment) }, '举报'),
+        h('div', { class: 'comment-content' }, isDeleted ? '用户已删除该评论' : (props.comment.content || '')),
+        isDeleted ? null : h('div', { class: 'comment-actions' }, [
+          h('span', { class: 'comment-action-link', onClick: () => emit('reply', props.comment) }, '回复'),
+          h('span', { class: 'comment-action-link', onClick: () => emit('report', props.comment) }, '举报'),
           canDelete()
-            ? h('button', { class: 'comment-action-btn danger', onClick: () => emit('delete', props.comment) }, '删除')
+            ? h('span', { class: 'comment-action-link', onClick: () => emit('delete', props.comment) }, '删除')
             : null,
         ]),
         props.replyingTo === props.comment.commentID
@@ -1121,6 +1414,138 @@ onMounted(async () => {
   font-size: 0.75rem;
 }
 
+.favorites-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 760px);
+  gap: 0;
+  align-items: start;
+  justify-content: center;
+}
+
+.favorites-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.75rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.favorites-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-create-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.folder-create-form input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.folder-create-form input:focus {
+  border-color: #1d9bf0;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-item {
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 0.625rem 0.75rem;
+  transition: background 0.15s;
+}
+
+.folder-item:hover {
+  background: var(--bg);
+}
+
+.folder-item.active {
+  background: var(--bg);
+  color: var(--primary);
+}
+
+.folder-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.folder-name {
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.folder-item.active .folder-count {
+  color: var(--primary);
+}
+
+.folder-rename-input {
+  border: 1px solid #1d9bf0;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  width: 100%;
+}
+
+.folder-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+
+.folder-item-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.375rem;
+  padding-left: 0.125rem;
+}
+
+.folder-action-link {
+  color: #536471;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.folder-action-link:hover {
+  color: #0f1419;
+  text-decoration: underline;
+}
+
+.folder-action-link.danger:hover {
+  color: #dc2626;
+}
+
+.folder-list-empty {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  padding: 1rem 0.75rem;
+  text-align: center;
+}
+
 .forum-main,
 .post-list {
   display: flex;
@@ -1141,17 +1566,7 @@ onMounted(async () => {
 }
 
 .toolbar,
-.favorite-header {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-}
-
-.toolbar,
-.composer-row,
-.favorite-header,
-.folder-form {
+.composer-row {
   display: flex;
   gap: 0.75rem;
   align-items: center;
@@ -1166,9 +1581,7 @@ onMounted(async () => {
 .toolbar select,
 .composer-fields input,
 .composer-fields select,
-.composer-fields textarea,
-.favorite-header input,
-.favorite-header select {
+.composer-fields textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.625rem 0.75rem;
@@ -1177,9 +1590,7 @@ onMounted(async () => {
 
 .toolbar input,
 .composer-fields input,
-.composer-fields select,
-.favorite-header input,
-.favorite-header select {
+.composer-fields select {
   min-width: 0;
 }
 
@@ -1335,6 +1746,15 @@ onMounted(async () => {
   background: rgba(249, 24, 128, 0.1);
 }
 
+.post-icon-action.favorited {
+  color: #f59e0b;
+}
+
+.post-icon-action.favorited:hover,
+.post-icon-action.favorited:focus-visible {
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .post-icon-action.danger:hover,
 .post-icon-action.danger:focus-visible {
   background: rgba(244, 33, 46, 0.1);
@@ -1378,8 +1798,43 @@ onMounted(async () => {
   aspect-ratio: 4 / 3;
 }
 
+.image-preview-item {
+  position: relative;
+}
+
+.image-remove {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  border: none;
+  border-radius: 9999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  position: absolute;
+  right: 0.375rem;
+  top: 0.375rem;
+}
+
 .detail-images {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.image-preview-item .image-remove {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.image-preview-item:hover .image-remove,
+.image-preview-item:focus-within .image-remove {
+  opacity: 1;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin: 0;
 }
 
 .detail-images img {
@@ -1558,6 +2013,127 @@ onMounted(async () => {
   justify-content: flex-start;
 }
 
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.compact {
+  min-height: auto;
+  padding: 1rem;
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .forum-layout,
+  .favorites-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .forum-sidebar,
+  .favorites-sidebar {
+    position: static;
+  }
+
+  .feed-toolbar {
+    border-left: 1px solid var(--border);
+    flex-direction: column;
+    position: static;
+  }
+
+  .toolbar,
+  .composer-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detail-backdrop {
+    display: block;
+    padding: 0;
+  }
+
+  .post-detail-panel {
+    border: none;
+    border-radius: 0;
+    max-height: 100vh;
+    width: 100vw;
+  }
+
+  .modal-header {
+    align-items: flex-start;
+  }
+}
+
+.folder-picker-panel {
+  max-width: 400px;
+}
+
+.folder-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.folder-pick-item {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  transition: background 0.15s;
+}
+
+.folder-pick-item:last-child {
+  border-bottom: none;
+}
+
+.folder-pick-item:hover,
+.folder-pick-item:focus-visible {
+  background: rgba(29, 155, 240, 0.06);
+  outline: none;
+}
+
+.folder-post-count {
+  color: #536471;
+  font-size: 0.8125rem;
+}
+
+.folder-pick-empty {
+  color: #536471;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.folder-picker-form {
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.folder-picker-form input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.folder-picker-form input:focus {
+  border-color: #1d9bf0;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+</style>
+
+<style>
 .comment-form {
   display: flex;
   flex-direction: column;
@@ -1626,14 +2202,29 @@ onMounted(async () => {
 }
 
 .comment-author {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--text);
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: #536471;
 }
 
 .comment-time {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: #536471;
+}
+
+.comment-node.deleted > .comment-body > .comment-header > .comment-author,
+.comment-node.deleted > .comment-body > .comment-header > .comment-time {
+  color: #b9c1c9;
+}
+
+.comment-node.deleted > .comment-body > .comment-content {
+  color: #b9c1c9;
+  font-style: italic;
+}
+
+.comment-avatar.deleted {
+  background: #b9c1c9;
+  color: white;
 }
 
 .comment-status {
@@ -1645,7 +2236,7 @@ onMounted(async () => {
 }
 
 .comment-content {
-  color: var(--text);
+  color: #0f1419;
   line-height: 1.65;
   font-size: 0.9375rem;
   white-space: pre-wrap;
@@ -1654,38 +2245,19 @@ onMounted(async () => {
 
 .comment-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 1rem;
   margin-top: 0.5rem;
 }
 
-.comment-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
+.comment-action-link {
+  color: #536471;
   cursor: pointer;
-  font: inherit;
   font-size: 0.8125rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius);
-  transition: all 0.15s;
 }
 
-.comment-action-btn:hover {
-  background: var(--bg);
-  color: var(--primary);
-}
-
-.comment-action-btn.danger:hover {
-  color: #dc2626;
-  background: #fef2f2;
-}
-
-.action-icon {
-  width: 14px;
-  height: 14px;
+.comment-action-link:hover {
+  color: #0f1419;
+  text-decoration: underline;
 }
 
 .comment-children {
@@ -1734,60 +2306,6 @@ onMounted(async () => {
 .reply-actions {
   display: flex;
   gap: 0.5rem;
-}
-
-.btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-}
-
-.compact {
-  min-height: auto;
-  padding: 1rem;
-}
-
-.muted {
-  color: var(--text-secondary);
-}
-
-@media (max-width: 900px) {
-  .forum-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .forum-sidebar {
-    position: static;
-  }
-
-  .feed-toolbar {
-    border-left: 1px solid var(--border);
-    flex-direction: column;
-    position: static;
-  }
-
-  .toolbar,
-  .composer-row,
-  .favorite-header,
-  .folder-form {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .detail-backdrop {
-    display: block;
-    padding: 0;
-  }
-
-  .post-detail-panel {
-    border: none;
-    border-radius: 0;
-    max-height: 100vh;
-    width: 100vw;
-  }
-
-  .modal-header {
-    align-items: flex-start;
-  }
 }
 </style>
 
