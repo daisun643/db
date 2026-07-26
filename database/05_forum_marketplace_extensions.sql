@@ -47,29 +47,6 @@ END;
 /
 
 BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE "Product" ADD "category" VARCHAR2(50)';
-EXCEPTION
-    WHEN OTHERS THEN
-        IF SQLCODE != -1430 THEN
-            RAISE;
-        END IF;
-END;
-/
-
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE "Product" ADD "condition" VARCHAR2(50)';
-EXCEPTION
-    WHEN OTHERS THEN
-        IF SQLCODE != -1430 THEN
-            RAISE;
-        END IF;
-END;
-/
-
-UPDATE "Product" SET "category" = '其他' WHERE "category" IS NULL;
-UPDATE "Product" SET "condition" = '良好' WHERE "condition" IS NULL;
-
-BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE "AuditRecord" ADD "targetType" VARCHAR2(50) DEFAULT ''Post''';
 EXCEPTION
     WHEN OTHERS THEN
@@ -119,13 +96,57 @@ BEGIN
             "userId"             NUMBER,
             "description"        VARCHAR2(500),
             "changePoints"       NUMBER,
+            "beforeCredit"       NUMBER,
+            "afterCredit"        NUMBER,
+            "operatorId"         NUMBER,
             "adjustTime"         TIMESTAMP,
             CONSTRAINT "PK_CreditAdjustment" PRIMARY KEY ("creditAdjustmentId"),
-            CONSTRAINT "FK_CreditAdj_User" FOREIGN KEY ("userId") REFERENCES "User"("userId")
+            CONSTRAINT "FK_CreditAdj_User" FOREIGN KEY ("userId") REFERENCES "User"("userId"),
+            CONSTRAINT "FK_CreditAdj_Operator" FOREIGN KEY ("operatorId") REFERENCES "User"("userId")
         )';
 EXCEPTION
     WHEN OTHERS THEN
         IF SQLCODE != -955 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "CreditAdjustment" ADD ("beforeCredit" NUMBER)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "CreditAdjustment" ADD ("afterCredit" NUMBER)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "CreditAdjustment" ADD ("operatorId" NUMBER)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN
+            RAISE;
+        END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE "CreditAdjustment" ADD CONSTRAINT "FK_CreditAdj_Operator" FOREIGN KEY ("operatorId") REFERENCES "User"("userId")';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE NOT IN (-2264, -2275) THEN
             RAISE;
         END IF;
 END;

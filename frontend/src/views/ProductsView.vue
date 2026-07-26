@@ -36,7 +36,20 @@
         <h2>发布闲置</h2>
         <input v-model="productForm.title" type="text" placeholder="商品标题" required />
         <textarea v-model="productForm.description" placeholder="商品描述"></textarea>
-        <input v-model="productImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          :disabled="submitting"
+          @change="handlePickCreateProductImages"
+        />
+        <div v-if="productImagePreviewUrls.length" class="product-images product-image-preview">
+          <div v-for="(url, index) in productImagePreviewUrls" :key="url" class="image-preview-item">
+            <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
+            <button type="button" class="image-remove" @click="removeCreateProductImage(index)">移除</button>
+          </div>
+        </div>
+        <p class="field-hint">最多可上传 6 张，单张不超过 5MB。</p>
         <div class="form-row">
           <select v-model="productForm.category">
             <option value="教材资料">教材资料</option>
@@ -250,7 +263,20 @@
         <h2>编辑商品</h2>
         <input v-model="editForm.title" type="text" placeholder="商品标题" required />
         <textarea v-model="editForm.description" placeholder="商品描述"></textarea>
-        <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          :disabled="editingSaving"
+          @change="handlePickEditProductImages"
+        />
+        <div v-if="productEditImageList.length" class="product-images product-image-preview">
+          <div v-for="(item, index) in productEditImageList" :key="`${item.source}-${index}`" class="image-preview-item">
+            <img :src="item.url" :alt="`图片 ${index + 1}`" loading="lazy" />
+            <button type="button" class="image-remove" @click="removeEditProductImage(index)">移除</button>
+          </div>
+        </div>
+        <p class="field-hint">最多 6 张，编辑时可替换图片，按列表顺序提交。</p>
         <div class="form-row">
           <select v-model="editForm.category">
             <option value="教材资料">教材资料</option>
@@ -277,7 +303,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   cancelTransaction,
   changeProductStatus,
@@ -287,6 +313,7 @@ import {
   createReport,
   createTransaction,
   depositWallet,
+  uploadImages,
   getOrderMessages,
   getMyProducts,
   getMyTransactions,
@@ -319,13 +346,33 @@ const orderMessageText = ref('')
 const walletBalance = ref('0.00')
 const depositAmount = ref(null)
 const depositing = ref(false)
-const productImageText = ref('')
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const selectedProduct = ref(null)
 const editingProduct = ref(null)
 const editingSaving = ref(false)
-const editImageText = ref('')
+const productImageFiles = ref([])
+const productImagePreviewUrls = ref([])
+const editImageUrls = ref([])
+const editImageFiles = ref([])
+const editImageNewUrls = ref([])
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGE_COUNT = 6
+
+const productEditImageList = computed(() => {
+  const remote = editImageUrls.value.map((url, index) => ({
+    source: 'remote',
+    key: `remote-${index}`,
+    url,
+  }))
+  const local = editImageNewUrls.value.map((url, index) => ({
+    source: 'local',
+    key: `local-${index}`,
+    url,
+  }))
+  return [...remote, ...local]
+})
 
 const productForm = ref({
   title: '',
@@ -391,14 +438,109 @@ const loadSales = async () => {
   sales.value = res.data
 }
 
+const clearCreateProductImageState = () => {
+  productImagePreviewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  productImageFiles.value = []
+  productImagePreviewUrls.value = []
+}
+
+const clearEditProductImageState = () => {
+  editImageNewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  editImageFiles.value = []
+  editImageNewUrls.value = []
+  editImageUrls.value = []
+}
+
+const validateImageFile = (file) => {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return '仅支持 JPG、PNG、GIF、WebP 图片'
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return '单张图片不能超过5MB'
+  }
+  return null
+}
+
+const handlePickCreateProductImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = productImageFiles.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const previewUrls = files.map(file => URL.createObjectURL(file))
+  productImageFiles.value = [...productImageFiles.value, ...files]
+  productImagePreviewUrls.value = [...productImagePreviewUrls.value, ...previewUrls]
+}
+
+const removeCreateProductImage = (index) => {
+  const removedUrl = productImagePreviewUrls.value[index]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  productImagePreviewUrls.value.splice(index, 1)
+  productImageFiles.value.splice(index, 1)
+}
+
+const handlePickEditProductImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = editImageUrls.value.length + editImageNewUrls.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const previewUrls = files.map(file => URL.createObjectURL(file))
+  editImageFiles.value = [...editImageFiles.value, ...files]
+  editImageNewUrls.value = [...editImageNewUrls.value, ...previewUrls]
+}
+
+const removeEditProductImage = (index) => {
+  const remoteCount = editImageUrls.value.length
+  if (index < remoteCount) {
+    editImageUrls.value = editImageUrls.value.filter((_, i) => i !== index)
+    return
+  }
+
+  const localIndex = index - remoteCount
+  const removedUrl = editImageNewUrls.value[localIndex]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  editImageNewUrls.value.splice(localIndex, 1)
+  editImageFiles.value.splice(localIndex, 1)
+}
+
 const handleCreateProduct = async () => {
   try {
     submitting.value = true
     error.value = null
-    const imageUrls = productImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = productImageFiles.value.length > 0 ? await uploadImages(productImageFiles.value, 'products') : null
+    const imageUrls = (uploaded?.data?.urls || []).slice(0, MAX_IMAGE_COUNT)
     await createProduct({ ...productForm.value, imageUrls })
-    productForm.value = { title: '', description: '', category: '其他', condition: '良好', price: null, stock: 1 }
-    productImageText.value = ''
     await Promise.all([loadProducts(), loadMyProducts()])
   } catch (e) {
     error.value = '发布失败: ' + (e.response?.data?.message || e.message)
@@ -439,6 +581,7 @@ const closeProductDetail = () => {
 
 const openEditProduct = (product) => {
   editingProduct.value = product
+  clearEditProductImageState()
   editForm.value = {
     title: product.title || '',
     description: product.description || '',
@@ -447,12 +590,12 @@ const openEditProduct = (product) => {
     price: product.price,
     stock: product.stock || 1,
   }
-  editImageText.value = (product.imageUrls || []).join(', ')
+  editImageUrls.value = [...(product.imageUrls || [])]
 }
 
 const closeEditProduct = () => {
   editingProduct.value = null
-  editImageText.value = ''
+  clearEditProductImageState()
 }
 
 const handleUpdateProduct = async () => {
@@ -461,7 +604,8 @@ const handleUpdateProduct = async () => {
   try {
     editingSaving.value = true
     error.value = null
-    const imageUrls = editImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = editImageFiles.value.length > 0 ? await uploadImages(editImageFiles.value, 'products') : null
+    const imageUrls = [...editImageUrls.value, ...(uploaded?.data?.urls || [])].slice(0, MAX_IMAGE_COUNT)
     await updateProduct(editingProduct.value.productID, {
       ...editForm.value,
       imageUrls,
@@ -782,6 +926,45 @@ onMounted(async () => {
   border-radius: var(--radius);
   object-fit: cover;
   width: 100%;
+}
+
+.image-preview-item {
+  position: relative;
+}
+
+.image-remove {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  border: none;
+  border-radius: 9999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  position: absolute;
+  right: 0.375rem;
+  top: 0.375rem;
+}
+
+.product-image-preview {
+  margin-bottom: 0.25rem;
+}
+
+.image-preview-item .image-remove {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.image-preview-item:hover .image-remove,
+.image-preview-item:focus-within .image-remove {
+  opacity: 1;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin: 0;
 }
 
 .detail-backdrop {

@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Wallet> Wallets => Set<Wallet>();
     public DbSet<Forum> Forums => Set<Forum>();
     public DbSet<Post> Posts => Set<Post>();
+    public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<TagPost> TagPosts => Set<TagPost>();
@@ -46,10 +47,44 @@ public class AppDbContext : DbContext
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.PasswordHash).HasColumnName("passwordHash");
             e.Property(x => x.UserCode).HasColumnName("userCode");
+            e.Property(x => x.Nickname).HasColumnName("nickname");
+            e.Property(x => x.AvatarUrl).HasColumnName("avatarUrl");
+            e.Property(x => x.Contact).HasColumnName("contact");
+            e.Property(x => x.Bio).HasColumnName("bio");
             e.Property(x => x.Credit).HasColumnName("credit");
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.UserLevel).HasColumnName("userLevel");
             e.Property(x => x.TotalCredit).HasColumnName("totalCredit");
+            e.HasMany(u => u.UploadedMedia)
+                .WithOne(m => m.UploadedByUser)
+                .HasForeignKey(m => m.UploadedByUserID)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<MediaFile>(e =>
+        {
+            e.ToTable("MediaFile");
+            e.HasKey(x => x.MediaID);
+            e.Property(x => x.MediaID).HasColumnName("mediaId").ValueGeneratedOnAdd();
+            e.Property(x => x.OwnerType).HasColumnName("ownerType");
+            e.Property(x => x.OwnerID).HasColumnName("ownerId");
+            e.Property(x => x.StorageProvider).HasColumnName("storageProvider").HasDefaultValue("s3");
+            e.Property(x => x.ObjectKey).HasColumnName("objectKey");
+            e.Property(x => x.FileName).HasColumnName("fileName");
+            e.Property(x => x.OriginalFileName).HasColumnName("originalFileName");
+            e.Property(x => x.Url).HasColumnName("url");
+            e.Property(x => x.MimeType).HasColumnName("mimeType");
+            e.Property(x => x.SizeBytes).HasColumnName("sizeBytes");
+            e.Property(x => x.ContentHash).HasColumnName("contentHash");
+            e.Property(x => x.UploadTime).HasColumnName("uploadTime").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            e.Property(x => x.UploadedByUserID).HasColumnName("uploadedByUserId");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => new { x.OwnerType, x.OwnerID });
+            e.HasIndex(x => x.UploadedByUserID);
+            e.HasOne(x => x.UploadedByUser)
+                .WithMany(u => u.UploadedMedia)
+                .HasForeignKey(x => x.UploadedByUserID)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Role>(e =>
@@ -97,6 +132,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.EmailCodeID).HasColumnName("emailCodeId").ValueGeneratedOnAdd();
             e.Property(x => x.Email).HasColumnName("email");
             e.Property(x => x.Code).HasColumnName("code");
+            e.Property(x => x.Purpose).HasColumnName("purpose");
             e.Property(x => x.SendTime).HasColumnName("sendTime");
             e.Property(x => x.ExpireTime).HasColumnName("expireTime");
             e.Property(x => x.IsUsed).HasColumnName("isUsed");
@@ -311,9 +347,9 @@ public class AppDbContext : DbContext
             e.ToTable("PrivateMessage");
             e.HasKey(x => x.MessageID);
             e.Property(x => x.MessageID).HasColumnName("messageId").ValueGeneratedOnAdd();
-            e.Property(x => x.Content).HasColumnName("content");
-            e.Property(x => x.SendTime).HasColumnName("sendTime");
-            e.Property(x => x.IsRead).HasColumnName("isRead");
+            e.Property(x => x.Content).HasColumnName("content").HasMaxLength(4000).IsRequired();
+            e.Property(x => x.SendTime).HasColumnName("sendTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
+            e.Property(x => x.IsRead).HasColumnName("isRead").HasMaxLength(1).HasDefaultValue("0").IsRequired();
             e.Property(x => x.ReceiverID).HasColumnName("receiverId");
             e.Property(x => x.SenderID).HasColumnName("senderId");
         });
@@ -325,9 +361,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.FriendshipID).HasColumnName("friendshipId").ValueGeneratedOnAdd();
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.FriendID).HasColumnName("friendId");
-            e.Property(x => x.Status).HasColumnName("status");
-            e.Property(x => x.CreateTime).HasColumnName("createTime");
-            e.Property(x => x.UpdateTime).HasColumnName("updateTime");
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Pending").IsRequired();
+            e.Property(x => x.CreateTime).HasColumnName("createTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
+            e.Property(x => x.UpdateTime).HasColumnName("updateTime").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
             e.HasOne(x => x.User)
                 .WithMany(u => u.FriendShips)
                 .HasForeignKey(x => x.UserID)
@@ -346,7 +382,18 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.ChangePoints).HasColumnName("changePoints");
+            e.Property(x => x.BeforeCredit).HasColumnName("beforeCredit");
+            e.Property(x => x.AfterCredit).HasColumnName("afterCredit");
+            e.Property(x => x.OperatorID).HasColumnName("operatorId");
             e.Property(x => x.AdjustTime).HasColumnName("adjustTime");
+            e.HasOne(x => x.User)
+                .WithMany(u => u.CreditAdjustments)
+                .HasForeignKey(x => x.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Operator)
+                .WithMany()
+                .HasForeignKey(x => x.OperatorID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Notification>(e =>

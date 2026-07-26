@@ -11,6 +11,7 @@ ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 -- ============================================================
 
 CREATE UNIQUE INDEX "idx_user_email" ON "User"("email");
+CREATE UNIQUE INDEX "idx_user_username" ON "User"("username");
 CREATE UNIQUE INDEX "idx_role_name" ON "Role"("roleName");
 CREATE UNIQUE INDEX "idx_permission_name" ON "Permission"("permissionName");
 CREATE UNIQUE INDEX "idx_postlike_post_user" ON "PostLike"("postId", "userId");
@@ -19,8 +20,7 @@ CREATE UNIQUE INDEX "idx_postlike_post_user" ON "PostLike"("postId", "userId");
 -- ============================================================
 
 CREATE INDEX "idx_emailcode_email" ON "EmailCode"("email");
+CREATE INDEX "idx_emailcode_email_purpose" ON "EmailCode"("email", "purpose");
 CREATE INDEX "idx_emailcode_sendtime" ON "EmailCode"("sendTime");
 CREATE INDEX "idx_product_status_stock" ON "Product"("status", "stock");
-CREATE INDEX "idx_product_category" ON "Product"("category");
-
 COMMIT;
