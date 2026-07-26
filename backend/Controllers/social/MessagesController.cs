@@ -20,8 +20,13 @@ namespace Backend.Controllers;
 public class MessagesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public MessagesController(AppDbContext db) => _db = db;
+    public MessagesController(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
 
     [HttpGet("conversations")]
@@ -128,7 +133,8 @@ public class MessagesController : ControllerBase
         };
 
         _db.PrivateMessages.Add(message);
-        await CreateNotificationAsync(receiver.UserID, "新的私信", "你收到了一条新的私信");
+        await _db.SaveChangesAsync();
+        await CreateNotificationAsync(receiver.UserID, "新的私信", "你收到了一条新的私信", message.MessageID);
         await _db.SaveChangesAsync();
 
         message.Sender = await _db.Users.FindAsync(currentUserId);
@@ -183,16 +189,19 @@ public class MessagesController : ControllerBase
 
     private int CurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
-    private async Task CreateNotificationAsync(int userId, string title, string content)
+    private async Task CreateNotificationAsync(int userId, string title, string content, int messageId = 0)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Message",
             Title = title,
             Content = content,
-            CreateTime = DateTime.Now
+            TargetType = "Message",
+            TargetID = messageId > 0 ? messageId : null,
+            Link = "/messages",
+            EventKey = $"message:{messageId}:{userId}"
         });
-        await Task.CompletedTask;
     }
 
     private static PrivateMessageResponse MapMessage(PrivateMessage message)

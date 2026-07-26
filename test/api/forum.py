@@ -131,6 +131,15 @@ class ForumAPI(BaseAPIClient):
     def delete_comment(self, comment_id: int) -> requests.Response:
         return self.delete(f"/api/comments/{comment_id}")
 
+    # ---- Reports ----
+
+    def create_report(self, target_type: str, target_id: int, reason: str) -> requests.Response:
+        return self.post(f"{self.PREFIX}/reports", json={
+            "targetType": target_type,
+            "targetID": target_id,
+            "reason": reason,
+        })
+
     # ---- Tags ----
 
     def get_tags(self, keyword: str = "") -> requests.Response:

@@ -13,8 +13,13 @@ namespace Backend.Controllers;
 public class ForumsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public ForumsController(AppDbContext db) => _db = db;
+    public ForumsController(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     [HttpGet]
     [AllowAnonymous]
@@ -170,6 +175,8 @@ public class ForumsController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
+        await CreateNotificationAsync(request.UserID, "版主权限已分配", $"你已成为论坛 #{id} 的版主", id, "assigned");
+        await _db.SaveChangesAsync();
         return Ok(new { message = exists ? "该用户已经是版主" : "版主已指派" });
     }
 
@@ -182,13 +189,7 @@ public class ForumsController : ControllerBase
             return NotFound();
 
         _db.ForumManagers.Remove(manager);
-        _db.Notifications.Add(new Notification
-        {
-            UserID = userId,
-            Title = "版主权限已移除",
-            Content = $"你不再是论坛 #{id} 的版主",
-            CreateTime = DateTime.Now
-        });
+        await CreateNotificationAsync(userId, "版主权限已移除", $"你不再是论坛 #{id} 的版主", id, "removed");
         await _db.SaveChangesAsync();
         return Ok(new { message = "版主已移除" });
     }
@@ -234,6 +235,21 @@ public class ForumsController : ControllerBase
                 })
                 .ToList()
         }).ToList();
+    }
+
+    private async Task CreateNotificationAsync(int userId, string title, string content, int forumId, string action)
+    {
+        await _notificationService.CreateAsync(new CreateNotificationOptions
+        {
+            UserID = userId,
+            Type = "Forum",
+            Title = title,
+            Content = content,
+            TargetType = "Forum",
+            TargetID = forumId,
+            Link = $"/forums",
+            EventKey = $"forum:manager:{forumId}:{userId}:{action}"
+        });
     }
 
     private int? TryGetCurrentUserId()

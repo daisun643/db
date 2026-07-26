@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 01_tables.sql
 -- Oracle 18c 数据库表结构创建脚本
 -- 驼峰命名 + 双引号包裹
@@ -287,6 +287,13 @@ CREATE TABLE "Notification" (
     "title"          VARCHAR2(200),
     "content"        VARCHAR2(4000),
     "createTime"     TIMESTAMP,
+    "type"           VARCHAR2(50) DEFAULT 'System',
+    "targetType"     VARCHAR2(50),
+    "targetId"       NUMBER,
+    "link"           VARCHAR2(500),
+    "isRead"         CHAR(1) DEFAULT '0',
+    "readTime"       TIMESTAMP,
+    "eventKey"       VARCHAR2(200),
     "transactionId"  NUMBER,
     "userId"         NUMBER,
     CONSTRAINT "PK_Notification" PRIMARY KEY ("notificationId"),
@@ -310,3 +317,4 @@ CREATE TABLE "ArbitrationResult" (
 );
 
 COMMIT;
+
