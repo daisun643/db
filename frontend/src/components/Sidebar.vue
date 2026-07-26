@@ -33,6 +33,14 @@
           <span class="nav-label" v-if="!isCollapsed">交易</span>
         </router-link>
 
+        <router-link to="/finance" class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+          <span class="nav-label" v-if="!isCollapsed">资金流水</span>
+        </router-link>
+
         <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -84,8 +92,6 @@ import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAcc
 
 const authStore = useAuthStore()
 const router = useRouter()
-
-const isCollapsed = ref(true)
 const routeAccess = ref({})
 
 const toggleSidebar = () => {

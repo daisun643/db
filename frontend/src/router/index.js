@@ -48,6 +48,11 @@ const routes = [
     component: () => import('../views/SystemStatusView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status') }
   },
+  {
+    path: '/finance',
+    component: () => import('../views/FinanceView.vue'),
+    meta: { requiresAuth: true}
+}
 ]
 
 const router = createRouter({

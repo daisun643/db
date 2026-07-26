@@ -334,6 +334,10 @@ public class Product
     [MaxLength(4000)]
     public string? Description { get; set; }
     public string? ImageUrls { get; set; }
+    [MaxLength(50)]
+    public string? Category { get; set; }
+    [MaxLength(50)]
+    public string? Condition { get; set; }
     public decimal? Price { get; set; }
     public int? Stock { get; set; }
     [MaxLength(20)]

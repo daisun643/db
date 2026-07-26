@@ -111,8 +111,11 @@ public class ProductsController : ControllerBase
         if (!CanManageProduct(product, userId, "products.edit"))
             return Forbid();
 
-        if (product.Status == "Sold")
-            return BadRequest(new { message = "已售出商品不可编辑" });
+        if (product.Status is "Sold" or "Inactive")
+            return BadRequest(new { message = "已售出或已下架商品不可编辑，请先重新上架符合条件的下架商品" });
+
+        if (product.Status == "Locked")
+            return BadRequest(new { message = "已锁定商品存在待处理订单，不可编辑" });
 
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         product.Title = request.Title.Trim();
@@ -120,7 +123,7 @@ public class ProductsController : ControllerBase
         product.ImageUrls = SerializeImageUrls(normalizedImageUrls);
         product.Price = request.Price;
         product.Stock = request.Stock;
-        product.Status = NormalizeProductStatus(request.Status);
+        product.Status = NormalizeProductStatusForUpdate(request.Status, request.Stock);
 
         await ReplaceMediaForOwnerAsync(product.ProductID, userId, normalizedImageUrls);
         await _db.SaveChangesAsync();
@@ -177,10 +180,21 @@ public class ProductsController : ControllerBase
         if (!CanManageProduct(product, userId, requiredPermission))
             return Forbid();
 
+        if (action is "publish" or "restore")
+        {
+            if (product.Status == "Sold")
+                return BadRequest(new { message = "售出商品不能重新上架" });
+            if ((product.Stock ?? 0) <= 0)
+                return BadRequest(new { message = "库存不足，不能上架商品" });
+        }
+
+        if (action is "inactive" or "off-shelf" && product.Status == "Sold")
+            return BadRequest(new { message = "售出商品不能下架" });
+
         product.Status = action switch
         {
             "publish" => product.Stock > 0 ? "Active" : "Sold",
-            "lock" => "Locked",
+            "lock" => product.Status == "Sold" ? "Sold" : "Locked",
             "sold" => "Sold",
             "inactive" or "off-shelf" => "Inactive",
             "restore" => product.Stock > 0 ? "Active" : "Sold",
@@ -213,6 +227,8 @@ public class ProductsController : ControllerBase
             Description = product.Description ?? "",
             Price = product.Price ?? 0,
             Stock = product.Stock ?? 0,
+            Category = product.Category ?? "",
+            Condition = product.Condition ?? "",
             Status = product.Status ?? "",
             PublishTime = product.PublishTime,
             UserID = product.UserID,
@@ -321,11 +337,14 @@ public class ProductsController : ControllerBase
             HasProductPermission(permission);
     }
 
-    private static string NormalizeProductStatus(string status)
+    private static string NormalizeProductStatusForUpdate(string status, int stock)
     {
+        if (stock <= 0)
+            return "Sold";
+
         return status switch
         {
-            "Active" or "Locked" or "Sold" or "Inactive" => status,
+            "Active" => status,
             _ => "Active"
         };
     }

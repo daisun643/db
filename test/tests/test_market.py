@@ -46,6 +46,8 @@ class TestProductList:
             assert "description" in p
             assert "price" in p
             assert "stock" in p
+            assert "category" in p
+            assert "condition" in p
             assert "status" in p
             assert "publishTime" in p
             assert "userID" in p
@@ -85,11 +87,54 @@ class TestProductCRUD:
         assert data["title"] == "测试商品"
         assert data["price"] == 9.99
         assert data["stock"] == 5
+        assert data["category"] == "其他"
+        assert data["condition"] == "良好"
         assert data["status"] == "Active"
+
+    def test_create_product_with_category_and_condition(self, admin_market_client):
+        resp = admin_market_client.create_product(
+            "分类成色商品",
+            19.9,
+            stock=2,
+            category="数码设备",
+            condition="几乎全新",
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["category"] == "数码设备"
+        assert data["condition"] == "几乎全新"
 
     def test_user_can_create_product(self, market_client):
         resp = market_client.create_product("合法商品", 1.0, stock=1)
         assert resp.status_code == 201
+
+    def test_unauthenticated_create_product_fails(self, market_client):
+        market_client.post("/api/auth/logout")
+        resp = market_client.create_product("未登录发布商品", 1.0, stock=1)
+        assert resp.status_code == 401
+
+    def test_low_credit_user_cannot_create_product(self, admin_market_client, market_client):
+        profile = market_client.get("/api/user/profile").json()
+        user_id = profile["userId"]
+        original_credit = profile.get("credit") or 0
+
+        try:
+            admin_market_client.post("/api/user/credit/add", json={
+                "userId": user_id,
+                "credit": -1000,
+                "reason": "商品发布低信用限制测试",
+            })
+            resp = market_client.create_product("低信用发布商品", 1.0, stock=1)
+            assert resp.status_code == 400
+        finally:
+            current = market_client.get("/api/user/profile").json().get("credit") or 0
+            restore = original_credit - current
+            if restore:
+                admin_market_client.post("/api/user/credit/add", json={
+                    "userId": user_id,
+                    "credit": restore,
+                    "reason": "恢复商品发布低信用限制测试信用分",
+                })
 
     def test_admin_can_update_product(self, admin_market_client):
         create_resp = admin_market_client.create_product("待修改商品", 5.0, stock=3)
@@ -99,6 +144,23 @@ class TestProductCRUD:
         assert resp.json()["title"] == "修改后商品"
         assert resp.json()["price"] == 8.0
         assert resp.json()["stock"] == 6
+
+    def test_seller_can_update_own_active_product(self, market_client):
+        create_resp = market_client.create_product("自己的可编辑商品", 5.0, stock=3)
+        pid = create_resp.json()["productID"]
+        resp = market_client.update_product(
+            pid,
+            "自己修改后的商品",
+            6.0,
+            stock=4,
+            category="教材资料",
+            condition="有使用痕迹",
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["title"] == "自己修改后的商品"
+        assert data["category"] == "教材资料"
+        assert data["condition"] == "有使用痕迹"
 
     def test_user_cannot_update_others_product(self, admin_market_client, market_client):
         create_resp = admin_market_client.create_product("受保护商品", 10.0, stock=2)
@@ -172,6 +234,20 @@ class TestProductStatus:
         resp = admin_market_client.update_product(pid, "修改已售商品", 10.0)
         assert resp.status_code == 400
 
+    def test_inactive_product_cannot_be_edited(self, admin_market_client):
+        create_resp = admin_market_client.create_product("已下架不可编辑商品", 5.0, stock=1)
+        pid = create_resp.json()["productID"]
+        admin_market_client.change_product_status(pid, "off-shelf")
+        resp = admin_market_client.update_product(pid, "修改已下架商品", 10.0)
+        assert resp.status_code == 400
+
+    def test_sold_product_cannot_be_restored(self, admin_market_client):
+        create_resp = admin_market_client.create_product("售出不可上架商品", 5.0, stock=1)
+        pid = create_resp.json()["productID"]
+        admin_market_client.change_product_status(pid, "sold")
+        resp = admin_market_client.change_product_status(pid, "restore")
+        assert resp.status_code == 400
+
     def test_user_cannot_change_others_product_status(self, admin_market_client, market_client):
         create_resp = admin_market_client.create_product("别人的商品", 5.0, stock=3)
         pid = create_resp.json()["productID"]
@@ -204,6 +280,29 @@ class TestOrderCreate:
         admin_market_client.change_product_status(product["productID"], "inactive")
         resp = market_client.create_order(product["productID"])
         assert resp.status_code == 400
+
+    def test_single_stock_product_is_locked_after_order(self, admin_market_client, market_client):
+        product = admin_market_client.create_product("单库存锁定商品", 10.0, stock=1).json()
+        order_resp = market_client.create_order(product["productID"])
+        assert order_resp.status_code == 200
+        product_resp = admin_market_client.get_product(product["productID"])
+        assert product_resp.status_code == 200
+        data = product_resp.json()
+        assert data["stock"] == 0
+        assert data["status"] == "Locked"
+
+    def test_repeat_order_does_not_oversell(self, admin_market_client, market_client, manager_market_client):
+        product = admin_market_client.create_product("防超卖商品", 10.0, stock=1).json()
+        first_resp = market_client.create_order(product["productID"])
+        second_resp = manager_market_client.create_order(product["productID"])
+
+        assert first_resp.status_code == 200
+        assert second_resp.status_code == 400
+
+        product_resp = admin_market_client.get_product(product["productID"])
+        data = product_resp.json()
+        assert data["stock"] == 0
+        assert data["status"] == "Locked"
 
     def test_order_unauthenticated(self, market_client):
         market_client.post("/api/auth/logout")
