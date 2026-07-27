@@ -31,33 +31,83 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet("me")]
-    public async Task<ActionResult<List<TransactionResponse>>> GetMyOrders()
+    public async Task<ActionResult<List<TransactionResponse>>> GetMyOrders(
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var normalizedStatus = status?.Trim();
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var orders = await _db.Transactions
+        var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
             .Where(t => t.UserID == userId)
-            .OrderByDescending(t => t.CreateTime)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            var normalized = NormalizeTransactionStatus(normalizedStatus);
+            if (normalized == null)
+                return BadRequest(new { message = "订单状态不合法" });
+            orders = orders.Where(t => t.TransactionStatus == normalized);
+        }
+
+        orders = orders.OrderByDescending(t => t.CreateTime);
+
+        var totalCount = await orders.CountAsync();
+        var items = await orders
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(orders.Select(MapTransaction).ToList());
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+
+        return Ok(items.Select(MapTransaction).ToList());
     }
 
     [HttpGet("sales")]
-    public async Task<ActionResult<List<TransactionResponse>>> GetSales()
+    public async Task<ActionResult<List<TransactionResponse>>> GetSales(
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var normalizedStatus = status?.Trim();
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var orders = await _db.Transactions
+        var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
             .Where(t => t.Product != null && t.Product.UserID == userId)
-            .OrderByDescending(t => t.CreateTime)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            var normalized = NormalizeTransactionStatus(normalizedStatus);
+            if (normalized == null)
+                return BadRequest(new { message = "订单状态不合法" });
+            orders = orders.Where(t => t.TransactionStatus == normalized);
+        }
+
+        orders = orders.OrderByDescending(t => t.CreateTime);
+
+        var totalCount = await orders.CountAsync();
+        var items = await orders
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(orders.Select(MapTransaction).ToList());
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+
+        return Ok(items.Select(MapTransaction).ToList());
     }
 
     [HttpPost]
@@ -389,6 +439,20 @@ public class TransactionsController : ControllerBase
         return status is "Completed" or "Cancelled" or "Refunded";
     }
 
+    private static string? NormalizeTransactionStatus(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "pending" => "Pending",
+            "paid" => "Paid",
+            "completed" => "Completed",
+            "cancelled" => "Cancelled",
+            "disputed" => "Disputed",
+            "refunded" => "Refunded",
+            _ => null,
+        };
+    }
+
     private static OrderMessageResponse MapOrderMessage(OrderMessage message)
     {
         return new OrderMessageResponse
@@ -403,5 +467,4 @@ public class TransactionsController : ControllerBase
         };
     }
 }
-
 

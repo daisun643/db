@@ -77,6 +77,33 @@ class TestProductList:
         resp = market_client.get_products()
         assert resp.status_code == 200
 
+    def test_get_products_filter_category(self, market_client):
+        resp = market_client.get_products(category="数码设备")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_get_products_filter_price_range(self, market_client):
+        resp = market_client.get_products(min_price=5, max_price=20)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_get_products_sort_price_desc(self, market_client):
+        resp = market_client.get_products(sort="price-desc", page_size=20)
+        assert resp.status_code == 200
+        products = resp.json()
+        if len(products) > 1:
+            prices = [item["price"] for item in products]
+            assert prices == sorted(prices, reverse=True)
+
+    def test_get_products_returns_total_count(self, market_client):
+        resp = market_client.get_products(page=1, page_size=1)
+        assert resp.status_code == 200
+        assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+
+    def test_get_products_invalid_sort_rejected(self, market_client):
+        resp = market_client.get_products(sort="invalid")
+        assert resp.status_code == 400
+
 
 class TestProductCRUD:
 
@@ -416,6 +443,27 @@ class TestOrderList:
         data = resp.json()
         assert isinstance(data, list)
         assert len(data) >= 1
+
+    def test_get_my_orders_with_status_filter(self, admin_market_client, market_client):
+        product = admin_market_client.create_product("分页订单商品", 12.0, stock=5).json()
+        market_client.create_order(product["productID"])
+        market_client.create_order(product["productID"])
+        pending = market_client.get_my_orders(status="Pending")
+        assert pending.status_code == 200
+        if len(pending.json()) > 0:
+            assert pending.json()[0]["transactionStatus"] == "Pending"
+
+    def test_get_my_orders_returns_total_count(self, admin_market_client, market_client):
+        product = admin_market_client.create_product("分页订单商品2", 12.0, stock=5).json()
+        market_client.create_order(product["productID"])
+        market_client.create_order(admin_market_client.create_product("分页订单商品3", 13.0, stock=5).json()["productID"])
+        resp = market_client.get_my_orders(page=1, page_size=1)
+        assert resp.status_code == 200
+        assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+
+    def test_get_my_orders_invalid_status_rejected(self, market_client):
+        resp = market_client.get_my_orders(status="BAD")
+        assert resp.status_code == 400
 
     def test_orders_unauthenticated(self, market_client):
         market_client.post("/api/auth/logout")

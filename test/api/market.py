@@ -24,10 +24,37 @@ class MarketAPI(BaseAPIClient):
 
     # ---- Products ----
 
-    def get_products(self, status: str | None = None) -> requests.Response:
+    def get_products(self, status: str | None = None,
+                     keyword: str | None = None,
+                     category: str | None = None,
+                     min_price: float | None = None,
+                     max_price: float | None = None,
+                     min_stock: int | None = None,
+                     max_stock: int | None = None,
+                     sort: str | None = None,
+                     page: int | None = None,
+                     page_size: int | None = None) -> requests.Response:
         params = {}
         if status is not None:
             params["status"] = status
+        if keyword is not None:
+            params["keyword"] = keyword
+        if category is not None:
+            params["category"] = category
+        if min_price is not None:
+            params["minPrice"] = min_price
+        if max_price is not None:
+            params["maxPrice"] = max_price
+        if min_stock is not None:
+            params["minStock"] = min_stock
+        if max_stock is not None:
+            params["maxStock"] = max_stock
+        if sort is not None:
+            params["sort"] = sort
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["pageSize"] = page_size
         return self.get(f"{self.PREFIX}/products", params=params)
 
     def get_product(self, product_id: int) -> requests.Response:
@@ -74,11 +101,25 @@ class MarketAPI(BaseAPIClient):
 
     # ---- Transactions ----
 
-    def get_my_orders(self) -> requests.Response:
-        return self.get(f"{self.PREFIX}/transactions/me")
+    def get_my_orders(self, status: str | None = None, page: int | None = None, page_size: int | None = None) -> requests.Response:
+        params = {}
+        if status is not None:
+            params["status"] = status
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return self.get(f"{self.PREFIX}/transactions/me", params=params)
 
-    def get_my_sales(self) -> requests.Response:
-        return self.get(f"{self.PREFIX}/transactions/sales")
+    def get_my_sales(self, status: str | None = None, page: int | None = None, page_size: int | None = None) -> requests.Response:
+        params = {}
+        if status is not None:
+            params["status"] = status
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return self.get(f"{self.PREFIX}/transactions/sales", params=params)
 
     def create_order(self, product_id: int) -> requests.Response:
         return self.post(f"{self.PREFIX}/transactions", json={

@@ -29,18 +29,101 @@ public class ProductsController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<List<ProductResponse>>> GetAll([FromQuery] string? status)
+    public async Task<ActionResult<List<ProductResponse>>> GetAll(
+        [FromQuery] string? status,
+        [FromQuery] string? keyword,
+        [FromQuery] string? category,
+        [FromQuery] string? condition,
+        [FromQuery] decimal? minPrice,
+        [FromQuery] decimal? maxPrice,
+        [FromQuery] int? minStock,
+        [FromQuery] int? maxStock,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? sort = "latest",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var normalizedSort = (sort ?? "latest").Trim().ToLowerInvariant();
+        var normalizedStatus = status?.Trim();
+
+        if (normalizedSort is not "latest" and not "price-asc" and not "price-desc" and not "stock-asc" and not "stock-desc")
+            return BadRequest(new { message = "排序参数不合法" });
+
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+            return BadRequest(new { message = "时间范围不合法" });
+
+        if (minPrice.HasValue && maxPrice.HasValue && minPrice.Value > maxPrice.Value)
+            return BadRequest(new { message = "价格范围不合法" });
+
+        if (minStock.HasValue && maxStock.HasValue && minStock.Value > maxStock.Value)
+            return BadRequest(new { message = "库存范围不合法" });
+
         var query = _db.Products.Include(p => p.User).AsQueryable();
-        if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(p => p.Status == status);
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var trimmedKeyword = keyword.Trim();
+            query = query.Where(p =>
+                (p.Title != null && p.Title.Contains(trimmedKeyword)) ||
+                (p.Description != null && p.Description.Contains(trimmedKeyword)) ||
+                (p.User != null && p.User.Username != null && p.User.Username.Contains(trimmedKeyword)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(p => p.Category == category.Trim());
+
+        if (!string.IsNullOrWhiteSpace(condition))
+            query = query.Where(p => p.Condition == condition.Trim());
+
+        if (minPrice.HasValue)
+            query = query.Where(p => (p.Price ?? 0) >= minPrice.Value);
+
+        if (maxPrice.HasValue)
+            query = query.Where(p => (p.Price ?? 0) <= maxPrice.Value);
+
+        if (minStock.HasValue)
+            query = query.Where(p => (p.Stock ?? 0) >= minStock.Value);
+
+        if (maxStock.HasValue)
+            query = query.Where(p => (p.Stock ?? 0) <= maxStock.Value);
+
+        if (from.HasValue)
+            query = query.Where(p => p.PublishTime >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(p => p.PublishTime <= to.Value);
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            var knownStatus = NormalizeProductStatus(normalizedStatus);
+            if (knownStatus == null)
+                return BadRequest(new { message = "商品状态不合法" });
+            query = query.Where(p => p.Status == knownStatus);
+        }
         else
             query = query.Where(p => p.Status != "Inactive");
 
+        query = normalizedSort switch
+        {
+            "price-asc" => query.OrderBy(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime),
+            "price-desc" => query.OrderByDescending(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime),
+            "stock-asc" => query.OrderBy(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime),
+            "stock-desc" => query.OrderByDescending(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime),
+            _ => query.OrderByDescending(p => p.Status == "Active" ? 1 : 0)
+                    .ThenByDescending(p => p.PublishTime),
+        };
+
+        var totalCount = await query.CountAsync();
         var products = await query
-            .OrderByDescending(p => p.PublishTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
         return Ok(await MapProductListAsync(products));
     }
 
@@ -346,6 +429,18 @@ public class ProductsController : ControllerBase
         {
             "Active" => status,
             _ => "Active"
+        };
+    }
+
+    private static string? NormalizeProductStatus(string status)
+    {
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "active" => "Active",
+            "locked" => "Locked",
+            "sold" => "Sold",
+            "inactive" => "Inactive",
+            _ => null,
         };
     }
 

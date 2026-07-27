@@ -110,8 +110,8 @@ export const getMyProducts = () => api.get('/products/me')
 export const getWallet = () => api.get('/wallet/me')
 export const depositWallet = (data) => api.post('/wallet/deposit', data)
 export const createTransaction = (data) => api.post('/transactions', data)
-export const getMyTransactions = () => api.get('/transactions/me')
-export const getSalesTransactions = () => api.get('/transactions/sales')
+export const getMyTransactions = (params = {}) => api.get('/transactions/me', { params })
+export const getSalesTransactions = (params = {}) => api.get('/transactions/sales', { params })
 export const payTransaction = (id) => api.post(`/transactions/${id}/pay`)
 export const confirmReceipt = (id) => api.post(`/transactions/${id}/confirm-receipt`)
 export const cancelTransaction = (id) => api.post(`/transactions/${id}/cancel`)
@@ -146,5 +146,4 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
 export const getHealth = () => api.get('/health')
 
 export default api
-
 
