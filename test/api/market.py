@@ -27,6 +27,7 @@ class MarketAPI(BaseAPIClient):
     def get_products(self, status: str | None = None,
                      keyword: str | None = None,
                      category: str | None = None,
+                     condition: str | None = None,
                      min_price: float | None = None,
                      max_price: float | None = None,
                      min_stock: int | None = None,
@@ -41,6 +42,8 @@ class MarketAPI(BaseAPIClient):
             params["keyword"] = keyword
         if category is not None:
             params["category"] = category
+        if condition is not None:
+            params["condition"] = condition
         if min_price is not None:
             params["minPrice"] = min_price
         if max_price is not None:

@@ -82,6 +82,16 @@ class TestProductList:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
+    def test_get_products_filter_condition(self, market_client):
+        resp = market_client.get_products(condition="良好")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_get_products_filter_stock_range(self, market_client):
+        resp = market_client.get_products(min_stock=1, max_stock=20)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
     def test_get_products_filter_price_range(self, market_client):
         resp = market_client.get_products(min_price=5, max_price=20)
         assert resp.status_code == 200
@@ -463,6 +473,26 @@ class TestOrderList:
 
     def test_get_my_orders_invalid_status_rejected(self, market_client):
         resp = market_client.get_my_orders(status="BAD")
+        assert resp.status_code == 400
+
+    def test_get_my_sales_with_status_filter(self, admin_market_client, market_client):
+        product = admin_market_client.create_product("销售订单商品", 18.0, stock=5).json()
+        market_client.create_order(product["productID"])
+        pending = admin_market_client.get_my_sales(status="Pending")
+        assert pending.status_code == 200
+        if len(pending.json()) > 0:
+            assert pending.json()[0]["transactionStatus"] == "Pending"
+
+    def test_get_my_sales_returns_total_count(self, admin_market_client, market_client):
+        product = admin_market_client.create_product("销售订单计数", 20.0, stock=5).json()
+        market_client.create_order(product["productID"])
+        market_client.create_order(admin_market_client.create_product("销售订单计数2", 21.0, stock=5).json()["productID"])
+        resp = admin_market_client.get_my_sales(page=1, page_size=1)
+        assert resp.status_code == 200
+        assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+
+    def test_get_my_sales_invalid_status_rejected(self, admin_market_client):
+        resp = admin_market_client.get_my_sales(status="BAD")
         assert resp.status_code == 400
 
     def test_orders_unauthenticated(self, market_client):
