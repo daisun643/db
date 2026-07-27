@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
+using Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

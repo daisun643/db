@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<FriendShip> FriendShips => Set<FriendShip>();
     public DbSet<CreditAdjustment> CreditAdjustments => Set<CreditAdjustment>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<PostSensitiveWord> PostSensitiveWords => Set<PostSensitiveWord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -417,5 +418,4 @@ public class AppDbContext : DbContext
         });
     }
 }
-
 

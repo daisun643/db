@@ -122,8 +122,7 @@ public class FriendsController : ControllerBase
 
         _db.FriendShips.Add(friendship);
         await _db.SaveChangesAsync();
-        if (target.UserID.HasValue)
-            await CreateNotificationAsync(target.UserID.Value, "新的好友申请", "有人请求添加你为好友", friendship.FriendshipID, "request");
+        await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友", friendship.FriendshipID, "request");
         await _db.SaveChangesAsync();
 
         friendship.User = await _db.Users.FindAsync(userId);
@@ -144,8 +143,7 @@ public class FriendsController : ControllerBase
             return Conflict(new { message = "该好友申请已经处理" });
         friendship.Status = "Accepted";
         friendship.UpdateTime = DateTime.Now;
-        if (friendship.UserID.HasValue)
-            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已通过", "你的好友申请已被接受", id, "accepted");
+        await CreateNotificationAsync(friendship.UserID, "好友申请已通过", "你的好友申请已被接受", id, "accepted");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已接受好友申请" });
     }
@@ -163,8 +161,7 @@ public class FriendsController : ControllerBase
             return Conflict(new { message = "该好友申请已经处理" });
         friendship.Status = "Rejected";
         friendship.UpdateTime = DateTime.Now;
-        if (friendship.UserID.HasValue)
-            await CreateNotificationAsync(friendship.UserID.Value, "好友申请已拒绝", "你的好友申请已被拒绝", id, "rejected");
+        await CreateNotificationAsync(friendship.UserID, "好友申请已拒绝", "你的好友申请已被拒绝", id, "rejected");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已拒绝好友申请" });
     }
@@ -181,8 +178,7 @@ public class FriendsController : ControllerBase
 
         var notifyUserId = friendship.UserID == userId ? friendship.FriendID : friendship.UserID;
         _db.FriendShips.Remove(friendship);
-        if (notifyUserId.HasValue)
-            await CreateNotificationAsync(notifyUserId.Value, "好友关系已解除", "有用户与你解除了好友关系", id, "deleted");
+        await CreateNotificationAsync(notifyUserId, "好友关系已解除", "有用户与你解除了好友关系", id, "deleted");
         await _db.SaveChangesAsync();
         return Ok(new { message = "好友关系已删除" });
     }
