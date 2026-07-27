@@ -157,10 +157,14 @@ public class ProductsController : ControllerBase
             return Forbid();
 
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
+        var category = NormalizeProductText(request.Category, "其他");
+        var condition = NormalizeProductText(request.Condition, "良好");
         var product = new Product
         {
             Title = request.Title.Trim(),
             Description = request.Description,
+            Category = category,
+            Condition = condition,
             ImageUrls = SerializeImageUrls(normalizedImageUrls),
             Price = request.Price,
             Stock = request.Stock,
@@ -203,6 +207,8 @@ public class ProductsController : ControllerBase
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         product.Title = request.Title.Trim();
         product.Description = request.Description;
+        product.Category = NormalizeProductText(request.Category, "其他");
+        product.Condition = NormalizeProductText(request.Condition, "良好");
         product.ImageUrls = SerializeImageUrls(normalizedImageUrls);
         product.Price = request.Price;
         product.Stock = request.Stock;
@@ -310,14 +316,19 @@ public class ProductsController : ControllerBase
             Description = product.Description ?? "",
             Price = product.Price ?? 0,
             Stock = product.Stock ?? 0,
-            Category = product.Category ?? "",
-            Condition = product.Condition ?? "",
+            Category = product.Category ?? "其他",
+            Condition = product.Condition ?? "良好",
             Status = product.Status ?? "",
             PublishTime = product.PublishTime,
             UserID = product.UserID,
             SellerName = product.User?.Username ?? "",
             ImageUrls = ResolveImageUrls(mediaByProduct, product)
         };
+    }
+
+    private static string NormalizeProductText(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
     }
 
     private async Task<Dictionary<int, List<string>>> GetMediaByProductIdsAsync(IEnumerable<int> productIds)

@@ -79,7 +79,9 @@ public class DisputesController : ControllerBase
         if (order.TransactionStatus != "Paid")
             return BadRequest(new { message = "只有已支付且未完成的订单可以发起纠纷" });
 
-        var exists = await _db.DisputeTickets.CountAsync(d => d.TransactionID == transactionId && d.Status == "Open") > 0;
+        var exists = await _db.DisputeTickets.CountAsync(d =>
+            d.TransactionID == transactionId &&
+            (d.Status == "Open" || d.Status == "NeedSupplement")) > 0;
         if (exists)
             return BadRequest(new { message = "该订单已有处理中的纠纷" });
 
@@ -96,7 +98,7 @@ public class DisputesController : ControllerBase
             return BadRequest(new { message = "只有已支付且未完成的订单可以发起纠纷" });
         }
 
-        var arbitratorId = await PickArbitratorAsync();
+        var arbitratorId = await PickArbitratorAsync(order.UserID, order.Product?.UserID);
         order.TransactionStatus = "Disputed";
         var dispute = new DisputeTicket
         {
@@ -125,11 +127,12 @@ public class DisputesController : ControllerBase
     }
 
     [HttpPost("{id}/resolve")]
-    [RequirePermission("products.edit", "dashboard.view")]
     public async Task<ActionResult> Resolve(int id, [FromBody] ResolveDisputeRequest request)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
         var dispute = await _db.DisputeTickets
             .Include(d => d.Transaction)
@@ -140,8 +143,11 @@ public class DisputesController : ControllerBase
             .FirstOrDefaultAsync(d => d.TicketID == id);
         if (dispute == null)
             return NotFound();
-        if (dispute.Status != "Open")
+        if (dispute.Status is not "Open" and not "NeedSupplement")
             return BadRequest(new { message = "该纠纷已处理" });
+        if (dispute.ArbitratorID != userId &&
+            dispute.Transaction?.Product?.UserID != userId)
+            return Forbid();
         if (dispute.Transaction == null || dispute.Transaction.Product?.UserID == null)
             return BadRequest(new { message = "订单或卖家不存在" });
         if (dispute.Transaction.TransactionStatus != "Disputed")
@@ -159,7 +165,7 @@ public class DisputesController : ControllerBase
             UPDATE ""DisputeTicket""
             SET ""status"" = 'Resolved'
             WHERE ""ticketId"" = {id}
-              AND ""status"" = 'Open'");
+              AND ""status"" IN ('Open', 'NeedSupplement')");
 
         var orderUpdated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
             UPDATE ""Transaction""
@@ -205,18 +211,78 @@ public class DisputesController : ControllerBase
 
         await CreateNotificationAsync(buyerId, "纠纷处理完成", $"订单 {dispute.TransactionID} 退款 ¥{request.RefundAmount}", dispute.Transaction.TransactionID);
         await CreateNotificationAsync(sellerId, "纠纷处理完成", $"订单 {dispute.TransactionID} 结算 ¥{sellerAmount}", dispute.Transaction.TransactionID);
-        await ApplyDisputeCreditImpactAsync(dispute, buyerId, sellerId, amount, request.RefundAmount);
+        await ApplyDisputeCreditImpactAsync(dispute, buyerId, sellerId, amount, request.RefundAmount, request.ResponsibilityParty);
         await _db.SaveChangesAsync();
         await dbTransaction.CommitAsync();
-        return Ok(new { message = "纠纷已处理", status = dispute.Status });
+        return Ok(new
+        {
+            message = "纠纷已处理",
+            status = dispute.Status,
+            orderStatus = finalStatus,
+            buyerRefundAmount = request.RefundAmount,
+            sellerSettlementAmount = amount - request.RefundAmount
+        });
     }
 
-    private async Task ApplyDisputeCreditImpactAsync(DisputeTicket dispute, int buyerId, int sellerId, decimal amount, decimal refundAmount)
+    [HttpPost("{id}/supplement")]
+    public async Task<ActionResult<DisputeTicketResponse>> RequestSupplement(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var dispute = await _db.DisputeTickets
+            .Include(d => d.Transaction)
+            .ThenInclude(t => t!.User)
+            .Include(d => d.Transaction!)
+            .ThenInclude(t => t!.Product)
+            .ThenInclude(p => p!.User)
+            .Include(d => d.ArbitrationResults)
+            .FirstOrDefaultAsync(d => d.TicketID == id);
+
+        if (dispute == null)
+            return NotFound();
+        if (dispute.ArbitratorID != userId)
+            return Forbid();
+        if (dispute.Status != "Open")
+            return BadRequest(new { message = "该纠纷当前不允许提交补充材料" });
+
+        var updated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE ""DisputeTicket""
+            SET ""status"" = 'NeedSupplement'
+            WHERE ""ticketId"" = {id}
+              AND ""status"" = 'Open'");
+
+        if (updated != 1)
+        {
+            await _db.SaveChangesAsync();
+            return BadRequest(new { message = "该纠纷状态已变化，不能提交补充材料" });
+        }
+
+        dispute.Status = "NeedSupplement";
+        return Ok(MapDispute(dispute));
+    }
+
+    private async Task ApplyDisputeCreditImpactAsync(DisputeTicket dispute, int buyerId, int sellerId, decimal amount, decimal refundAmount, string? responsibilityParty)
     {
         if (amount <= 0)
             return;
 
+        if (string.IsNullOrWhiteSpace(responsibilityParty))
+            return;
+
         var orderLabel = $"订单 {dispute.TransactionID}";
+        var normalizedParty = responsibilityParty?.Trim();
+
+        if (string.Equals(normalizedParty, "Seller", StringComparison.OrdinalIgnoreCase))
+        {
+            await _creditService.AddCreditAsync(sellerId, -20, $"纠纷仲裁：{orderLabel} 全额退款，卖家违约");
+            return;
+        }
+
+        if (string.Equals(normalizedParty, "Buyer", StringComparison.OrdinalIgnoreCase))
+        {
+            await _creditService.AddCreditAsync(buyerId, -10, $"纠纷仲裁：{orderLabel} 不予退款，买家责任");
+            return;
+        }
+
         if (refundAmount >= amount)
         {
             await _creditService.AddCreditAsync(sellerId, -20, $"纠纷仲裁：{orderLabel} 全额退款，卖家违约");
@@ -233,36 +299,51 @@ public class DisputesController : ControllerBase
         await _creditService.AddCreditAsync(buyerId, -5, $"纠纷仲裁：{orderLabel} 部分退款，买家部分责任");
     }
 
-    private async Task<int?> PickArbitratorAsync()
+    private async Task<int?> PickArbitratorAsync(int? buyerId, int? sellerId)
     {
         var candidates = await _db.UserRoles
             .Include(ur => ur.Role)
-            .ThenInclude(r => r!.RolePermissions)
-            .ThenInclude(rp => rp.Permission)
             .Where(ur => ur.Role != null &&
                 (ur.Role.RoleName == "Admin" ||
                  ur.Role.RoleName == "Manager" ||
-                 ur.Role.RoleName == "Moderator" ||
-                 ur.Role.RolePermissions.Any(rp =>
-                     rp.Permission != null &&
-                     (rp.Permission.PermissionName == "dashboard.view" ||
-                      rp.Permission.PermissionName == "products.edit"))))
+                 ur.Role.RoleName == "Moderator"))
             .Select(ur => ur.UserID)
             .Distinct()
             .ToListAsync();
 
-        if (candidates.Count == 0)
+        var filteredCandidates = candidates
+            .Where(id => id != buyerId && id != sellerId)
+            .ToList();
+
+        if (filteredCandidates.Count == 0)
             return null;
 
         var openCounts = await _db.DisputeTickets
-            .Where(d => d.Status == "Open" && d.ArbitratorID.HasValue)
+            .Where(d => (d.Status == "Open" || d.Status == "NeedSupplement") && d.ArbitratorID.HasValue)
             .GroupBy(d => d.ArbitratorID!.Value)
             .Select(g => new { ArbitratorID = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ArbitratorID, x => x.Count);
 
-        return candidates
-            .OrderBy(id => openCounts.TryGetValue(id, out var count) ? count : 0)
-            .ThenBy(id => id)
+        var roleNames = await _db.UserRoles
+            .Include(ur => ur.Role)
+            .Where(ur => ur.Role != null && candidates.Contains(ur.UserID))
+            .Select(ur => new { ur.UserID, RoleName = ur.Role!.RoleName })
+            .Distinct()
+            .ToListAsync();
+
+        return filteredCandidates
+            .Select(id => new
+            {
+                UserID = id,
+                Priority =
+                    roleNames.Any(r => r.UserID == id && r.RoleName == "Moderator") ? 0 :
+                    roleNames.Any(r => r.UserID == id && r.RoleName == "Manager") ? 1 : 2,
+                Load = openCounts.TryGetValue(id, out var count) ? count : 0
+            })
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.Load)
+            .ThenBy(x => x.UserID)
+            .Select(x => x.UserID)
             .First();
     }
 
@@ -328,12 +409,15 @@ public class DisputesController : ControllerBase
             TicketID = dispute.TicketID,
             Reason = dispute.Reason ?? "",
             Status = dispute.Status ?? "",
+            OrderStatus = dispute.Transaction?.TransactionStatus ?? "",
             CreateTime = dispute.CreateTime,
             AssignTime = dispute.AssignTime,
             TransactionID = dispute.TransactionID,
             TransactionAmount = dispute.Transaction?.TransactionAmount ?? 0,
             ProductTitle = dispute.Transaction?.Product?.Title ?? "",
+            BuyerID = dispute.Transaction?.UserID,
             BuyerName = dispute.Transaction?.User?.Username ?? "",
+            SellerID = dispute.Transaction?.Product?.UserID,
             SellerName = dispute.Transaction?.Product?.User?.Username ?? "",
             UserID = dispute.UserID,
             Username = dispute.User?.Username ?? "",

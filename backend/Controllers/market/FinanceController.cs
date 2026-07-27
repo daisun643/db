@@ -96,14 +96,14 @@ public class FinanceController : ControllerBase
             return Unauthorized();
 
         var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserID == userId);
-        var availableBalance = wallet?.Balance ?? 0;  // 当前可用余额（支付后剩余）
+        var availableBalance = wallet?.Balance ?? 0;  // 当前可用余额（扣减在支付环节）
 
         var frozenAmount = await _db.Transactions
             .Where(t => t.UserID == userId && t.TransactionStatus == "Paid")
             .SumAsync(t => t.TransactionAmount ?? 0);
 
-        // 总资产 = 可用余额 + 冻结金额
-        var totalBalance = availableBalance + frozenAmount;
+        var balance = availableBalance;
+        var availableAmount = availableBalance - frozenAmount;
 
         var totalIncome = await _db.Transactions
             .Include(t => t.Product)
@@ -120,9 +120,9 @@ public class FinanceController : ControllerBase
 
         return Ok(new
         {
-            TotalBalance = totalBalance,
+            Balance = balance,
             FrozenAmount = frozenAmount,
-            AvailableBalance = availableBalance,
+            AvailableAmount = availableAmount,
             TotalIncome = totalIncome,
             TotalExpense = totalExpense,
             NetAmount = totalIncome - totalExpense

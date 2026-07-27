@@ -86,12 +86,15 @@ public class DisputeTicketResponse
     public int TicketID { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string OrderStatus { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public DateTime? AssignTime { get; set; }
     public int? TransactionID { get; set; }
     public decimal TransactionAmount { get; set; }
     public string ProductTitle { get; set; } = string.Empty;
+    public int? BuyerID { get; set; }
     public string BuyerName { get; set; } = string.Empty;
+    public int? SellerID { get; set; }
     public string SellerName { get; set; } = string.Empty;
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
@@ -110,6 +113,9 @@ public class ResolveDisputeRequest
 
     [Range(0, 99999999)]
     public decimal RefundAmount { get; set; }
+
+    [StringLength(20)]
+    public string? ResponsibilityParty { get; set; }
 }
 
 public class WalletResponse

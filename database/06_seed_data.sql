@@ -25,6 +25,26 @@ SELECT '二手交易', '闲置物品转让、求购信息、二手好物推荐',
 FROM "User" WHERE "email" = '2@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '二手交易');
 
+INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
+SELECT '校园活动', '发布社团活动、讲座和展会信息', 'Active', SYSTIMESTAMP - INTERVAL '22' DAY, "userId"
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '校园活动');
+
+INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
+SELECT '学习交流', '课程资料分享与学习交流', 'Active', SYSTIMESTAMP - INTERVAL '21' DAY, "userId"
+FROM "User" WHERE "email" = '2@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '学习交流');
+
+INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
+SELECT '求职求助', '实习、求职、考研与就业信息分享', 'Active', SYSTIMESTAMP - INTERVAL '20' DAY, "userId"
+FROM "User" WHERE "email" = '3@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '求职求助');
+
+INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
+SELECT '校园公告', '校园通知与官方通告', 'Active', SYSTIMESTAMP - INTERVAL '19' DAY, "userId"
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '校园公告');
+
 -- ============================================================
 -- 2. 帖子标签
 -- ============================================================

@@ -3,6 +3,18 @@ import requests
 from api.base import BaseAPIClient
 
 
+class _MarketWrappedResponse:
+    def __init__(self, response: requests.Response, payload):
+        self._response = response
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
+
 class MarketAPI(BaseAPIClient):
     PREFIX = "/api"
 
@@ -124,6 +136,9 @@ class MarketAPI(BaseAPIClient):
             params["pageSize"] = page_size
         return self.get(f"{self.PREFIX}/transactions/sales", params=params)
 
+    def get_credit_adjustments(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/user/credit-adjustments")
+
     def create_order(self, product_id: int) -> requests.Response:
         return self.post(f"{self.PREFIX}/transactions", json={
             "productID": product_id,
@@ -156,8 +171,30 @@ class MarketAPI(BaseAPIClient):
             "reason": reason,
         })
 
-    def resolve_dispute(self, dispute_id: int, decision: str, refund_amount: float = 0) -> requests.Response:
-        return self.post(f"{self.PREFIX}/disputes/{dispute_id}/resolve", json={
+    def resolve_dispute(self, dispute_id: int, decision: str, refund_amount: float = 0,
+                        responsibility_party: str | None = None) -> requests.Response:
+        body: dict = {
             "decision": decision,
             "refundAmount": refund_amount,
+        }
+        if responsibility_party is not None:
+            body["responsibilityParty"] = responsibility_party
+
+        return self.post(f"{self.PREFIX}/disputes/{dispute_id}/resolve", json={
+            **body
         })
+
+    def request_dispute_supplement(self, dispute_id: int, message: str = "") -> requests.Response:
+        return self.post(f"{self.PREFIX}/disputes/{dispute_id}/supplement", json={
+            "message": message,
+        })
+
+    def get_profile(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/user/profile")
+
+    def get_notifications(self, **params) -> requests.Response:
+        response = self.get(f"{self.PREFIX}/notifications", params=params)
+        data = response.json()
+        if isinstance(data, dict) and "items" in data:
+            return _MarketWrappedResponse(response, data["items"])
+        return response

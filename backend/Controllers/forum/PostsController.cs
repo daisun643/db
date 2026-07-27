@@ -39,13 +39,33 @@ public class PostsController : ControllerBase
         [FromQuery] int? forumId,
         [FromQuery] string? keyword,
         [FromQuery] string? tag,
+        [FromQuery] string? tags,
+        [FromQuery] string? tagOp,
         [FromQuery] string? status,
         [FromQuery] string? sort = "latest",
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] int? minHeat = null,
+        [FromQuery] int? maxHeat = null)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 50);
+        var normalizedSort = (sort ?? "latest").Trim().ToLowerInvariant();
+        var normalizedTagOp = (tagOp ?? "and").Trim().ToLowerInvariant();
+
+        if (normalizedSort is not "latest" and not "hot")
+            return BadRequest(new { message = "排序参数不合法" });
+
+        if (normalizedTagOp is not "and" and not "or")
+            return BadRequest(new { message = "标签组合方式不合法" });
+
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+            return BadRequest(new { message = "时间范围不合法" });
+
+        if (minHeat.HasValue && maxHeat.HasValue && minHeat.Value > maxHeat.Value)
+            return BadRequest(new { message = "热度范围不合法" });
 
         var query = _db.Posts
             .Include(p => p.User)
@@ -65,31 +85,63 @@ public class PostsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            if (!IsPublicPostStatus(status) && !CanViewModerationStatus())
+            var normalizedStatus = NormalizePostStatus(status);
+            if (normalizedStatus == null)
+                return BadRequest(new { message = "帖子状态不合法" });
+
+            if (!IsPublicPostStatus(normalizedStatus) && !CanViewModerationStatus())
                 return Forbid();
 
-            query = query.Where(p => p.Status == status);
+            query = query.Where(p => p.Status == normalizedStatus);
         }
         else
         {
             query = query.Where(p => p.Status == "Active" || p.Status == "Elite" || p.Status == "Pinned");
         }
 
-        if (!string.IsNullOrWhiteSpace(tag))
+        if (from.HasValue)
+            query = query.Where(p => p.CreateTime >= from);
+
+        if (to.HasValue)
+            query = query.Where(p => p.CreateTime <= to);
+
+        var normalizedTags = ParseTags(tag, tags);
+        if (normalizedTags.Count > 0)
         {
-            var tagName = tag.Trim();
-            query = query.Where(p => _db.TagPosts.Any(tp =>
-                tp.PostID == p.PostID &&
-                tp.Tag != null &&
-                tp.Tag.TagName == tagName));
+            var tagSet = normalizedTags;
+            if (normalizedTagOp == "or")
+            {
+                query = query.Where(p => _db.TagPosts.Any(tp =>
+                    tp.PostID == p.PostID &&
+                    tp.Tag != null &&
+                    tp.Tag.TagName != null &&
+                    tagSet.Contains(tp.Tag.TagName.ToLower())));
+            }
+            else
+            {
+                query = query.Where(p => _db.TagPosts
+                    .Where(tp => tp.PostID == p.PostID &&
+                                 tp.Tag != null &&
+                                 tp.Tag.TagName != null &&
+                                 tagSet.Contains(tp.Tag.TagName.ToLower()))
+                    .Select(tp => tp.TagID)
+                    .Distinct()
+                    .Count() == tagSet.Count);
+            }
         }
 
+        var requiresHeatFilter = normalizedSort == "hot" || minHeat.HasValue || maxHeat.HasValue;
         List<Post> posts;
-        if (sort == "hot")
+        int totalCount;
+
+        if (requiresHeatFilter)
         {
             var candidates = await query.ToListAsync();
             await RefreshHeatScoresAsync(candidates);
+            totalCount = candidates.Count(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat));
+
             posts = candidates
+                .Where(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat))
                 .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
                 .ThenByDescending(p => p.HeatScore)
                 .ThenByDescending(p => p.CreateTime)
@@ -99,6 +151,7 @@ public class PostsController : ControllerBase
         }
         else
         {
+            totalCount = await query.CountAsync();
             posts = await query
                 .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
                 .ThenByDescending(p => p.CreateTime)
@@ -107,6 +160,7 @@ public class PostsController : ControllerBase
                 .ToListAsync();
         }
 
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
         return Ok(await MapPostListAsync(posts));
     }
 
@@ -341,6 +395,53 @@ public class PostsController : ControllerBase
     private static bool IsPublicPostStatus(string? status)
     {
         return status is "Active" or "Elite" or "Pinned";
+    }
+
+    private static string? NormalizePostStatus(string? status)
+    {
+        return status?.Trim().ToLowerInvariant() switch
+        {
+            "active" => "Active",
+            "elite" => "Elite",
+            "pinned" => "Pinned",
+            "banned" => "Banned",
+            "pendingreview" => "PendingReview",
+            "pending-review" => "PendingReview",
+            "deleted" => "Deleted",
+            _ => null
+        };
+    }
+
+    private static List<string> ParseTags(string? tag, string? tags)
+    {
+        var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(tag))
+            candidates.Add(tag.Trim());
+
+        if (!string.IsNullOrWhiteSpace(tags))
+        {
+            candidates.AddRange(tags
+                .Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => t.Trim())
+                .Where(t => t.Length > 0));
+        }
+
+        return candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(t => t.ToLowerInvariant())
+            .ToList();
+    }
+
+    private static bool IsInHeatRange(int heatScore, int? minHeat, int? maxHeat)
+    {
+        if (minHeat.HasValue && heatScore < minHeat.Value)
+            return false;
+
+        if (maxHeat.HasValue && heatScore > maxHeat.Value)
+            return false;
+
+        return true;
     }
 
     [HttpPost("{id}/like")]
@@ -1006,5 +1107,3 @@ public class PostsController : ControllerBase
         return node.Status != "Deleted" || node.Replies.Count > 0;
     }
 }
-
-
