@@ -1,4 +1,4 @@
-using Backend.Data;
+﻿using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
 using Backend.Authorization;
@@ -21,41 +21,97 @@ public class TransactionsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
 
-    public TransactionsController(AppDbContext db, ICreditService creditService)
+    public TransactionsController(AppDbContext db, ICreditService creditService, INotificationService notificationService)
     {
         _db = db;
         _creditService = creditService;
+        _notificationService = notificationService;
     }
 
     [HttpGet("me")]
-    public async Task<ActionResult<List<TransactionResponse>>> GetMyOrders()
+    public async Task<ActionResult<List<TransactionResponse>>> GetMyOrders(
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var normalizedStatus = status?.Trim();
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var orders = await _db.Transactions
+        var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
             .Where(t => t.UserID == userId)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            var normalized = NormalizeTransactionStatus(normalizedStatus);
+            if (normalized == null)
+                return BadRequest(new { message = "订单状态不合法" });
+            orders = orders.Where(t => t.TransactionStatus == normalized);
+        }
+
+        orders = orders
             .OrderByDescending(t => t.CreateTime)
+            .ThenByDescending(t => t.TransactionID);
+
+        var totalCount = await orders.CountAsync();
+        var items = await orders
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(orders.Select(MapTransaction).ToList());
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+
+        return Ok(items.Select(MapTransaction).ToList());
     }
 
     [HttpGet("sales")]
-    public async Task<ActionResult<List<TransactionResponse>>> GetSales()
+    public async Task<ActionResult<List<TransactionResponse>>> GetSales(
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var normalizedStatus = status?.Trim();
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var orders = await _db.Transactions
+        var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
             .Where(t => t.Product != null && t.Product.UserID == userId)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            var normalized = NormalizeTransactionStatus(normalizedStatus);
+            if (normalized == null)
+                return BadRequest(new { message = "订单状态不合法" });
+            orders = orders.Where(t => t.TransactionStatus == normalized);
+        }
+
+        orders = orders
             .OrderByDescending(t => t.CreateTime)
+            .ThenByDescending(t => t.TransactionID);
+
+        var totalCount = await orders.CountAsync();
+        var items = await orders
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(orders.Select(MapTransaction).ToList());
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+
+        return Ok(items.Select(MapTransaction).ToList());
     }
 
     [HttpPost]
@@ -90,6 +146,8 @@ public class TransactionsController : ControllerBase
             return BadRequest(new { message = "库存不足或商品已锁定" });
         }
 
+        await _db.Entry(product).ReloadAsync();
+
         var order = new Transaction
         {
             TransactionAmount = product.Price ?? 0,
@@ -105,6 +163,8 @@ public class TransactionsController : ControllerBase
         await CreateNotificationAsync(userId, "订单已创建", $"你已锁定商品：{product.Title}", order.TransactionID);
         if (product.UserID.HasValue)
             await CreateNotificationAsync(product.UserID.Value, "商品被下单", $"商品 {product.Title} 已被买家锁定", order.TransactionID);
+
+        await _db.SaveChangesAsync();
 
         await dbTransaction.CommitAsync();
 
@@ -321,15 +381,18 @@ public class TransactionsController : ControllerBase
 
     private async Task CreateNotificationAsync(int userId, string title, string content, int transactionId)
     {
-        _db.Notifications.Add(new Notification
+        await _notificationService.CreateAsync(new CreateNotificationOptions
         {
             UserID = userId,
+            Type = "Transaction",
             Title = title,
             Content = content,
+            TargetType = "Transaction",
+            TargetID = transactionId,
             TransactionID = transactionId,
-            CreateTime = DateTime.Now
+            Link = $"/products",
+            EventKey = $"transaction:{transactionId}:{userId}:{title}"
         });
-        await Task.CompletedTask;
     }
 
     private async Task ArchiveOrderMessagesAsync(int transactionId)
@@ -378,6 +441,20 @@ public class TransactionsController : ControllerBase
     private static bool IsArchivedStatus(string? status)
     {
         return status is "Completed" or "Cancelled" or "Refunded";
+    }
+
+    private static string? NormalizeTransactionStatus(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "pending" => "Pending",
+            "paid" => "Paid",
+            "completed" => "Completed",
+            "cancelled" => "Cancelled",
+            "disputed" => "Disputed",
+            "refunded" => "Refunded",
+            _ => null,
+        };
     }
 
     private static OrderMessageResponse MapOrderMessage(OrderMessage message)

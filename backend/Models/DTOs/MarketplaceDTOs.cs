@@ -9,6 +9,8 @@ public class ProductResponse
     public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int Stock { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string Condition { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime? PublishTime { get; set; }
     public int? UserID { get; set; }
@@ -26,6 +28,12 @@ public class CreateProductRequest
     public string Description { get; set; } = string.Empty;
 
     public List<string> ImageUrls { get; set; } = new();
+
+    [StringLength(50)]
+    public string Category { get; set; } = "其他";
+
+    [StringLength(50)]
+    public string Condition { get; set; } = "良好";
 
     [Range(0.01, 99999999)]
     public decimal Price { get; set; }
@@ -78,12 +86,15 @@ public class DisputeTicketResponse
     public int TicketID { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string OrderStatus { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public DateTime? AssignTime { get; set; }
     public int? TransactionID { get; set; }
     public decimal TransactionAmount { get; set; }
     public string ProductTitle { get; set; } = string.Empty;
+    public int? BuyerID { get; set; }
     public string BuyerName { get; set; } = string.Empty;
+    public int? SellerID { get; set; }
     public string SellerName { get; set; } = string.Empty;
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
@@ -102,6 +113,9 @@ public class ResolveDisputeRequest
 
     [Range(0, 99999999)]
     public decimal RefundAmount { get; set; }
+
+    [StringLength(20)]
+    public string? ResponsibilityParty { get; set; }
 }
 
 public class WalletResponse

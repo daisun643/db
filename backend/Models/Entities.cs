@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Backend.Models;
@@ -16,17 +16,57 @@ public class User
     public string? PasswordHash { get; set; }
     [MaxLength(50)]
     public string? UserCode { get; set; }
+    [MaxLength(50)]
+    public string? Nickname { get; set; }
+    [MaxLength(500)]
+    public string? AvatarUrl { get; set; }
+    [MaxLength(100)]
+    public string? Contact { get; set; }
+    [MaxLength(500)]
+    public string? Bio { get; set; }
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
     public int UserLevel { get; set; } = 1;
     public int TotalCredit { get; set; } = 0;
+
+    public ICollection<MediaFile> UploadedMedia { get; set; } = new List<MediaFile>();
     
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<PostLike> PostLikes { get; set; } = new List<PostLike>();
     public ICollection<FavoriteFolder> FavoriteFolders { get; set; } = new List<FavoriteFolder>();
     public ICollection<FriendShip> FriendShips { get; set; } = new List<FriendShip>();
     public ICollection<CreditAdjustment> CreditAdjustments { get; set; } = new List<CreditAdjustment>();
+}
+
+[Table("MediaFile")]
+public class MediaFile
+{
+    [Key]
+    public int MediaID { get; set; }
+    [MaxLength(30)]
+    public string? OwnerType { get; set; }
+    public int? OwnerID { get; set; }
+    [MaxLength(50)]
+    public string StorageProvider { get; set; } = "s3";
+    [MaxLength(500)]
+    public string? ObjectKey { get; set; }
+    [MaxLength(4000)]
+    public string? FileName { get; set; }
+    [MaxLength(4000)]
+    public string? OriginalFileName { get; set; }
+    [MaxLength(500)]
+    public string? Url { get; set; }
+    [MaxLength(100)]
+    public string? MimeType { get; set; }
+    public long? SizeBytes { get; set; }
+    [MaxLength(64)]
+    public string? ContentHash { get; set; }
+    public DateTime? UploadTime { get; set; }
+    public int? UploadedByUserID { get; set; }
+    [ForeignKey("UploadedByUserID")]
+    public User? UploadedByUser { get; set; }
+    public int? DisplayOrder { get; set; }
 }
 
 [Table("Role")]
@@ -96,6 +136,8 @@ public class EmailCode
     public string? Email { get; set; }
     [MaxLength(10)]
     public string? Code { get; set; }
+    [MaxLength(30)]
+    public string? Purpose { get; set; }
     public DateTime? SendTime { get; set; }
     public DateTime? ExpireTime { get; set; }
     [MaxLength(1)]
@@ -292,6 +334,10 @@ public class Product
     [MaxLength(4000)]
     public string? Description { get; set; }
     public string? ImageUrls { get; set; }
+    [MaxLength(50)]
+    public string? Category { get; set; }
+    [MaxLength(50)]
+    public string? Condition { get; set; }
     public decimal? Price { get; set; }
     public int? Stock { get; set; }
     [MaxLength(20)]
@@ -411,15 +457,17 @@ public class PrivateMessage
 {
     [Key]
     public int MessageID { get; set; }
+    [Required]
     [MaxLength(4000)]
-    public string? Content { get; set; }
-    public DateTime? SendTime { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public DateTime SendTime { get; set; }
+    [Required]
     [MaxLength(1)]
-    public string? IsRead { get; set; }
-    public int? ReceiverID { get; set; }
+    public string IsRead { get; set; } = "0";
+    public int ReceiverID { get; set; }
     [ForeignKey("ReceiverID")]
     public User? Receiver { get; set; }
-    public int? SenderID { get; set; }
+    public int SenderID { get; set; }
     [ForeignKey("SenderID")]
     public User? Sender { get; set; }
 }
@@ -429,16 +477,17 @@ public class FriendShip
 {
     [Key]
     public int FriendshipID { get; set; }
-    public int? UserID { get; set; }
+    public int UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
-    public int? FriendID { get; set; }
+    public int FriendID { get; set; }
     [ForeignKey("FriendID")]
     public User? Friend { get; set; }
+    [Required]
     [MaxLength(20)]
-    public string? Status { get; set; }
-    public DateTime? CreateTime { get; set; }
-    public DateTime? UpdateTime { get; set; }
+    public string Status { get; set; } = "Pending";
+    public DateTime CreateTime { get; set; }
+    public DateTime UpdateTime { get; set; }
 }
 
 [Table("CreditAdjustment")]
@@ -452,6 +501,11 @@ public class CreditAdjustment
     [MaxLength(500)]
     public string? Description { get; set; }
     public int? ChangePoints { get; set; }
+    public int? BeforeCredit { get; set; }
+    public int? AfterCredit { get; set; }
+    public int? OperatorID { get; set; }
+    [ForeignKey("OperatorID")]
+    public User? Operator { get; set; }
     public DateTime? AdjustTime { get; set; }
 }
 
@@ -465,6 +519,17 @@ public class Notification
     [MaxLength(4000)]
     public string? Content { get; set; }
     public DateTime? CreateTime { get; set; }
+    [MaxLength(50)]
+    public string? Type { get; set; }
+    [MaxLength(50)]
+    public string? TargetType { get; set; }
+    public int? TargetID { get; set; }
+    [MaxLength(500)]
+    public string? Link { get; set; }
+    public string? IsRead { get; set; }
+    public DateTime? ReadTime { get; set; }
+    [MaxLength(200)]
+    public string? EventKey { get; set; }
     public int? TransactionID { get; set; }
     [ForeignKey("TransactionID")]
     public Transaction? Transaction { get; set; }
@@ -472,3 +537,4 @@ public class Notification
     [ForeignKey("UserID")]
     public User? User { get; set; }
 }
+

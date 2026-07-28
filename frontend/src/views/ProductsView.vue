@@ -32,12 +32,71 @@
     </section>
 
     <div v-if="activeTab === 'all'" class="market-layout">
+      <section class="market-toolbar">
+        <div class="toolbar-title">
+          <h2>商品列表</h2>
+          <span class="muted">共 {{ totalProducts }} 件</span>
+        </div>
+        <form class="market-filter-bar" @submit.prevent="loadProducts">
+          <input v-model="productFilter.keyword" type="text" placeholder="搜索标题 / 描述 / 卖家" />
+          <select v-model="productFilter.status">
+            <option value="">全部状态</option>
+            <option value="Active">上架中</option>
+            <option value="Locked">锁定中</option>
+            <option value="Sold">已售出</option>
+            <option value="Inactive">已下架</option>
+          </select>
+          <select v-model="productFilter.category">
+            <option value="">全部分类</option>
+            <option value="教材资料">教材资料</option>
+            <option value="数码设备">数码设备</option>
+            <option value="生活用品">生活用品</option>
+            <option value="交通出行">交通出行</option>
+            <option value="其他">其他</option>
+          </select>
+          <select v-model="productFilter.sort">
+            <option value="latest">按发布时间</option>
+            <option value="price-asc">价格从低到高</option>
+            <option value="price-desc">价格从高到低</option>
+            <option value="stock-asc">库存从低到高</option>
+            <option value="stock-desc">库存从高到低</option>
+          </select>
+          <button class="btn" type="button" @click="resetProductFilters">清空筛选</button>
+        </form>
+      </section>
+
       <form class="product-form" @submit.prevent="handleCreateProduct">
         <h2>发布闲置</h2>
         <input v-model="productForm.title" type="text" placeholder="商品标题" required />
         <textarea v-model="productForm.description" placeholder="商品描述"></textarea>
-        <input v-model="productImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          :disabled="submitting"
+          @change="handlePickCreateProductImages"
+        />
+        <div v-if="productImagePreviewUrls.length" class="product-images product-image-preview">
+          <div v-for="(url, index) in productImagePreviewUrls" :key="url" class="image-preview-item">
+            <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
+            <button type="button" class="image-remove" @click="removeCreateProductImage(index)">移除</button>
+          </div>
+        </div>
+        <p class="field-hint">最多可上传 6 张，单张不超过 5MB。</p>
         <div class="form-row">
+          <select v-model="productForm.category">
+            <option value="教材资料">教材资料</option>
+            <option value="数码设备">数码设备</option>
+            <option value="生活用品">生活用品</option>
+            <option value="交通出行">交通出行</option>
+            <option value="其他">其他</option>
+          </select>
+          <select v-model="productForm.condition">
+            <option value="全新">全新</option>
+            <option value="几乎全新">几乎全新</option>
+            <option value="良好">良好</option>
+            <option value="有使用痕迹">有使用痕迹</option>
+          </select>
           <input v-model.number="productForm.price" type="number" min="0.01" step="0.01" placeholder="价格" required />
           <input v-model.number="productForm.stock" type="number" min="1" step="1" placeholder="库存" required />
           <button class="btn btn-primary" type="submit" :disabled="submitting">
@@ -62,6 +121,8 @@
           <div class="product-meta">
             <strong>¥{{ product.price }}</strong>
             <span>库存 {{ product.stock }}</span>
+            <span>{{ product.category || '其他' }}</span>
+            <span>{{ product.condition || '良好' }}</span>
             <span>{{ product.sellerName || '匿名卖家' }}</span>
           </div>
           <button class="btn" @click="openProductDetail(product)">查看详情</button>
@@ -78,6 +139,12 @@
           <p>暂无商品</p>
         </div>
       </div>
+
+      <section v-if="productTotalPages > 1" class="market-pagination">
+        <button class="btn" :disabled="productPage <= 1" @click="handleProductPageChange(productPage - 1)">上一页</button>
+        <span>{{ productPage }} / {{ productTotalPages }}</span>
+        <button class="btn" :disabled="productPage >= productTotalPages" @click="handleProductPageChange(productPage + 1)">下一页</button>
+      </section>
     </div>
 
     <div v-else-if="activeTab === 'my-products'" class="tab-content">
@@ -94,9 +161,9 @@
             </div>
           </div>
           <div class="row-actions">
-            <button class="btn" @click="openEditProduct(product)">编辑</button>
-            <button class="btn" @click="handleProductStatus(product, 'restore')">上架</button>
-            <button class="btn" @click="handleProductStatus(product, 'off-shelf')">下架</button>
+            <button class="btn" :disabled="!canEditProduct(product)" @click="openEditProduct(product)">编辑</button>
+            <button class="btn" :disabled="!canRestoreProduct(product)" @click="handleProductStatus(product, 'restore')">上架</button>
+            <button class="btn" :disabled="!canOffShelfProduct(product)" @click="handleProductStatus(product, 'off-shelf')">下架</button>
             <button class="btn" @click="loadSales">刷新订单</button>
           </div>
         </article>
@@ -107,6 +174,7 @@
 
       <section class="orders-panel">
         <h2>卖出订单</h2>
+        <div v-if="loadingSales" class="loading">加载中...</div>
         <article v-for="order in sales" :key="order.transactionID" class="order-row">
           <span>#{{ order.transactionID }}</span>
           <span>{{ order.productTitle }}</span>
@@ -119,6 +187,11 @@
         <div v-if="sales.length === 0" class="empty-state compact">
           <p>暂无卖出订单</p>
         </div>
+        <section v-if="salesTotalPages > 1" class="market-pagination">
+          <button class="btn" :disabled="salesPage <= 1" @click="handleSalesPageChange(salesPage - 1)">上一页</button>
+          <span>{{ salesPage }} / {{ salesTotalPages }}</span>
+          <button class="btn" :disabled="salesPage >= salesTotalPages" @click="handleSalesPageChange(salesPage + 1)">下一页</button>
+        </section>
       </section>
     </div>
 
@@ -146,6 +219,11 @@
         <div v-if="orders.length === 0" class="empty-state">
           <p>暂无订单</p>
         </div>
+        <section v-if="orderTotalPages > 1" class="market-pagination">
+          <button class="btn" :disabled="orderPage <= 1" @click="handleOrderPageChange(orderPage - 1)">上一页</button>
+          <span>{{ orderPage }} / {{ orderTotalPages }}</span>
+          <button class="btn" :disabled="orderPage >= orderTotalPages" @click="handleOrderPageChange(orderPage + 1)">下一页</button>
+        </section>
       </div>
     </div>
 
@@ -206,6 +284,8 @@
             <p>{{ selectedProduct.description || '暂无描述' }}</p>
             <div class="product-meta">
               <span>库存 {{ selectedProduct.stock }}</span>
+              <span>{{ selectedProduct.category || '其他' }}</span>
+              <span>{{ selectedProduct.condition || '良好' }}</span>
               <span>卖家 {{ selectedProduct.sellerName || '匿名卖家' }}</span>
               <span>{{ formatDate(selectedProduct.publishTime) }}</span>
             </div>
@@ -233,16 +313,36 @@
         <h2>编辑商品</h2>
         <input v-model="editForm.title" type="text" placeholder="商品标题" required />
         <textarea v-model="editForm.description" placeholder="商品描述"></textarea>
-        <input v-model="editImageText" type="text" placeholder="图片 URL，用逗号分隔" />
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          :disabled="editingSaving"
+          @change="handlePickEditProductImages"
+        />
+        <div v-if="productEditImageList.length" class="product-images product-image-preview">
+          <div v-for="(item, index) in productEditImageList" :key="`${item.source}-${index}`" class="image-preview-item">
+            <img :src="item.url" :alt="`图片 ${index + 1}`" loading="lazy" />
+            <button type="button" class="image-remove" @click="removeEditProductImage(index)">移除</button>
+          </div>
+        </div>
+        <p class="field-hint">最多 6 张，编辑时可替换图片，按列表顺序提交。</p>
         <div class="form-row">
+          <select v-model="editForm.category">
+            <option value="教材资料">教材资料</option>
+            <option value="数码设备">数码设备</option>
+            <option value="生活用品">生活用品</option>
+            <option value="交通出行">交通出行</option>
+            <option value="其他">其他</option>
+          </select>
+          <select v-model="editForm.condition">
+            <option value="全新">全新</option>
+            <option value="几乎全新">几乎全新</option>
+            <option value="良好">良好</option>
+            <option value="有使用痕迹">有使用痕迹</option>
+          </select>
           <input v-model.number="editForm.price" type="number" min="0.01" step="0.01" placeholder="价格" required />
           <input v-model.number="editForm.stock" type="number" min="1" step="1" placeholder="库存" required />
-          <select v-model="editForm.status">
-            <option value="Active">发布中</option>
-            <option value="Locked">已锁定</option>
-            <option value="Sold">已售出</option>
-            <option value="Inactive">已下架</option>
-          </select>
         </div>
         <button class="btn btn-primary" type="submit" :disabled="editingSaving">
           {{ editingSaving ? '保存中...' : '保存商品' }}
@@ -253,7 +353,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   cancelTransaction,
   changeProductStatus,
@@ -263,6 +363,7 @@ import {
   createReport,
   createTransaction,
   depositWallet,
+  uploadImages,
   getOrderMessages,
   getMyProducts,
   getMyTransactions,
@@ -283,7 +384,11 @@ const sales = ref([])
 const loading = ref(true)
 const loadingMine = ref(false)
 const loadingOrders = ref(false)
+const loadingSales = ref(false)
 const submitting = ref(false)
+const totalProducts = ref(0)
+const totalOrders = ref(0)
+const totalSales = ref(0)
 const error = ref(null)
 const disputeTarget = ref(null)
 const disputeReason = ref('')
@@ -295,17 +400,54 @@ const orderMessageText = ref('')
 const walletBalance = ref('0.00')
 const depositAmount = ref(null)
 const depositing = ref(false)
-const productImageText = ref('')
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const selectedProduct = ref(null)
 const editingProduct = ref(null)
 const editingSaving = ref(false)
-const editImageText = ref('')
+const productImageFiles = ref([])
+const productImagePreviewUrls = ref([])
+const editImageUrls = ref([])
+const editImageFiles = ref([])
+const editImageNewUrls = ref([])
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGE_COUNT = 6
+const productFilter = ref({
+  keyword: '',
+  status: '',
+  category: '',
+  sort: 'latest',
+})
+const productPage = ref(1)
+const productPageSize = ref(10)
+const orderPage = ref(1)
+const orderPageSize = ref(10)
+const salesPage = ref(1)
+const salesPageSize = ref(10)
+const productTotalPages = computed(() => Math.max(1, Math.ceil(totalProducts.value / productPageSize.value)))
+const orderTotalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / orderPageSize.value)))
+const salesTotalPages = computed(() => Math.max(1, Math.ceil(totalSales.value / salesPageSize.value)))
+
+const productEditImageList = computed(() => {
+  const remote = editImageUrls.value.map((url, index) => ({
+    source: 'remote',
+    key: `remote-${index}`,
+    url,
+  }))
+  const local = editImageNewUrls.value.map((url, index) => ({
+    source: 'local',
+    key: `local-${index}`,
+    url,
+  }))
+  return [...remote, ...local]
+})
 
 const productForm = ref({
   title: '',
   description: '',
+  category: '其他',
+  condition: '良好',
   price: null,
   stock: 1,
 })
@@ -313,16 +455,26 @@ const productForm = ref({
 const editForm = ref({
   title: '',
   description: '',
+  category: '其他',
+  condition: '良好',
   price: null,
   stock: 1,
-  status: 'Active',
 })
 
 const loadProducts = async () => {
   try {
     loading.value = true
-    const res = await getProducts()
+    const res = await getProducts({
+      keyword: productFilter.value.keyword || undefined,
+      status: productFilter.value.status || undefined,
+      category: productFilter.value.category || undefined,
+      sort: productFilter.value.sort,
+      page: productPage.value,
+      pageSize: productPageSize.value,
+    })
     products.value = res.data
+    const totalHeader = res.headers?.['x-total-count'] || res.headers?.['X-Total-Count']
+    totalProducts.value = Number.parseInt(totalHeader || '0', 10) || 0
   } catch (e) {
     error.value = '无法加载商品数据: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -350,8 +502,13 @@ const loadMyProducts = async () => {
 const loadOrders = async () => {
   try {
     loadingOrders.value = true
-    const res = await getMyTransactions()
+    const res = await getMyTransactions({
+      page: orderPage.value,
+      pageSize: orderPageSize.value,
+    })
     orders.value = res.data
+    const totalHeader = res.headers?.['x-total-count'] || res.headers?.['X-Total-Count']
+    totalOrders.value = Number.parseInt(totalHeader || '0', 10) || 0
   } catch (e) {
     error.value = '无法加载订单: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -360,18 +517,179 @@ const loadOrders = async () => {
 }
 
 const loadSales = async () => {
-  const res = await getSalesTransactions()
-  sales.value = res.data
+  try {
+    loadingSales.value = true
+    const res = await getSalesTransactions({
+      page: salesPage.value,
+      pageSize: salesPageSize.value,
+    })
+    sales.value = res.data
+    const totalHeader = res.headers?.['x-total-count'] || res.headers?.['X-Total-Count']
+    totalSales.value = Number.parseInt(totalHeader || '0', 10) || 0
+  } catch (e) {
+    error.value = '无法加载卖出订单: ' + (e.response?.data?.message || e.message)
+  } finally {
+    loadingSales.value = false
+  }
+}
+
+const clearCreateProductImageState = () => {
+  productImagePreviewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  productImageFiles.value = []
+  productImagePreviewUrls.value = []
+}
+
+const clearEditProductImageState = () => {
+  editImageNewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  editImageFiles.value = []
+  editImageNewUrls.value = []
+  editImageUrls.value = []
+}
+
+const resetCreateProductForm = () => {
+  clearCreateProductImageState()
+  productForm.value = {
+    title: '',
+    description: '',
+    category: '其他',
+    condition: '良好',
+    price: null,
+    stock: 1,
+  }
+}
+
+const resetProductFilters = () => {
+  productFilter.value = {
+    keyword: '',
+    status: '',
+    category: '',
+    sort: 'latest',
+  }
+  productPage.value = 1
+  loadProducts()
+}
+
+const handleProductPageChange = (nextPage) => {
+  const target = Math.min(Math.max(1, nextPage), productTotalPages.value)
+  if (target !== productPage.value) {
+    productPage.value = target
+  }
+}
+
+const handleOrderPageChange = (nextPage) => {
+  const target = Math.min(Math.max(1, nextPage), orderTotalPages.value)
+  if (target !== orderPage.value) {
+    orderPage.value = target
+  }
+}
+
+const handleSalesPageChange = (nextPage) => {
+  const target = Math.min(Math.max(1, nextPage), salesTotalPages.value)
+  if (target !== salesPage.value) {
+    salesPage.value = target
+  }
+}
+
+const openOrderListTab = () => {
+  orderPage.value = 1
+  if (activeTab.value === 'orders') {
+    loadOrders()
+    return
+  }
+  activeTab.value = 'orders'
+}
+
+const validateImageFile = (file) => {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return '仅支持 JPG、PNG、GIF、WebP 图片'
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return '单张图片不能超过5MB'
+  }
+  return null
+}
+
+const handlePickCreateProductImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = productImageFiles.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const previewUrls = files.map(file => URL.createObjectURL(file))
+  productImageFiles.value = [...productImageFiles.value, ...files]
+  productImagePreviewUrls.value = [...productImagePreviewUrls.value, ...previewUrls]
+}
+
+const removeCreateProductImage = (index) => {
+  const removedUrl = productImagePreviewUrls.value[index]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  productImagePreviewUrls.value.splice(index, 1)
+  productImageFiles.value.splice(index, 1)
+}
+
+const handlePickEditProductImages = (event) => {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+
+  const nextCount = editImageUrls.value.length + editImageNewUrls.value.length + files.length
+  if (nextCount > MAX_IMAGE_COUNT) {
+    error.value = `图片数量不能超过 ${MAX_IMAGE_COUNT} 张`
+    return
+  }
+
+  for (const file of files) {
+    const message = validateImageFile(file)
+    if (message) {
+      error.value = message
+      return
+    }
+  }
+
+  const previewUrls = files.map(file => URL.createObjectURL(file))
+  editImageFiles.value = [...editImageFiles.value, ...files]
+  editImageNewUrls.value = [...editImageNewUrls.value, ...previewUrls]
+}
+
+const removeEditProductImage = (index) => {
+  const remoteCount = editImageUrls.value.length
+  if (index < remoteCount) {
+    editImageUrls.value = editImageUrls.value.filter((_, i) => i !== index)
+    return
+  }
+
+  const localIndex = index - remoteCount
+  const removedUrl = editImageNewUrls.value[localIndex]
+  if (removedUrl) {
+    URL.revokeObjectURL(removedUrl)
+  }
+  editImageNewUrls.value.splice(localIndex, 1)
+  editImageFiles.value.splice(localIndex, 1)
 }
 
 const handleCreateProduct = async () => {
   try {
     submitting.value = true
     error.value = null
-    const imageUrls = productImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = productImageFiles.value.length > 0 ? await uploadImages(productImageFiles.value, 'products') : null
+    const imageUrls = (uploaded?.data?.urls || []).slice(0, MAX_IMAGE_COUNT)
     await createProduct({ ...productForm.value, imageUrls })
-    productForm.value = { title: '', description: '', price: null, stock: 1 }
-    productImageText.value = ''
+    resetCreateProductForm()
     await Promise.all([loadProducts(), loadMyProducts()])
   } catch (e) {
     error.value = '发布失败: ' + (e.response?.data?.message || e.message)
@@ -385,7 +703,7 @@ const handleCreateOrder = async (product) => {
     await createTransaction({ productID: product.productID })
     await Promise.all([loadProducts(), loadOrders()])
     closeProductDetail()
-    activeTab.value = 'orders'
+    openOrderListTab()
   } catch (e) {
     error.value = '下单失败: ' + (e.response?.data?.message || e.message)
   }
@@ -412,19 +730,21 @@ const closeProductDetail = () => {
 
 const openEditProduct = (product) => {
   editingProduct.value = product
+  clearEditProductImageState()
   editForm.value = {
     title: product.title || '',
     description: product.description || '',
+    category: product.category || '其他',
+    condition: product.condition || '良好',
     price: product.price,
     stock: product.stock || 1,
-    status: product.status || 'Active',
   }
-  editImageText.value = (product.imageUrls || []).join(', ')
+  editImageUrls.value = [...(product.imageUrls || [])]
 }
 
 const closeEditProduct = () => {
   editingProduct.value = null
-  editImageText.value = ''
+  clearEditProductImageState()
 }
 
 const handleUpdateProduct = async () => {
@@ -433,7 +753,8 @@ const handleUpdateProduct = async () => {
   try {
     editingSaving.value = true
     error.value = null
-    const imageUrls = editImageText.value.split(/[,，]/).map(url => url.trim()).filter(Boolean)
+    const uploaded = editImageFiles.value.length > 0 ? await uploadImages(editImageFiles.value, 'products') : null
+    const imageUrls = [...editImageUrls.value, ...(uploaded?.data?.urls || [])].slice(0, MAX_IMAGE_COUNT)
     await updateProduct(editingProduct.value.productID, {
       ...editForm.value,
       imageUrls,
@@ -466,8 +787,13 @@ const handleDeposit = async () => {
 }
 
 const handleProductStatus = async (product, action) => {
-  await changeProductStatus(product.productID, { action })
-  await Promise.all([loadProducts(), loadMyProducts()])
+  try {
+    error.value = null
+    await changeProductStatus(product.productID, { action })
+    await Promise.all([loadProducts(), loadMyProducts()])
+  } catch (e) {
+    error.value = '状态更新失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const handlePay = async (order) => {
@@ -481,13 +807,23 @@ const handlePay = async (order) => {
 }
 
 const handleConfirm = async (order) => {
-  await confirmReceipt(order.transactionID)
-  await Promise.all([loadOrders(), loadProducts(), loadWallet()])
+  try {
+    error.value = null
+    await confirmReceipt(order.transactionID)
+    await Promise.all([loadOrders(), loadProducts(), loadWallet()])
+  } catch (e) {
+    error.value = '确认收货失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const handleCancel = async (order) => {
-  await cancelTransaction(order.transactionID)
-  await Promise.all([loadOrders(), loadProducts()])
+  try {
+    error.value = null
+    await cancelTransaction(order.transactionID)
+    await Promise.all([loadOrders(), loadProducts()])
+  } catch (e) {
+    error.value = '取消订单失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const openDispute = (order) => {
@@ -513,13 +849,17 @@ const openReport = (product) => {
 }
 
 const handleCreateReport = async () => {
-  await createReport({
-    targetType: 'Product',
-    targetID: reportTarget.value.productID,
-    reason: reportReason.value,
-  })
-  reportTarget.value = null
-  reportReason.value = ''
+  try {
+    await createReport({
+      targetType: 'Product',
+      targetID: reportTarget.value.productID,
+      reason: reportReason.value,
+    })
+    reportTarget.value = null
+    reportReason.value = ''
+  } catch (e) {
+    error.value = '提交举报失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const openOrderMessages = async (order) => {
@@ -533,7 +873,8 @@ const openOrderMessages = async (order) => {
 
 const handleSendOrderMessage = async () => {
   if (!messageTarget.value) return
-  await sendOrderMessage(messageTarget.value.transactionID, { content: orderMessageText.value })
+  if (!orderMessageText.value.trim()) return
+  await sendOrderMessage(messageTarget.value.transactionID, { content: orderMessageText.value.trim() })
   orderMessageText.value = ''
   await openOrderMessages(messageTarget.value)
   await Promise.all([loadOrders(), loadSales()])
@@ -541,6 +882,18 @@ const handleSendOrderMessage = async () => {
 
 const canDispute = (order) => {
   return order.transactionStatus === 'Paid'
+}
+
+const canEditProduct = (product) => {
+  return product.status === 'Active'
+}
+
+const canRestoreProduct = (product) => {
+  return product.status === 'Inactive' && product.stock > 0
+}
+
+const canOffShelfProduct = (product) => {
+  return product.status === 'Active' || product.status === 'Locked'
 }
 
 const isOrderArchived = (order) => {
@@ -574,11 +927,64 @@ const formatDate = (value) => {
 }
 
 watch(activeTab, async (tab) => {
+  if (tab === 'all') {
+    await loadProducts()
+  }
   if (tab === 'my-products') {
     await Promise.all([loadMyProducts(), loadSales()])
   }
   if (tab === 'orders') {
     await loadOrders()
+  }
+})
+
+watch(
+  () => productFilter.value,
+  () => {
+    productPage.value = 1
+    if (activeTab.value === 'all') {
+      loadProducts()
+    }
+  },
+  { deep: true },
+)
+
+watch(productPage, () => {
+  if (activeTab.value === 'all') {
+    loadProducts()
+  }
+})
+
+watch(productPageSize, () => {
+  productPage.value = 1
+  if (activeTab.value === 'all') {
+    loadProducts()
+  }
+})
+
+watch(orderPage, () => {
+  if (activeTab.value === 'orders') {
+    loadOrders()
+  }
+})
+
+watch(orderPageSize, () => {
+  orderPage.value = 1
+  if (activeTab.value === 'orders') {
+    loadOrders()
+  }
+})
+
+watch(salesPage, () => {
+  if (activeTab.value === 'my-products') {
+    loadSales()
+  }
+})
+
+watch(salesPageSize, () => {
+  salesPage.value = 1
+  if (activeTab.value === 'my-products') {
+    loadSales()
   }
 })
 
@@ -598,10 +1004,54 @@ onMounted(async () => {
 .product-form,
 .dispute-form,
 .orders-panel {
-  background: var(--surface);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 94%, #f8fafc 6%), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem;
+}
+
+.market-toolbar {
+  background: linear-gradient(120deg, rgba(59, 130, 246, 0.08), rgba(14, 165, 233, 0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.toolbar-title {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.toolbar-title h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.market-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.market-filter-bar input,
+.market-filter-bar select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  padding: 0.55rem 0.625rem;
+}
+
+.market-filter-bar input {
+  min-width: 220px;
+}
+
+.market-filter-bar select {
+  min-width: 150px;
 }
 
 .wallet-panel {
@@ -655,6 +1105,7 @@ onMounted(async () => {
 }
 
 .product-form input,
+.product-form select,
 .product-form textarea,
 .product-edit-form input,
 .product-edit-form select,
@@ -736,6 +1187,45 @@ onMounted(async () => {
   border-radius: var(--radius);
   object-fit: cover;
   width: 100%;
+}
+
+.image-preview-item {
+  position: relative;
+}
+
+.image-remove {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  border: none;
+  border-radius: 9999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  position: absolute;
+  right: 0.375rem;
+  top: 0.375rem;
+}
+
+.product-image-preview {
+  margin-bottom: 0.25rem;
+}
+
+.image-preview-item .image-remove {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.image-preview-item:hover .image-remove,
+.image-preview-item:focus-within .image-remove {
+  opacity: 1;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin: 0;
 }
 
 .detail-backdrop {
@@ -828,6 +1318,18 @@ onMounted(async () => {
 .product-meta strong {
   color: var(--primary);
   font-size: 1.125rem;
+}
+
+.market-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  gap: 0.625rem;
+}
+
+.market-pagination span {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .compact {
