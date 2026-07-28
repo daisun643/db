@@ -58,3 +58,4 @@ uv run --with bcrypt scripts/encrypt.py
 
 - [项目介绍与功能](docs/项目介绍与功能.md)
 - [开发指南](docs/开发指南.md)
+- [数据库设计](docs/数据库设计.md)

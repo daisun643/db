@@ -68,6 +68,7 @@ public class CreditService : ICreditService
             ICreditService.MaxCredit);
         var actualChange = afterCredit - beforeCredit;
 
+        var previousLevel = user.UserLevel;
         user.Credit = afterCredit;
         if (actualChange > 0)
         {
@@ -75,9 +76,8 @@ public class CreditService : ICreditService
         }
 
         var newLevel = CalculateLevelFromCredit(user.TotalCredit);
-        if (newLevel > user.UserLevel)
+        if (newLevel > previousLevel)
         {
-            user.UserLevel = newLevel;
             _logger.LogInformation(
                 "用户 {UserId} 升级到 Lv.{Level}，原因：{Reason}",
                 userId,

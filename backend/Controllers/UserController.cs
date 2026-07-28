@@ -192,6 +192,8 @@ public class UserController : ControllerBase
             return Unauthorized(new { message = "无法获取用户信息" });
 
         var user = await _db.Users
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(a => a!.Media)
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .ThenInclude(r => r!.RolePermissions)
@@ -251,7 +253,10 @@ public class UserController : ControllerBase
         if (currentUserId == 0)
             return Unauthorized(new { message = "无法获取用户信息" });
 
-        var user = await _db.Users.FindAsync(currentUserId);
+        var user = await _db.Users
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(a => a!.Media)
+            .SingleOrDefaultAsync(u => u.UserID == currentUserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
@@ -278,8 +283,10 @@ public class UserController : ControllerBase
         if (request.AvatarUrl != null)
         {
             var avatarPath = NormalizeAvatarPath(request.AvatarUrl);
-            if (avatarPath != null || string.IsNullOrWhiteSpace(request.AvatarUrl))
-                user.AvatarUrl = avatarPath;
+            if (avatarPath != null)
+                await SyncUserAvatarUrlAsync(currentUserId, avatarPath);
+            else if (string.IsNullOrWhiteSpace(request.AvatarUrl))
+                await RemoveUserAvatarAsync(currentUserId);
         }
         if (request.Contact != null)
             user.Contact = NormalizeProfileField(request.Contact, 100);
@@ -323,7 +330,10 @@ public class UserController : ControllerBase
         if (file.Length > MaxAvatarBytes)
             return BadRequest(new { message = "头像文件不能超过2MB" });
 
-        var user = await _db.Users.FindAsync(currentUserId);
+        var user = await _db.Users
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(a => a!.Media)
+            .SingleOrDefaultAsync(u => u.UserID == currentUserId);
         if (user == null)
             return NotFound(new { message = "用户不存在" });
 
@@ -337,18 +347,13 @@ public class UserController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
 
-        var oldAvatarUrl = user.AvatarUrl;
-        user.AvatarUrl = storedImage.Url;
-        await DeleteOldLocalAvatar(oldAvatarUrl);
-
-        // 写入头像关联元数据（保留兼容字段 user.AvatarUrl）
         await SyncUserAvatarMediaAsync(currentUserId, storedImage);
         await _db.SaveChangesAsync();
 
         return Ok(new
         {
             message = "头像已上传",
-            avatarUrl = user.AvatarUrl
+            avatarUrl = storedImage.Url
         });
     }
 
@@ -464,30 +469,26 @@ public class UserController : ControllerBase
 
     private async Task SyncUserAvatarMediaAsync(int userId, StoredImage storedImage)
     {
-        var existingAvatar = await _db.MediaFiles.FirstOrDefaultAsync(m =>
-            m.OwnerType == "User" &&
-            m.OwnerID == userId &&
-            m.UploadedByUserID == userId &&
-            m.ObjectKey == storedImage.ObjectKey);
+        var existingAvatar = await _db.UserAvatars
+            .Include(x => x.Media)
+            .FirstOrDefaultAsync(x => x.UserID == userId &&
+                x.Media != null && x.Media.ObjectKey == storedImage.ObjectKey);
 
         if (existingAvatar != null)
             return;
 
-        var existingItems = await _db.MediaFiles.Where(m =>
-            m.OwnerType == "User" &&
-            m.OwnerID == userId &&
-            (m.ObjectKey != null || m.Url != null)).ToListAsync();
-
-        foreach (var item in existingItems)
+        var oldLink = await _db.UserAvatars.Include(x => x.Media)
+            .SingleOrDefaultAsync(x => x.UserID == userId);
+        if (oldLink != null)
         {
-            await _mediaStorageService.DeleteByUrlAsync(item.Url);
-            _db.MediaFiles.Remove(item);
+            await _mediaStorageService.DeleteByUrlAsync(oldLink.Media?.Url);
+            _db.UserAvatars.Remove(oldLink);
+            if (oldLink.Media != null)
+                _db.MediaFiles.Remove(oldLink.Media);
         }
 
-        _db.MediaFiles.Add(new MediaFile
+        var media = new MediaFile
         {
-            OwnerType = "User",
-            OwnerID = userId,
             StorageProvider = storedImage.StorageProvider,
             ObjectKey = storedImage.ObjectKey,
             FileName = storedImage.FileName,
@@ -496,10 +497,42 @@ public class UserController : ControllerBase
             MimeType = storedImage.MimeType,
             SizeBytes = storedImage.SizeBytes,
             ContentHash = storedImage.ContentHash,
-            UploadTime = DateTime.UtcNow,
+            UploadedByUserID = userId
+        };
+        _db.MediaFiles.Add(media);
+        _db.UserAvatars.Add(new UserAvatar { UserID = userId, Media = media });
+    }
+
+    private async Task SyncUserAvatarUrlAsync(int userId, string avatarUrl)
+    {
+        var existing = await _db.UserAvatars.Include(x => x.Media)
+            .SingleOrDefaultAsync(x => x.UserID == userId);
+        if (string.Equals(existing?.Media?.Url, avatarUrl, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        await RemoveUserAvatarAsync(userId);
+        var media = new MediaFile
+        {
+            StorageProvider = "s3",
+            Url = avatarUrl,
             UploadedByUserID = userId,
-            DisplayOrder = 1
-        });
+            UploadTime = DateTime.UtcNow
+        };
+        _db.MediaFiles.Add(media);
+        _db.UserAvatars.Add(new UserAvatar { UserID = userId, Media = media });
+    }
+
+    private async Task RemoveUserAvatarAsync(int userId)
+    {
+        var existing = await _db.UserAvatars.Include(x => x.Media)
+            .SingleOrDefaultAsync(x => x.UserID == userId);
+        if (existing == null)
+            return;
+
+        await DeleteOldLocalAvatar(existing.Media?.Url);
+        _db.UserAvatars.Remove(existing);
+        if (existing.Media != null)
+            _db.MediaFiles.Remove(existing.Media);
     }
 
     private static bool IsValidPassword(string? password)

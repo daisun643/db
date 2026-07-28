@@ -12,10 +12,11 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider --timeout=2 http://localhost:9000/minio/health/live || exit 1"]
+      test: ["CMD-SHELL", "MC_HOST_local=http://$${MINIO_ROOT_USER}:$${MINIO_ROOT_PASSWORD}@127.0.0.1:9000 mc ready local --quiet"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
     networks:
       - app-network
 
@@ -58,7 +59,7 @@ services:
       oracle-db:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8080:8080"
     volumes:

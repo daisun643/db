@@ -157,7 +157,6 @@ public class AuthService : IAuthService
             Credit = 100,
             Status = "Active",
             UserCode = GenerateUserCode(),
-            UserLevel = 1,
             TotalCredit = 0
         };
 
@@ -194,6 +193,8 @@ public class AuthService : IAuthService
         var email = NormalizeEmail(request.Email);
 
         var user = await _db.Users
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(a => a!.Media)
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .ThenInclude(r => r!.RolePermissions)

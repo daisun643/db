@@ -106,7 +106,6 @@ public class UsersController : ControllerBase
             Credit = 100,
             Status = "Active",
             UserCode = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant(),
-            UserLevel = 1,
             TotalCredit = 0
         };
 

@@ -18,6 +18,8 @@ public class AppDbContext : DbContext
     public DbSet<Forum> Forums => Set<Forum>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
+    public DbSet<UserAvatar> UserAvatars => Set<UserAvatar>();
+    public DbSet<PostMedia> PostMedia => Set<PostMedia>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<TagPost> TagPosts => Set<TagPost>();
@@ -26,6 +28,9 @@ public class AppDbContext : DbContext
     public DbSet<ForumManager> ForumManagers => Set<ForumManager>();
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<ProductCondition> ProductConditions => Set<ProductCondition>();
+    public DbSet<ProductMedia> ProductMedia => Set<ProductMedia>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<DisputeTicket> DisputeTickets => Set<DisputeTicket>();
     public DbSet<ArbitrationResult> ArbitrationResults => Set<ArbitrationResult>();
@@ -49,12 +54,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.PasswordHash).HasColumnName("passwordHash");
             e.Property(x => x.UserCode).HasColumnName("userCode");
             e.Property(x => x.Nickname).HasColumnName("nickname");
-            e.Property(x => x.AvatarUrl).HasColumnName("avatarUrl");
             e.Property(x => x.Contact).HasColumnName("contact");
             e.Property(x => x.Bio).HasColumnName("bio");
             e.Property(x => x.Credit).HasColumnName("credit");
             e.Property(x => x.Status).HasColumnName("status");
-            e.Property(x => x.UserLevel).HasColumnName("userLevel");
             e.Property(x => x.TotalCredit).HasColumnName("totalCredit");
             e.HasMany(u => u.UploadedMedia)
                 .WithOne(m => m.UploadedByUser)
@@ -67,8 +70,6 @@ public class AppDbContext : DbContext
             e.ToTable("MediaFile");
             e.HasKey(x => x.MediaID);
             e.Property(x => x.MediaID).HasColumnName("mediaId").ValueGeneratedOnAdd();
-            e.Property(x => x.OwnerType).HasColumnName("ownerType");
-            e.Property(x => x.OwnerID).HasColumnName("ownerId");
             e.Property(x => x.StorageProvider).HasColumnName("storageProvider").HasDefaultValue("s3");
             e.Property(x => x.ObjectKey).HasColumnName("objectKey");
             e.Property(x => x.FileName).HasColumnName("fileName");
@@ -79,13 +80,22 @@ public class AppDbContext : DbContext
             e.Property(x => x.ContentHash).HasColumnName("contentHash");
             e.Property(x => x.UploadTime).HasColumnName("uploadTime").HasDefaultValueSql("CURRENT_TIMESTAMP");
             e.Property(x => x.UploadedByUserID).HasColumnName("uploadedByUserId");
-            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
-            e.HasIndex(x => new { x.OwnerType, x.OwnerID });
             e.HasIndex(x => x.UploadedByUserID);
             e.HasOne(x => x.UploadedByUser)
                 .WithMany(u => u.UploadedMedia)
                 .HasForeignKey(x => x.UploadedByUserID)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<UserAvatar>(e =>
+        {
+            e.ToTable("UserAvatar");
+            e.HasKey(x => x.UserID);
+            e.Property(x => x.UserID).HasColumnName("userId");
+            e.Property(x => x.MediaID).HasColumnName("mediaId");
+            e.HasIndex(x => x.MediaID).IsUnique();
+            e.HasOne(x => x.User).WithOne(x => x.AvatarMedia).HasForeignKey<UserAvatar>(x => x.UserID);
+            e.HasOne(x => x.Media).WithOne(x => x.AvatarLink).HasForeignKey<UserAvatar>(x => x.MediaID);
         });
 
         modelBuilder.Entity<Role>(e =>
@@ -148,6 +158,16 @@ public class AppDbContext : DbContext
             e.Property(x => x.CreateTime).HasColumnName("createTime");
         });
 
+        modelBuilder.Entity<PostSensitiveWord>(e =>
+        {
+            e.ToTable("PostSensitiveWord");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            e.Property(x => x.Word).HasColumnName("word").IsRequired();
+            e.Property(x => x.CreateTime).HasColumnName("createTime");
+            e.HasIndex(x => x.Word).IsUnique();
+        });
+
         modelBuilder.Entity<Wallet>(e =>
         {
             e.ToTable("Wallet");
@@ -177,7 +197,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.PostID).HasColumnName("postId").ValueGeneratedOnAdd();
             e.Property(x => x.Title).HasColumnName("title");
             e.Property(x => x.Content).HasColumnName("content");
-            e.Property(x => x.ImageUrls).HasColumnName("imageUrls");
             e.Property(x => x.HeatScore).HasColumnName("heatScore");
             e.Property(x => x.LikeCount).HasColumnName("likeCount");
             e.Property(x => x.ViewCount).HasColumnName("viewCount");
@@ -186,6 +205,16 @@ public class AppDbContext : DbContext
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.ForumID).HasColumnName("forumId");
+        });
+
+        modelBuilder.Entity<PostMedia>(e =>
+        {
+            e.ToTable("PostMedia");
+            e.HasKey(x => new { x.PostID, x.MediaID });
+            e.Property(x => x.PostID).HasColumnName("postId");
+            e.Property(x => x.MediaID).HasColumnName("mediaId");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => new { x.PostID, x.DisplayOrder }).IsUnique();
         });
 
         modelBuilder.Entity<PostComment>(e =>
@@ -266,14 +295,45 @@ public class AppDbContext : DbContext
             e.Property(x => x.ProductID).HasColumnName("productId").ValueGeneratedOnAdd();
             e.Property(x => x.Title).HasColumnName("title");
             e.Property(x => x.Description).HasColumnName("description");
-            e.Property(x => x.ImageUrls).HasColumnName("imageUrls");
-            e.Property(x => x.Category).HasColumnName("category");
-            e.Property(x => x.Condition).HasColumnName("condition");
+            e.Property(x => x.CategoryID).HasColumnName("categoryId");
+            e.Property(x => x.ConditionID).HasColumnName("conditionId");
             e.Property(x => x.Price).HasColumnName("price").HasPrecision(18, 2);
             e.Property(x => x.Stock).HasColumnName("stock");
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.PublishTime).HasColumnName("publishTime");
             e.Property(x => x.UserID).HasColumnName("userId");
+        });
+
+        modelBuilder.Entity<ProductCategory>(e =>
+        {
+            e.ToTable("ProductCategory");
+            e.HasKey(x => x.CategoryID);
+            e.Property(x => x.CategoryID).HasColumnName("categoryId").ValueGeneratedOnAdd();
+            e.Property(x => x.CategoryName).HasColumnName("categoryName");
+            e.Property(x => x.Description).HasColumnName("description");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => x.CategoryName).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductCondition>(e =>
+        {
+            e.ToTable("ProductCondition");
+            e.HasKey(x => x.ConditionID);
+            e.Property(x => x.ConditionID).HasColumnName("conditionId").ValueGeneratedOnAdd();
+            e.Property(x => x.ConditionName).HasColumnName("conditionName");
+            e.Property(x => x.Description).HasColumnName("description");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => x.ConditionName).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductMedia>(e =>
+        {
+            e.ToTable("ProductMedia");
+            e.HasKey(x => new { x.ProductID, x.MediaID });
+            e.Property(x => x.ProductID).HasColumnName("productId");
+            e.Property(x => x.MediaID).HasColumnName("mediaId");
+            e.Property(x => x.DisplayOrder).HasColumnName("displayOrder");
+            e.HasIndex(x => new { x.ProductID, x.DisplayOrder }).IsUnique();
         });
 
         modelBuilder.Entity<Transaction>(e =>
@@ -418,4 +478,3 @@ public class AppDbContext : DbContext
         });
     }
 }
-
