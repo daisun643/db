@@ -1,6 +1,12 @@
 <template>
   <div class="auth-container">
+    <section class="auth-visual">
+      <span class="auth-brand">TONGJI · CAMPUS HUB</span>
+      <div><small>ACCOUNT RECOVERY</small><h2>安全验证，<br><span>找回你的连接。</span></h2><p>通过校园邮箱验证身份，快速重置密码并返回社区。</p></div>
+      <div class="auth-proof"><span><b>邮箱验证</b><small>保护账号安全</small></span><span><b>快速恢复</b><small>重新回到社区</small></span></div>
+    </section>
     <div class="auth-card">
+      <span class="auth-card-kicker">RESET ACCESS</span>
       <h1 class="auth-title">找回密码</h1>
       <p class="auth-subtitle">重置您的账号密码</p>
 

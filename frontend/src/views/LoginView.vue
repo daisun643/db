@@ -1,6 +1,12 @@
 <template>
   <div class="auth-container">
+    <section class="auth-visual">
+      <span class="auth-brand">TONGJI · CAMPUS HUB</span>
+      <div><small>WELCOME BACK</small><h2>重新连接<br><span>你的校园生活。</span></h2><p>讨论、交易与互助，都从一个可信的校园身份开始。</p></div>
+      <div class="auth-proof"><span><b>校内实名</b><small>可信身份连接</small></span><span><b>一站式</b><small>社区与交易</small></span></div>
+    </section>
     <div class="auth-card">
+      <span class="auth-card-kicker">MEMBER LOGIN</span>
       <h1 class="auth-title">登录</h1>
       <p class="auth-subtitle">欢迎回到同济论坛</p>
 

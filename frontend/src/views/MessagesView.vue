@@ -1,8 +1,18 @@
 <template>
-  <div class="page-container">
-    <div class="page-header page-header-tabs">
-      <h1 class="page-title">消息中心</h1>
-
+  <div class="page-container messages-page">
+    <section class="messages-hero">
+      <div class="messages-hero-copy">
+        <span class="messages-eyebrow"><i></i>INBOX & CONNECTIONS</span>
+        <h1>保持联系，<span>不错过回应。</span></h1>
+        <p>私信好友、处理申请与平台通知，所有校园连接都汇聚在这里。</p>
+      </div>
+      <div class="message-pulse">
+        <span class="pulse-icon">✦</span>
+        <div><small>UNREAD MESSAGES</small><strong>{{ unreadMessages }}</strong><span>条未读私信</span></div>
+        <div><small>NOTIFICATIONS</small><strong>{{ notifications.length }}</strong><span>条平台通知</span></div>
+      </div>
+    </section>
+    <div class="messages-nav">
       <div class="tabs">
         <button :class="['tab', { active: activeTab === 'messages' }]" @click="activeTab = 'messages'">
           私信
@@ -12,7 +22,7 @@
           通知
           <span class="badge badge-red" v-if="notifications.length > 0">{{ notifications.length }}</span>
         </button>
-      </div>
+      </div><span>连接每一位同学</span>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -810,4 +820,41 @@ onUnmounted(() => {
     max-width: 88%;
   }
 }
-</style>
+</style>
+
+<style scoped>
+.messages-page { width:100%; max-width:1480px; margin:0 auto; color:#11172a; }
+.messages-hero { position:relative; isolation:isolate; min-height:285px; display:grid; grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr); align-items:center; gap:clamp(2rem,5vw,5rem); overflow:hidden; padding:clamp(2rem,4.5vw,3.6rem); border-radius:30px; color:#fff; background:radial-gradient(circle at 15% 0%,rgba(160,139,255,.36),transparent 31%),linear-gradient(135deg,#201b4c 0%,#382b78 48%,#664bdd 100%); box-shadow:0 28px 65px rgba(50,37,116,.2); }
+.messages-hero::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.14; background-image:linear-gradient(rgba(255,255,255,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.17) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to right,#000,transparent 75%); }
+.messages-eyebrow { display:inline-flex; align-items:center; gap:.65rem; color:#d6ceff; font-size:.68rem; font-weight:800; letter-spacing:.18em; }
+.messages-eyebrow i { width:8px; height:8px; border-radius:50%; background:#6fffc0; box-shadow:0 0 0 6px rgba(111,255,192,.11),0 0 20px rgba(111,255,192,.75); }
+.messages-hero h1 { margin-top:1.1rem; font-size:clamp(2.4rem,4.3vw,4.3rem); line-height:1; letter-spacing:-.055em; }
+.messages-hero h1 span { color:#d7cfff; }
+.messages-hero p { max-width:590px; margin-top:1.15rem; color:rgba(255,255,255,.66); line-height:1.8; }
+.message-pulse { display:grid; grid-template-columns:auto 1fr 1fr; align-items:center; gap:.6rem; padding:1.2rem; border:1px solid rgba(255,255,255,.17); border-radius:22px; background:rgba(10,8,39,.35); backdrop-filter:blur(22px); }
+.pulse-icon { width:46px; height:46px; display:grid; place-items:center; border-radius:15px; color:#9ff5df; background:rgba(107,246,208,.11); }
+.message-pulse > div { display:flex; flex-direction:column; padding:.75rem; border-radius:13px; background:rgba(255,255,255,.065); }
+.message-pulse small { color:#aaa0e9; font-size:.55rem; font-weight:800; letter-spacing:.08em; }
+.message-pulse strong { margin:.15rem 0; font-size:1.5rem; }
+.message-pulse div span { color:rgba(255,255,255,.42); font-size:.62rem; }
+.messages-nav { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1.25rem 0; padding:.55rem; border:1px solid rgba(24,32,55,.08); border-radius:18px; background:#fff; box-shadow:0 10px 30px rgba(28,34,64,.05); }
+.messages-nav .tabs { gap:.35rem; margin:0; border:0; }
+.messages-nav .tab { margin:0; border:0; border-radius:12px; padding:.72rem 1.05rem; color:#70778a; font-weight:700; }
+.messages-nav .tab.active { color:#fff; background:linear-gradient(135deg,#5f50dc,#7967f3); box-shadow:0 8px 20px rgba(95,80,220,.22); }
+.messages-nav > span { padding-right:.8rem; color:#9a9fb0; font-size:.72rem; }
+.messages-page .messages-layout { width:100%; min-width:0; grid-template-columns:350px minmax(0,1fr); }
+.messages-page .friends-panel,.messages-page .conversation-panel { min-width:0; padding:1rem; border:1px solid rgba(25,34,59,.08); border-radius:22px; box-shadow:0 12px 34px rgba(29,35,58,.05); }
+.messages-page .friend-form input,.messages-page .message-form input,.messages-page .friend-search { border:1px solid #e2e4ed; border-radius:11px; background:#fafafd; }
+.messages-page :is(.friend-form input,.message-form input,.friend-search):focus { border-color:#7463ee; outline:none; box-shadow:0 0 0 4px rgba(105,87,245,.1); }
+.messages-page .friend-row { margin:.25rem 0; border-radius:14px; }
+.messages-page .friend-row:hover { background:#f7f5ff; }
+.messages-page .friend-row.active { background:#efedff; }
+.messages-page .message-list { border:0; border-radius:18px; background:radial-gradient(circle at top left,rgba(105,87,245,.1),transparent 28%),#f8f8fc; }
+.messages-page .message-item.mine .message-content { background:linear-gradient(135deg,#5f50dc,#7361eb); }
+.messages-page .message-content { border-color:#e6e7ed; box-shadow:0 8px 24px rgba(29,35,58,.06); }
+.messages-page .message-form .btn-primary { border-radius:11px; background:linear-gradient(135deg,#5f50dc,#7563ef); }
+.messages-page .notification-item { border:1px solid rgba(25,34,59,.08); border-radius:18px; box-shadow:0 10px 28px rgba(29,35,58,.04); }
+.messages-page .notification-icon { color:#6654e8; background:#efedff; }
+@media(max-width:900px){.messages-hero{grid-template-columns:1fr;padding:2rem;border-radius:24px}.message-pulse{max-width:620px}.messages-page .messages-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.messages-hero{min-height:auto;gap:1.5rem;padding:1.45rem;border-radius:20px}.messages-hero h1{font-size:2.05rem}.messages-hero p{font-size:.86rem}.message-pulse{grid-template-columns:1fr 1fr;padding:1rem}.pulse-icon{display:none}.messages-nav{overflow-x:auto}.messages-nav > span{display:none}.messages-page .friends-panel,.messages-page .conversation-panel{width:100%;border-radius:18px}.messages-page .friend-form,.messages-page .message-form{width:100%}.messages-page .message-item{max-width:92%}}
+</style>
