@@ -92,6 +92,7 @@ import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAcc
 
 const authStore = useAuthStore()
 const router = useRouter()
+const isCollapsed = ref(true)
 const routeAccess = ref({})
 
 const toggleSidebar = () => {

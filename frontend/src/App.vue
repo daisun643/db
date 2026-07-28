@@ -45,4 +45,12 @@ const authStore = useAuthStore()
   justify-content: center;
   background: var(--bg);
 }
+
+@media (max-width: 900px) {
+  .main-content,
+  .sidebar.collapsed ~ .main-content {
+    margin-left: 70px;
+    padding: 1rem;
+  }
+}
 </style>
