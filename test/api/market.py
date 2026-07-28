@@ -44,6 +44,8 @@ class MarketAPI(BaseAPIClient):
                      max_price: float | None = None,
                      min_stock: int | None = None,
                      max_stock: int | None = None,
+                     from_date: str | None = None,
+                     to_date: str | None = None,
                      sort: str | None = None,
                      page: int | None = None,
                      page_size: int | None = None) -> requests.Response:
@@ -64,6 +66,10 @@ class MarketAPI(BaseAPIClient):
             params["minStock"] = min_stock
         if max_stock is not None:
             params["maxStock"] = max_stock
+        if from_date is not None:
+            params["from"] = from_date
+        if to_date is not None:
+            params["to"] = to_date
         if sort is not None:
             params["sort"] = sort
         if page is not None:

@@ -57,7 +57,9 @@ public class TransactionsController : ControllerBase
             orders = orders.Where(t => t.TransactionStatus == normalized);
         }
 
-        orders = orders.OrderByDescending(t => t.CreateTime);
+        orders = orders
+            .OrderByDescending(t => t.CreateTime)
+            .ThenByDescending(t => t.TransactionID);
 
         var totalCount = await orders.CountAsync();
         var items = await orders
@@ -97,7 +99,9 @@ public class TransactionsController : ControllerBase
             orders = orders.Where(t => t.TransactionStatus == normalized);
         }
 
-        orders = orders.OrderByDescending(t => t.CreateTime);
+        orders = orders
+            .OrderByDescending(t => t.CreateTime)
+            .ThenByDescending(t => t.TransactionID);
 
         var totalCount = await orders.CountAsync();
         var items = await orders
@@ -467,4 +471,3 @@ public class TransactionsController : ControllerBase
         };
     }
 }
-

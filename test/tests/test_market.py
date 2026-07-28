@@ -80,22 +80,39 @@ class TestProductList:
     def test_get_products_filter_category(self, market_client):
         resp = market_client.get_products(category="数码设备")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert all(product["category"] == "数码设备" for product in resp.json())
 
     def test_get_products_filter_condition(self, market_client):
         resp = market_client.get_products(condition="良好")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert all(product["condition"] == "良好" for product in resp.json())
 
     def test_get_products_filter_stock_range(self, market_client):
         resp = market_client.get_products(min_stock=1, max_stock=20)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert all(1 <= product["stock"] <= 20 for product in resp.json())
 
     def test_get_products_filter_price_range(self, market_client):
         resp = market_client.get_products(min_price=5, max_price=20)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert all(5 <= product["price"] <= 20 for product in resp.json())
+
+    def test_get_products_filter_keyword(self, admin_market_client, market_client):
+        created = admin_market_client.create_product(
+            "唯一检索商品 market-keyword-2026", 16.0, stock=2, description="用于复合检索测试"
+        )
+        assert created.status_code == 201
+
+        resp = market_client.get_products(keyword="market-keyword-2026")
+        assert resp.status_code == 200
+        assert created.json()["productID"] in {product["productID"] for product in resp.json()}
+
+    def test_get_products_filter_publish_time(self, market_client):
+        resp = market_client.get_products(
+            from_date="2000-01-01T00:00:00",
+            to_date="2100-01-01T00:00:00",
+        )
+        assert resp.status_code == 200
 
     def test_get_products_sort_price_desc(self, market_client):
         resp = market_client.get_products(sort="price-desc", page_size=20)
@@ -109,10 +126,27 @@ class TestProductList:
         resp = market_client.get_products(page=1, page_size=1)
         assert resp.status_code == 200
         assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+        assert int(resp.headers["X-Total-Count"]) >= len(resp.json())
+        assert len(resp.json()) <= 1
 
-    def test_get_products_invalid_sort_rejected(self, market_client):
-        resp = market_client.get_products(sort="invalid")
+    @pytest.mark.parametrize("params", [
+        {"sort": "invalid"},
+        {"min_price": 20, "max_price": 10},
+        {"min_price": -1},
+        {"max_price": -1},
+        {"min_stock": 20, "max_stock": 10},
+        {"min_stock": -1},
+        {"max_stock": -1},
+        {"from_date": "2026-07-29T00:00:00", "to_date": "2026-07-28T00:00:00"},
+    ])
+    def test_get_products_invalid_filters_rejected(self, market_client, params):
+        resp = market_client.get_products(**params)
         assert resp.status_code == 400
+
+    def test_get_products_status_is_case_insensitive(self, market_client):
+        resp = market_client.get_products(status="aCtIvE")
+        assert resp.status_code == 200
+        assert all(product["status"] == "Active" for product in resp.json())
 
 
 class TestProductCRUD:
@@ -458,10 +492,9 @@ class TestOrderList:
         product = admin_market_client.create_product("分页订单商品", 12.0, stock=5).json()
         market_client.create_order(product["productID"])
         market_client.create_order(product["productID"])
-        pending = market_client.get_my_orders(status="Pending")
+        pending = market_client.get_my_orders(status="pEnDiNg")
         assert pending.status_code == 200
-        if len(pending.json()) > 0:
-            assert pending.json()[0]["transactionStatus"] == "Pending"
+        assert all(order["transactionStatus"] == "Pending" for order in pending.json())
 
     def test_get_my_orders_returns_total_count(self, admin_market_client, market_client):
         product = admin_market_client.create_product("分页订单商品2", 12.0, stock=5).json()
@@ -470,6 +503,8 @@ class TestOrderList:
         resp = market_client.get_my_orders(page=1, page_size=1)
         assert resp.status_code == 200
         assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+        assert int(resp.headers["X-Total-Count"]) >= len(resp.json())
+        assert len(resp.json()) <= 1
 
     def test_get_my_orders_invalid_status_rejected(self, market_client):
         resp = market_client.get_my_orders(status="BAD")
@@ -478,10 +513,9 @@ class TestOrderList:
     def test_get_my_sales_with_status_filter(self, admin_market_client, market_client):
         product = admin_market_client.create_product("销售订单商品", 18.0, stock=5).json()
         market_client.create_order(product["productID"])
-        pending = admin_market_client.get_my_sales(status="Pending")
+        pending = admin_market_client.get_my_sales(status="pEnDiNg")
         assert pending.status_code == 200
-        if len(pending.json()) > 0:
-            assert pending.json()[0]["transactionStatus"] == "Pending"
+        assert all(order["transactionStatus"] == "Pending" for order in pending.json())
 
     def test_get_my_sales_returns_total_count(self, admin_market_client, market_client):
         product = admin_market_client.create_product("销售订单计数", 20.0, stock=5).json()
@@ -490,6 +524,8 @@ class TestOrderList:
         resp = admin_market_client.get_my_sales(page=1, page_size=1)
         assert resp.status_code == 200
         assert "x-total-count" in {k.lower() for k in resp.headers.keys()}
+        assert int(resp.headers["X-Total-Count"]) >= len(resp.json())
+        assert len(resp.json()) <= 1
 
     def test_get_my_sales_invalid_status_rejected(self, admin_market_client):
         resp = admin_market_client.get_my_sales(status="BAD")

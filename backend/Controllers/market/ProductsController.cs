@@ -56,10 +56,12 @@ public class ProductsController : ControllerBase
         if (from.HasValue && to.HasValue && from.Value > to.Value)
             return BadRequest(new { message = "时间范围不合法" });
 
-        if (minPrice.HasValue && maxPrice.HasValue && minPrice.Value > maxPrice.Value)
+        if (minPrice < 0 || maxPrice < 0 ||
+            (minPrice.HasValue && maxPrice.HasValue && minPrice.Value > maxPrice.Value))
             return BadRequest(new { message = "价格范围不合法" });
 
-        if (minStock.HasValue && maxStock.HasValue && minStock.Value > maxStock.Value)
+        if (minStock < 0 || maxStock < 0 ||
+            (minStock.HasValue && maxStock.HasValue && minStock.Value > maxStock.Value))
             return BadRequest(new { message = "库存范围不合法" });
 
         var query = _db.Products.Include(p => p.User).AsQueryable();
@@ -109,12 +111,13 @@ public class ProductsController : ControllerBase
 
         query = normalizedSort switch
         {
-            "price-asc" => query.OrderBy(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime),
-            "price-desc" => query.OrderByDescending(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime),
-            "stock-asc" => query.OrderBy(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime),
-            "stock-desc" => query.OrderByDescending(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime),
+            "price-asc" => query.OrderBy(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime).ThenByDescending(p => p.ProductID),
+            "price-desc" => query.OrderByDescending(p => p.Price ?? 0).ThenByDescending(p => p.PublishTime).ThenByDescending(p => p.ProductID),
+            "stock-asc" => query.OrderBy(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime).ThenByDescending(p => p.ProductID),
+            "stock-desc" => query.OrderByDescending(p => p.Stock ?? 0).ThenByDescending(p => p.PublishTime).ThenByDescending(p => p.ProductID),
             _ => query.OrderByDescending(p => p.Status == "Active" ? 1 : 0)
-                    .ThenByDescending(p => p.PublishTime),
+                    .ThenByDescending(p => p.PublishTime)
+                    .ThenByDescending(p => p.ProductID),
         };
 
         var totalCount = await query.CountAsync();
@@ -354,7 +357,7 @@ public class ProductsController : ControllerBase
             .GroupBy(m => m.OwnerID!.Value)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(m => m.Url).Where(HasUrl).ToList());
+                g => g.Select(m => m.Url).Where(HasUrl).Select(url => url!).ToList());
     }
 
     private static string SerializeImageUrls(IEnumerable<string> urls)
@@ -371,6 +374,7 @@ public class ProductsController : ControllerBase
         return urls
             .Select(url => url?.Trim())
             .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url!)
             .Where(IsValidImageUrl)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(MaxImageCount)
