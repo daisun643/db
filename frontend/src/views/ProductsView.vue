@@ -1,8 +1,35 @@
 <template>
-  <div class="page-container">
-    <div class="page-header page-header-tabs">
-      <h1 class="page-title">交易</h1>
+  <div class="page-container product-page">
+    <section class="market-hero">
+      <div class="market-hero-copy">
+        <span class="market-eyebrow"><i></i>CAMPUS MARKET</span>
+        <h1>校园好物，<span>继续流转。</span></h1>
+        <p>发现同学们的闲置，也让你的物品遇见下一位主人。校园身份、交易锁定与清晰流水，为每次交换保驾护航。</p>
+        <div class="market-hero-pills">
+          <span>校内实名</span><span>订单锁定</span><span>交易可追溯</span>
+        </div>
+      </div>
+      <div class="market-wallet-card">
+        <div class="wallet-card-heading">
+          <span>AVAILABLE BALANCE</span>
+          <span class="wallet-card-icon">¥</span>
+        </div>
+        <strong>¥{{ walletBalance }}</strong>
+        <small>当前可用余额</small>
+        <form class="wallet-actions" @submit.prevent="handleDeposit">
+          <input v-model.number="depositAmount" type="number" min="0.01" step="0.01" placeholder="输入充值金额" />
+          <button type="submit" :disabled="!depositAmount || depositing">
+            {{ depositing ? '处理中...' : '立即充值' }}
+          </button>
+        </form>
+        <div class="wallet-card-stats">
+          <span><b>{{ totalProducts }}</b><small>在售好物</small></span>
+          <span><b>安心</b><small>交易保障</small></span>
+        </div>
+      </div>
+    </section>
 
+    <div class="market-nav">
       <div class="tabs">
         <button :class="['tab', { active: activeTab === 'all' }]" @click="activeTab = 'all'">
           商品列表
@@ -14,22 +41,10 @@
           我的订单
         </button>
       </div>
+      <span class="market-nav-note">让闲置更有价值</span>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
-
-    <section class="wallet-panel">
-      <div>
-        <span class="muted">钱包余额</span>
-        <strong>¥{{ walletBalance }}</strong>
-      </div>
-      <form class="wallet-actions" @submit.prevent="handleDeposit">
-        <input v-model.number="depositAmount" type="number" min="0.01" step="0.01" placeholder="充值金额" />
-        <button class="btn" type="submit" :disabled="!depositAmount || depositing">
-          {{ depositing ? '处理中...' : '充值' }}
-        </button>
-      </form>
-    </section>
 
     <div v-if="activeTab === 'all'" class="market-layout">
       <section class="market-toolbar">
@@ -1402,5 +1417,131 @@ onMounted(async () => {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+</style>
+
+<style scoped>
+.product-page {
+  --market-ink: #11182b;
+  --market-purple: #6654ee;
+  --market-teal: #16a6a3;
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  color: var(--market-ink);
+}
+
+.market-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 330px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+  overflow: hidden;
+  padding: clamp(2rem, 4.5vw, 4.25rem);
+  border-radius: 30px;
+  color: #fff;
+  background: radial-gradient(circle at 12% 0%, rgba(112, 238, 224, .2), transparent 30%), linear-gradient(135deg, #162b43 0%, #263c65 47%, #6252d9 100%);
+  box-shadow: 0 28px 65px rgba(31, 44, 91, .2);
+}
+
+.market-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .14; background-image: linear-gradient(rgba(255,255,255,.17) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.17) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to right, #000, transparent 75%); }
+.market-hero::after { content: ''; position: absolute; z-index: -1; width: 320px; height: 320px; right: -120px; top: -170px; border-radius: 50%; background: rgba(83, 224, 217, .2); }
+.market-eyebrow { display: inline-flex; align-items: center; gap: .65rem; color: #a8f0e9; font-size: .68rem; font-weight: 800; letter-spacing: .18em; }
+.market-eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: #68f5c8; box-shadow: 0 0 0 6px rgba(104,245,200,.11), 0 0 18px rgba(104,245,200,.7); }
+.market-hero h1 { max-width: 690px; margin-top: 1.25rem; font-size: clamp(2.5rem, 4.8vw, 4.7rem); line-height: 1; letter-spacing: -.055em; }
+.market-hero h1 span { color: #a8eee9; }
+.market-hero-copy > p { max-width: 620px; margin-top: 1.25rem; color: rgba(255,255,255,.68); font-size: .95rem; line-height: 1.8; }
+.market-hero-pills { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
+.market-hero-pills span { padding: .42rem .72rem; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.78); font-size: .7rem; }
+
+.market-wallet-card { padding: 1.4rem; border: 1px solid rgba(255,255,255,.17); border-radius: 24px; background: rgba(8,17,38,.35); box-shadow: 0 22px 50px rgba(5,13,33,.25); backdrop-filter: blur(22px); }
+.wallet-card-heading { display: flex; align-items: center; justify-content: space-between; color: #9de6df; font-size: .62rem; font-weight: 800; letter-spacing: .14em; }
+.wallet-card-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: rgba(105,241,222,.12); color: #8ff5df; font-size: 1rem; }
+.market-wallet-card > strong { display: block; margin-top: .65rem; font-size: clamp(2.2rem, 4vw, 3.5rem); letter-spacing: -.05em; }
+.market-wallet-card > small { color: rgba(255,255,255,.48); font-size: .7rem; }
+.market-wallet-card .wallet-actions { display: grid; grid-template-columns: 1fr auto; margin-top: 1.25rem; padding: .35rem; border-radius: 14px; background: rgba(255,255,255,.08); }
+.market-wallet-card .wallet-actions input { width: 100%; border: 0; background: transparent; color: #fff; outline: none; }
+.market-wallet-card .wallet-actions input::placeholder { color: rgba(255,255,255,.38); }
+.market-wallet-card .wallet-actions button { border: 0; border-radius: 10px; padding: .7rem 1rem; color: #25324f; background: #fff; font-weight: 750; cursor: pointer; }
+.market-wallet-card .wallet-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.wallet-card-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .55rem; margin-top: .85rem; }
+.wallet-card-stats > span { display: flex; flex-direction: column; padding: .75rem; border-radius: 13px; background: rgba(255,255,255,.065); }
+.wallet-card-stats b { font-size: .9rem; }
+.wallet-card-stats small { margin-top: .15rem; color: rgba(255,255,255,.42); font-size: .62rem; }
+
+.market-nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.25rem 0; padding: .55rem; border: 1px solid rgba(24,32,55,.08); border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(28,34,64,.05); }
+.market-nav .tabs { gap: .35rem; }
+.market-nav .tab { border: 0; border-radius: 12px; padding: .72rem 1.05rem; color: #70778a; background: transparent; font-weight: 700; }
+.market-nav .tab.active { color: #fff; background: linear-gradient(135deg, #5f50dc, #7967f3); box-shadow: 0 8px 20px rgba(95,80,220,.22); }
+.market-nav-note { padding-right: .8rem; color: #9a9fb0; font-size: .72rem; }
+
+.product-page .market-layout { gap: 1.1rem; }
+.product-page .market-toolbar, .product-page .product-form, .product-page .orders-panel, .product-page .dispute-form { border: 1px solid rgba(25,34,59,.08); border-radius: 22px; background: #fff; box-shadow: 0 12px 35px rgba(29,35,58,.05); }
+.product-page .market-toolbar { padding: 1.25rem; background: linear-gradient(135deg, #f2f0ff 0%, #f0fbfa 100%); }
+.product-page .toolbar-title h2, .product-page .product-form h2, .product-page .orders-panel h2 { font-size: 1.15rem; letter-spacing: -.025em; }
+.product-page .market-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(135px, .65fr)) auto; }
+.product-page .market-filter-bar input, .product-page .market-filter-bar select, .product-page .product-form input, .product-page .product-form select, .product-page .product-form textarea, .product-page .product-edit-form input, .product-page .product-edit-form select, .product-page .product-edit-form textarea, .product-page .dispute-form textarea, .product-page .message-form input { border: 1px solid #e3e5ed; border-radius: 12px; background: #fff; transition: border-color .2s, box-shadow .2s; }
+.product-page :is(input, select, textarea):focus { border-color: #7463ee; outline: none; box-shadow: 0 0 0 4px rgba(105,87,245,.1); }
+.product-page .product-form { position: relative; overflow: hidden; padding: 1.35rem; }
+.product-page .product-form::after { content: ''; position: absolute; right: -55px; top: -65px; width: 150px; height: 150px; border-radius: 50%; background: #ddf7f4; pointer-events: none; }
+.product-page .product-form > * { position: relative; z-index: 1; }
+.product-page .product-form h2::before { content: '＋'; display: inline-grid; place-items: center; width: 28px; height: 28px; margin-right: .55rem; border-radius: 9px; color: #fff; background: #6654ee; font-size: .9rem; }
+.product-page .form-row { align-items: stretch; }
+.product-page .form-row > * { flex: 1 1 130px; }
+
+.product-page .product-grid { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 1rem; }
+.product-page .product-card { position: relative; overflow: hidden; gap: .85rem; padding: 1.15rem; border: 1px solid rgba(25,34,59,.08); border-radius: 22px; background: #fff; box-shadow: 0 12px 32px rgba(29,35,58,.055); transition: transform .25s, box-shadow .25s, border-color .25s; }
+.product-page .product-card:hover { transform: translateY(-5px); border-color: rgba(102,84,238,.22); box-shadow: 0 22px 48px rgba(45,39,99,.12); }
+.product-page .product-head h2 { font-size: 1.05rem; letter-spacing: -.02em; }
+.product-page .product-images { overflow: hidden; border-radius: 15px; background: #f2f4f7; }
+.product-page .product-card .product-images img:first-child:last-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+.product-page .product-images img { border: 0; border-radius: 0; }
+.product-page .product-card > p { min-height: 2.8em; margin: 0; line-height: 1.55; }
+.product-page .product-meta { gap: .45rem; }
+.product-page .product-meta span { padding: .28rem .5rem; border-radius: 999px; background: #f4f5f8; font-size: .7rem; }
+.product-page .product-meta strong { width: 100%; color: #5d4dd7; font-size: 1.45rem; letter-spacing: -.04em; }
+.product-page .product-card > .btn { min-height: 42px; border-radius: 12px; }
+.product-page .product-card > .btn-primary { background: linear-gradient(135deg, #5f50dc, #7563ef); }
+.product-page .product-card > .link-button { align-self: center; font-size: .72rem; }
+
+.product-page .product-row, .product-page .order-row { align-items: center; padding: 1.15rem 1.25rem; border: 1px solid rgba(25,34,59,.08); border-radius: 18px; background: #fff; box-shadow: 0 8px 25px rgba(29,35,58,.04); }
+.product-page .row-actions .btn { border-radius: 10px; }
+.product-page .market-pagination { padding: 1rem; border-radius: 16px; background: #fff; }
+.product-page .empty-state { border: 1px dashed #d9dbe5; border-radius: 20px; background: #fafaff; }
+.product-page .order-message { border-radius: 14px; background: #f8f8fc; }
+
+.product-page .detail-backdrop { background: rgba(15,18,38,.55); backdrop-filter: blur(5px); }
+.product-page .product-detail-panel { padding: 1.25rem; border-left: 0; background: #f6f6fb; box-shadow: -24px 0 60px rgba(12,16,35,.24); }
+.product-page .detail-header, .product-page .product-detail { border: 1px solid rgba(25,34,59,.08); border-radius: 20px; box-shadow: 0 10px 30px rgba(29,35,58,.05); }
+.product-page .product-detail .product-head strong { color: #5d4dd7; font-size: 1.6rem; }
+
+@media (max-width: 1120px) {
+  .product-page .market-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-page .market-filter-bar input { min-width: 0; }
+}
+@media (max-width: 820px) {
+  .market-hero { grid-template-columns: 1fr; padding: 2rem; border-radius: 24px; }
+  .market-wallet-card { max-width: 620px; }
+  .product-page .product-row, .product-page .order-row { align-items: stretch; flex-direction: column; }
+}
+@media (max-width: 640px) {
+  .market-hero { min-height: auto; gap: 1.5rem; padding: 1.45rem; border-radius: 20px; }
+  .market-hero h1 { font-size: 2.05rem; }
+  .market-hero-copy > p { font-size: .86rem; }
+  .market-wallet-card { padding: 1rem; border-radius: 18px; }
+  .market-wallet-card .wallet-actions { grid-template-columns: 1fr; }
+  .market-nav { align-items: stretch; overflow-x: auto; }
+  .market-nav .tabs { flex-wrap: nowrap; }
+  .market-nav .tab { white-space: nowrap; }
+  .market-nav-note { display: none; }
+  .product-page .market-filter-bar { grid-template-columns: 1fr; }
+  .product-page .market-filter-bar select { min-width: 0; width: 100%; }
+  .product-page .product-grid { grid-template-columns: 1fr; }
+  .product-page .product-card { border-radius: 18px; }
+  .product-page .row-actions { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .product-page .row-actions .btn { width: 100%; }
 }
 </style>
