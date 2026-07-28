@@ -8,18 +8,15 @@
     <section class="summary-cards">
       <div class="card">
         <div class="card-label">总资产</div>
-        <!-- 改为 totalBalance -->
-        <div class="card-value">¥ {{ summary.totalBalance?.toFixed(2) || '0.00' }}</div>
+        <div class="card-value">¥ {{ summary.balance?.toFixed(2) || '0.00' }}</div>
       </div>
       <div class="card">
         <div class="card-label">冻结金额</div>
-        <!-- 保持 frozenAmount -->
         <div class="card-value">¥ {{ summary.frozenAmount?.toFixed(2) || '0.00' }}</div>
       </div>
       <div class="card">
         <div class="card-label">可用余额</div>
-        <!-- 改为 availableBalance -->
-        <div class="card-value">¥ {{ summary.availableBalance?.toFixed(2) || '0.00' }}</div>
+        <div class="card-value">¥ {{ summary.availableAmount?.toFixed(2) || '0.00' }}</div>
       </div>
       <div class="card">
         <div class="card-label">净收益</div>

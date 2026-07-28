@@ -121,6 +121,8 @@ export const sendOrderMessage = (transactionId, data) => api.post(`/transactions
 export const getDisputes = () => api.get('/disputes')
 export const createDispute = (transactionId, data) => api.post(`/disputes/transactions/${transactionId}`, data)
 export const resolveDispute = (id, data) => api.post(`/disputes/${id}/resolve`, data)
+export const getFinanceFlows = () => api.get('/finance/flows')
+export const getFinanceSummary = () => api.get('/finance/summary')
 export const getReports = (params = {}) => api.get('/reports', { params })
 export const createReport = (data) => api.post('/reports', data)
 export const reviewReport = (id, data) => api.post(`/reports/${id}/review`, data)

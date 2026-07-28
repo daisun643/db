@@ -6,6 +6,23 @@
 ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 
+-- 受控商品字典：商品只保存外键，不重复保存分类和成色文本。
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('数码设备', '电脑、手机及数码配件', 10);
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('教材资料', '教材、参考书与学习资料', 20);
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('交通出行', '自行车及通勤用品', 30);
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('生活用品', '宿舍与日常生活用品', 40);
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('运动户外', '体育与户外用品', 50);
+INSERT INTO "ProductCategory" ("categoryName", "description", "displayOrder") VALUES ('其他', '未归入其他分类的物品', 999);
+
+INSERT INTO "ProductCondition" ("conditionName", "description", "displayOrder") VALUES ('全新', '未拆封或未使用', 10);
+INSERT INTO "ProductCondition" ("conditionName", "description", "displayOrder") VALUES ('几乎全新', '仅短暂试用，无明显痕迹', 20);
+INSERT INTO "ProductCondition" ("conditionName", "description", "displayOrder") VALUES ('良好', '正常使用，功能完好', 30);
+INSERT INTO "ProductCondition" ("conditionName", "description", "displayOrder") VALUES ('有使用痕迹', '功能正常，有明显使用痕迹', 40);
+
+INSERT INTO "PostSensitiveWord" ("word", "createTime") VALUES ('违禁', SYSTIMESTAMP);
+INSERT INTO "PostSensitiveWord" ("word", "createTime") VALUES ('敏感词', SYSTIMESTAMP);
+INSERT INTO "PostSensitiveWord" ("word", "createTime") VALUES ('spam', SYSTIMESTAMP);
+
 -- ============================================================
 -- 1. 论坛板块
 -- ============================================================
@@ -163,28 +180,28 @@ INSERT INTO "PostLike" ("postId", "userId", "createTime") SELECT p."postId", u."
 -- 9. 商品
 -- ============================================================
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '机械键盘 Cherry MX 青轴', 'Cherry G80-3000 机械键盘，青轴手感，使用约半年。键帽已更换为 PBT 热升华键帽。功能完全正常，无任何暗病。附赠拔键器和备用键帽。原价 599 元，现价 280 元出。', '[]', '数码设备', '良好', 280, 1, 'Active', SYSTIMESTAMP - INTERVAL '3' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '机械键盘 Cherry MX 青轴', 'Cherry G80-3000 机械键盘，青轴手感，使用约半年。键帽已更换为 PBT 热升华键帽。功能完全正常，无任何暗病。附赠拔键器和备用键帽。原价 599 元，现价 280 元出。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '数码设备'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 280, 1, 'Active', SYSTIMESTAMP - INTERVAL '3' DAY, "userId"
 FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '机械键盘 Cherry MX 青轴');
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '《算法导论》第四版', '全新未拆封的《算法导论（原书第4版）》，中文版。买重了一本，多出来的这本转让。原价 198 元，现价 120 元。', '[]', '教材资料', '全新', 120, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '《算法导论》第四版', '全新未拆封的《算法导论（原书第4版）》，中文版。买重了一本，多出来的这本转让。原价 198 元，现价 120 元。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '教材资料'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '全新'), 120, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
 FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '《算法导论》第四版');
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '二手自行车 捷安特 ATX', '捷安特 ATX 660 山地自行车，骑行约 2000 公里。车况良好，变速器和刹车正常，轮胎今年换过。适合校内通勤，毕业带不走了。自提，价格可小刀。', '[]', '交通出行', '良好', 350, 1, 'Active', SYSTIMESTAMP - INTERVAL '4' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '二手自行车 捷安特 ATX', '捷安特 ATX 660 山地自行车，骑行约 2000 公里。车况良好，变速器和刹车正常，轮胎今年换过。适合校内通勤，毕业带不走了。自提，价格可小刀。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '交通出行'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 350, 1, 'Active', SYSTIMESTAMP - INTERVAL '4' DAY, "userId"
 FROM "User" WHERE "email" = '3@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '二手自行车 捷安特 ATX');
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '考研政治全套资料', '包含：肖秀荣精讲精练 + 1000题 + 肖四肖八 + 徐涛核心考案。大部分只翻阅了一两遍，保存良好。打包出售，不拆卖。', '[]', '教材资料', '有使用痕迹', 65, 1, 'Active', SYSTIMESTAMP - INTERVAL '1' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '考研政治全套资料', '包含：肖秀荣精讲精练 + 1000题 + 肖四肖八 + 徐涛核心考案。大部分只翻阅了一两遍，保存良好。打包出售，不拆卖。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '教材资料'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '有使用痕迹'), 65, 1, 'Active', SYSTIMESTAMP - INTERVAL '1' DAY, "userId"
 FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '考研政治全套资料');
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '小米台灯 Pro', '小米智能台灯 Pro，支持色温和亮度无级调节。使用约一年，外观无划痕，功能正常。附带原装电源适配器。', '[]', '生活用品', '良好', 80, 1, 'Active', SYSTIMESTAMP - INTERVAL '5' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '小米台灯 Pro', '小米智能台灯 Pro，支持色温和亮度无级调节。使用约一年，外观无划痕，功能正常。附带原装电源适配器。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '生活用品'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 80, 1, 'Active', SYSTIMESTAMP - INTERVAL '5' DAY, "userId"
 FROM "User" WHERE "email" = '4@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '小米台灯 Pro');
 
-INSERT INTO "Product" ("title", "description", "imageUrls", "category", "condition", "price", "stock", "status", "publishTime", "userId")
-SELECT '罗技 G502 鼠标', '罗技 G502 Hero 游戏鼠标，有线版。使用一年半，微动正常无双击问题。附赠额外配重块和原装包装盒。', '[]', '数码设备', '有使用痕迹', 150, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
+INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
+SELECT '罗技 G502 鼠标', '罗技 G502 Hero 游戏鼠标，有线版。使用一年半，微动正常无双击问题。附赠额外配重块和原装包装盒。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '数码设备'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '有使用痕迹'), 150, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
 FROM "User" WHERE "email" = '3@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '罗技 G502 鼠标');
 
 -- ============================================================
