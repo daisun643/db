@@ -64,7 +64,8 @@ public class PostsController : ControllerBase
         if (from.HasValue && to.HasValue && from.Value > to.Value)
             return BadRequest(new { message = "时间范围不合法" });
 
-        if (minHeat.HasValue && maxHeat.HasValue && minHeat.Value > maxHeat.Value)
+        if (minHeat < 0 || maxHeat < 0 ||
+            (minHeat.HasValue && maxHeat.HasValue && minHeat.Value > maxHeat.Value))
             return BadRequest(new { message = "热度范围不合法" });
 
         var query = _db.Posts
@@ -430,6 +431,7 @@ public class PostsController : ControllerBase
         return candidates
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(t => t.ToLowerInvariant())
+            .Take(8)
             .ToList();
     }
 
@@ -740,7 +742,9 @@ public class PostsController : ControllerBase
         var mediaByPost = mediaRows
             .Where(m => m.OwnerID.HasValue)
             .GroupBy(m => m.OwnerID!.Value)
-            .ToDictionary(g => g.Key, g => g.Select(m => m.Url).Where(HasUrl).ToList());
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(m => m.Url).Where(HasUrl).Select(url => url!).ToList());
 
         return postList.Select(p => new PostListItemResponse
         {
@@ -907,6 +911,7 @@ public class PostsController : ControllerBase
         return urls
             .Select(url => url?.Trim())
             .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url!)
             .Where(IsValidImageUrl)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(6)

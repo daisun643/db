@@ -1,16 +1,8 @@
 using Backend.Data;
-using Backend.Models;
 using Backend.Models.DTOs;
-using Backend.Authorization;
-using Backend.Services;
-using Backend.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using System.Security.Claims;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Backend.Controllers;
 
@@ -69,5 +61,30 @@ public class TagsController : ControllerBase
         }
 
         return Ok(suggestions);
+    }
+
+    [HttpGet("stats")]
+    [AllowAnonymous]
+    public async Task<ActionResult<List<TagStatsResponse>>> GetStats([FromQuery] int top = 10)
+    {
+        top = Math.Clamp(top, 1, 50);
+
+        var rows = await _db.TagPosts
+            .Where(tp => tp.Post != null &&
+                         (tp.Post.Status == "Active" || tp.Post.Status == "Elite" || tp.Post.Status == "Pinned") &&
+                         tp.Tag != null && tp.Tag.TagName != null && tp.Tag.TagName != string.Empty)
+            .GroupBy(tp => new { tp.TagID, tp.Tag!.TagName })
+            .Select(g => new TagStatsResponse
+            {
+                TagID = g.Key.TagID,
+                TagName = g.Key.TagName!,
+                PostCount = g.Count()
+            })
+            .OrderByDescending(x => x.PostCount)
+            .ThenBy(x => x.TagName)
+            .Take(top)
+            .ToListAsync();
+
+        return Ok(rows);
     }
 }

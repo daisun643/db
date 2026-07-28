@@ -156,3 +156,6 @@ class ForumAPI(BaseAPIClient):
 
     def get_tags(self, keyword: str = "") -> requests.Response:
         return self.get(f"{self.PREFIX}/tags", params={"keyword": keyword})
+
+    def get_tag_stats(self, top: int = 10) -> requests.Response:
+        return self.get(f"{self.PREFIX}/tags/stats", params={"top": top})
