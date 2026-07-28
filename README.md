@@ -52,6 +52,9 @@ uv run --with bcrypt scripts/encrypt.py
 | `database/` | Oracle 初始化脚本，按文件名前缀顺序执行 |
 | `test/` | pytest HTTP 集成测试 |
 | `scripts/` | 开发环境与测试入口 |
-| `docs/` | 运维、测试和权限说明 |
+| `docs/` | 项目功能与开发指南 |
 
-文档入口见 [docs/README.md](docs/README.md)。
+进一步阅读：
+
+- [项目介绍与功能](docs/项目介绍与功能.md)
+- [开发指南](docs/开发指南.md)
