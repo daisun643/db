@@ -697,7 +697,8 @@ const loadPosts = async (page = filters.value.page) => {
       pageSize: filters.value.pageSize,
     })
     posts.value = Array.isArray(res.data) ? res.data : []
-    totalPosts.value = Number(res.headers?.['x-total-count'] ?? posts.value.length)
+    const totalFromHeader = Number(res.headers?.['x-total-count'])
+    totalPosts.value = Number.isFinite(totalFromHeader) ? totalFromHeader : posts.value.length
     hasNextPage.value = filters.value.page * filters.value.pageSize < totalPosts.value
   } catch (e) {
     posts.value = []
@@ -918,8 +919,11 @@ const handleCreatePost = async () => {
     notice.value = res.data?.status === 'PendingReview'
       ? '帖子已提交审核：内容命中敏感词，暂不会公开展示；可在“我的帖子”查看审核状态。'
       : '帖子发布成功。'
-    postForm.value.title = ''
-    postForm.value.content = ''
+    postForm.value = {
+      ...postForm.value,
+      title: '',
+      content: '',
+    }
     tagText.value = ''
     clearCreateImageState()
     composerOpen.value = false

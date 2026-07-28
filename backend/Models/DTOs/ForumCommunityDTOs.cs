@@ -145,6 +145,13 @@ public class TagSuggestRequest
     public string Content { get; set; } = string.Empty;
 }
 
+public class TagStatsResponse
+{
+    public int TagID { get; set; }
+    public string TagName { get; set; } = string.Empty;
+    public int PostCount { get; set; }
+}
+
 public class AuditRecordResponse
 {
     public int AuditID { get; set; }

@@ -1,4 +1,5 @@
 import pytest
+from uuid import uuid4
 
 
 class TestForumList:
@@ -39,11 +40,16 @@ class TestForumList:
 
 class TestForumCRUD:
 
+    @staticmethod
+    def _unique_name(prefix):
+        return f"{prefix}-{uuid4().hex[:8]}"
+
     def test_admin_can_create_forum(self, admin_forum_client):
-        resp = admin_forum_client.create_forum("测试论坛", "这是一个测试论坛")
+        forum_name = self._unique_name("测试论坛")
+        resp = admin_forum_client.create_forum(forum_name, "这是一个测试论坛")
         assert resp.status_code == 201
         data = resp.json()
-        assert data["forumName"] == "测试论坛"
+        assert data["forumName"] == forum_name
         assert data["description"] == "这是一个测试论坛"
         assert data["status"] == "Active"
 
@@ -52,15 +58,17 @@ class TestForumCRUD:
         assert resp.status_code == 403
 
     def test_admin_can_update_forum(self, admin_forum_client):
-        create_resp = admin_forum_client.create_forum("待修改论坛", "原描述")
+        create_resp = admin_forum_client.create_forum(self._unique_name("待修改论坛"), "原描述")
         fid = create_resp.json()["forumID"]
-        resp = admin_forum_client.update_forum(fid, "修改后论坛", "新描述", "Active")
+        updated_name = self._unique_name("修改后论坛")
+        resp = admin_forum_client.update_forum(fid, updated_name, "新描述", "Active")
         assert resp.status_code == 200
-        assert resp.json()["forumName"] == "修改后论坛"
+        assert resp.json()["forumName"] == updated_name
         assert resp.json()["description"] == "新描述"
 
     def test_user_cannot_update_forum(self, forum_client, admin_forum_client):
-        create_resp = admin_forum_client.create_forum("受保护论坛", "描述")
+        create_resp = admin_forum_client.create_forum(self._unique_name("受保护论坛"), "描述")
+        assert create_resp.status_code == 201
         fid = create_resp.json()["forumID"]
         resp = forum_client.update_forum(fid, "恶意修改", "恶意描述")
         assert resp.status_code == 403
@@ -140,6 +148,41 @@ class TestPostList:
         for post in resp.json():
             assert "教程" in post["tags"]
 
+    def test_filter_posts_by_multiple_tags(self, forum_client):
+        forum_id = forum_client.get_forums().json()[0]["forumID"]
+        create_resp = forum_client.create_post(
+            forum_id, "标签筛选帖子", "验证多标签筛选", tag_names=["标签A", "标签B"]
+        )
+        assert create_resp.status_code == 201
+
+        resp = forum_client.get_posts(tags="标签A, 标签B", tagOp="and")
+        assert resp.status_code == 200
+        post_ids = [post["postID"] for post in resp.json()]
+        assert create_resp.json()["postID"] in post_ids
+
+    def test_filter_posts_by_multiple_tags_with_or(self, forum_client):
+        forum_id = forum_client.get_forums().json()[0]["forumID"]
+        first = forum_client.create_post(
+            forum_id, "OR 标签筛选帖子甲", "验证 OR 标签筛选", tag_names=["OR标签甲"]
+        )
+        second = forum_client.create_post(
+            forum_id, "OR 标签筛选帖子乙", "验证 OR 标签筛选", tag_names=["OR标签乙"]
+        )
+        assert first.status_code == 201
+        assert second.status_code == 201
+
+        resp = forum_client.get_posts(tags="OR标签甲,OR标签乙", tagOp="or")
+        assert resp.status_code == 200
+        post_ids = {post["postID"] for post in resp.json()}
+        assert {first.json()["postID"], second.json()["postID"]} <= post_ids
+
+    def test_filter_posts_by_heat_range(self, forum_client):
+        resp = forum_client.get_posts(minHeat=0, maxHeat=999999)
+        assert resp.status_code == 200
+        posts = resp.json()
+        if posts:
+            assert all(isinstance(post["heatScore"], int) for post in posts)
+
     def test_sort_by_latest(self, forum_client):
         resp = forum_client.get_posts(sort="latest")
         assert resp.status_code == 200
@@ -150,6 +193,30 @@ class TestPostList:
     def test_sort_by_hot(self, forum_client):
         resp = forum_client.get_posts(sort="hot")
         assert resp.status_code == 200
+
+    def test_get_posts_returns_total_count(self, forum_client):
+        resp = forum_client.get_posts(page=1, pageSize=1)
+        assert resp.status_code == 200
+        assert "x-total-count" in {key.lower() for key in resp.headers}
+        assert int(resp.headers["X-Total-Count"]) >= len(resp.json())
+        assert len(resp.json()) <= 1
+
+    @pytest.mark.parametrize("params", [
+        {"sort": "unknown"},
+        {"tagOp": "xor"},
+        {"from": "2026-07-29T00:00:00", "to": "2026-07-28T00:00:00"},
+        {"minHeat": 10, "maxHeat": 9},
+        {"minHeat": -1},
+        {"maxHeat": -1},
+    ])
+    def test_invalid_post_filters_are_rejected(self, forum_client, params):
+        resp = forum_client.get_posts(**params)
+        assert resp.status_code == 400
+
+    def test_status_filter_is_case_insensitive(self, forum_client):
+        resp = forum_client.get_posts(status="aCtIvE")
+        assert resp.status_code == 200
+        assert all(post["status"] == "Active" for post in resp.json())
 
     def test_unauthenticated_can_list_posts(self, forum_client):
         forum_client.post("/api/auth/logout")
@@ -511,3 +578,18 @@ class TestTags:
         assert isinstance(tags, list)
         for tag in tags:
             assert "分享" in tag
+
+    def test_get_tag_stats(self, forum_client):
+        resp = forum_client.get_tag_stats(top=5)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) <= 5
+        if data:
+            sample = data[0]
+            assert "tagID" in sample
+            assert "tagName" in sample
+            assert "postCount" in sample
+            assert sample["postCount"] > 0
+        counts = [item["postCount"] for item in data]
+        assert counts == sorted(counts, reverse=True)

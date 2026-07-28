@@ -88,6 +88,7 @@ export const deleteComment = (commentId) => api.delete(`/comments/${commentId}`)
 export const getMyPosts = () => api.get('/posts/me')
 export const getTags = (keyword = '') => api.get('/tags', { params: { keyword } })
 export const suggestTags = (data) => api.post('/tags/suggest', data)
+export const getTagStats = (top = 10) => api.get('/tags/stats', { params: { top } })
 export const getFavoriteFolders = () => api.get('/favorite-folders')
 export const createFavoriteFolder = (data) => api.post('/favorite-folders', data)
 export const updateFavoriteFolder = (folderId, data) => api.put(`/favorite-folders/${folderId}`, data)
@@ -146,4 +147,3 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
 export const getHealth = () => api.get('/health')
 
 export default api
-
