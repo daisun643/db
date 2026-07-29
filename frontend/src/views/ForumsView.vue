@@ -2,12 +2,9 @@
   <div class="page-container forum-page">
     <section class="forum-hero">
       <div class="forum-hero-copy">
-        <span class="forum-eyebrow"><i></i>COMMUNITY FORUM</span>
-        <h1>让校园里的每个声音，<span>都被看见。</span></h1>
-        <p>分享经验、发起讨论、寻找同好。这里收集真实而鲜活的校园日常，也欢迎你的下一条动态。</p>
-        <button class="forum-hero-action" type="button" @click="openComposer">
-          <span>＋</span> 发布新帖子
-        </button>
+        <span class="forum-eyebrow"><i></i>校园论坛</span>
+        <h1>发现讨论，<span>分享校园生活。</span></h1>
+        <p>浏览校园里的新鲜话题，或分享你的经验与想法。</p>
       </div>
       <div class="forum-pulse-card">
         <span class="pulse-label">COMMUNITY PULSE</span>
@@ -82,21 +79,35 @@
 
       <main class="forum-main">
         <div class="feed-toolbar">
-          <div class="toolbar">
-            <input v-model="filters.keyword" type="search" placeholder="搜索标题或内容" @keyup.enter="applyFilters" />
-            <input v-model="filters.tag" type="search" placeholder="单个标签" @keyup.enter="applyFilters" />
-            <select v-model="filters.sort" @change="applyFilters">
-              <option value="latest">最新</option>
-              <option value="hot">热度</option>
-            </select>
-            <button class="btn btn-primary" @click="applyFilters">筛选</button>
+          <div class="feed-heading">
+            <div>
+              <h2>全部讨论</h2>
+              <p>共 {{ totalPosts }} 条帖子</p>
+            </div>
+            <button class="compose-trigger" @click="openComposer"><span aria-hidden="true">＋</span> 发布帖子</button>
           </div>
-          <button class="compose-trigger" @click="openComposer">发布帖子</button>
+          <div class="toolbar">
+            <label class="search-field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" />
+              </svg>
+              <input v-model="filters.keyword" type="search" placeholder="搜索帖子标题或内容" @keyup.enter="applyFilters" />
+            </label>
+            <select v-model="filters.sort" aria-label="帖子排序" @change="applyFilters">
+              <option value="latest">最新发布</option>
+              <option value="hot">最多互动</option>
+            </select>
+            <button class="search-submit" @click="applyFilters">搜索</button>
+          </div>
         </div>
 
         <details class="advanced-search">
-          <summary>高级筛选：多个标签、时间与热度</summary>
+          <summary><span>更多筛选</span><small>标签、时间与热度</small></summary>
           <div class="advanced-search-grid">
+            <label>
+              单个标签
+              <input v-model="filters.tag" type="search" placeholder="例如：课程" @keyup.enter="applyFilters" />
+            </label>
             <label>
               多个标签（逗号分隔）
               <input v-model="filters.tags" type="text" placeholder="如：数据库, 课程设计" @keyup.enter="applyFilters" />
@@ -319,44 +330,63 @@
 
     <div v-if="composerOpen" class="detail-backdrop" @click.self="closeComposer">
       <form class="post-detail-panel composer-modal" @submit.prevent="handleCreatePost">
-        <div class="modal-header">
-          <button class="icon-button" type="button" @click="closeComposer" aria-label="关闭发布窗口">
-            <span>×</span>
-          </button>
-          <button class="compose-submit" type="submit" :disabled="submitting">
-            {{ submitting ? '发布中...' : '发布' }}
-          </button>
+        <div class="composer-header">
+          <div>
+            <span class="composer-kicker">新建帖子</span>
+            <h2>分享你的想法</h2>
+            <p>选择合适的版块，清楚地描述你想讨论的内容。</p>
+          </div>
+          <button class="icon-button" type="button" @click="closeComposer" aria-label="关闭发布窗口">×</button>
         </div>
         <div class="composer-shell">
           <div class="composer-avatar">{{ userInitial }}</div>
           <div class="composer-fields">
-            <select v-model.number="postForm.forumID" required>
-              <option disabled value="">选择版块</option>
-              <option v-for="forum in forums" :key="forum.forumID" :value="forum.forumID">
-                {{ forum.forumName }}
-              </option>
-            </select>
-            <input v-model="postForm.title" type="text" placeholder="帖子标题" required />
-            <textarea v-model="postForm.content" placeholder="有什么新鲜事？" required autofocus></textarea>
-            <div class="composer-row">
-              <input v-model="tagText" type="text" placeholder="标签，用逗号分隔" />
-              <input
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                :disabled="submitting"
-                @change="handlePickCreateImages"
-              />
+            <div class="composer-meta-row">
+              <label>
+                <span>发布到</span>
+                <select v-model.number="postForm.forumID" required>
+                  <option disabled value="">选择版块</option>
+                  <option v-for="forum in forums" :key="forum.forumID" :value="forum.forumID">
+                    {{ forum.forumName }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>标签</span>
+                <input v-model="tagText" type="text" placeholder="用逗号分隔" />
+              </label>
             </div>
+            <label class="composer-field">
+              <span>标题</span>
+              <input v-model="postForm.title" type="text" placeholder="用一句话概括你想讨论的内容" required />
+            </label>
+            <label class="composer-field">
+              <span>正文</span>
+              <textarea v-model="postForm.content" placeholder="补充背景、细节或你的看法…" required autofocus></textarea>
+            </label>
             <div v-if="createImagePreviewUrls.length" class="image-strip">
               <div v-for="(url, index) in createImagePreviewUrls" :key="url" class="image-preview-item">
                 <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
                 <button type="button" class="image-remove" @click="removeCreateImage(index)">移除</button>
               </div>
             </div>
-            <p class="field-hint">最多可上传 6 张，单张不超过 5MB，仅支持 JPG/PNG/GIF/WebP。</p>
-            <div class="composer-tools">
-              <button class="link-button" type="button" @click="handleSuggestTags">推荐标签</button>
+            <div class="composer-footer">
+              <div class="composer-tools">
+                <label class="upload-button">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    :disabled="submitting"
+                    @change="handlePickCreateImages"
+                  />
+                  <span>添加图片</span>
+                </label>
+                <button class="tag-suggest-button" type="button" @click="handleSuggestTags">推荐标签</button>
+              </div>
+              <button class="compose-submit" type="submit" :disabled="submitting">
+                {{ submitting ? '发布中…' : '发布帖子' }}
+              </button>
             </div>
           </div>
         </div>
@@ -2157,6 +2187,90 @@ onMounted(async () => {
 }
 </style>
 
+<style scoped>
+/* Forum information hierarchy */
+.forum-page .forum-layout { grid-template-columns: 220px minmax(0, 1fr); gap: 1.25rem; }
+.forum-page .forum-sidebar { position: sticky; top: 1rem; padding: .75rem; border-radius: 14px; background: #fff; box-shadow: none; }
+.forum-page .section-title { padding: .45rem .65rem .55rem; color: #8990a0; font-size: .68rem; font-weight: 700; letter-spacing: .08em; }
+.forum-page .forum-filter { min-height: 40px; margin: .1rem 0; padding: .6rem .7rem; border-radius: 9px; }
+.forum-page .forum-filter.active { color: #5145bf; background: #f0effc; }
+
+.forum-page .feed-toolbar { position: static; display: block; padding: 1.15rem; border: 1px solid var(--border); border-radius: 14px; background: #fff; box-shadow: none; }
+.feed-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+.feed-heading h2 { color:#171d2e; font-size:1.05rem; }
+.feed-heading p { margin-top:.15rem; color:var(--text-secondary); font-size:.75rem; }
+.forum-page .compose-trigger { gap:.35rem; padding:.62rem .9rem; border-radius:9px; background:var(--primary); box-shadow:none; font-size:.82rem; }
+.forum-page .compose-trigger span { font-size:1rem; font-weight:500; line-height:1; }
+
+.forum-page .toolbar { display:grid; grid-template-columns:minmax(240px,1fr) 132px auto; gap:.6rem; }
+.forum-page .search-field { min-width:0; display:flex; align-items:center; gap:.55rem; padding:0 .75rem; border:1px solid #dfe2e8; border-radius:9px; background:#f8f9fb; }
+.forum-page .search-field:focus-within { border-color:#7463ee; background:#fff; box-shadow:0 0 0 3px rgba(105,87,245,.09); }
+.forum-page .search-field svg { width:17px; height:17px; flex:0 0 auto; color:#8b93a3; }
+.forum-page .search-field input { width:100%; min-width:0; padding:.68rem 0; border:0; border-radius:0; outline:0; background:transparent; box-shadow:none; }
+.forum-page .search-field input:focus { border:0; box-shadow:none; }
+.forum-page .toolbar > select { min-width:0; padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; color:#4c5567; background:#fff; }
+.forum-page .search-submit { padding:.68rem 1rem; border:0; border-radius:9px; color:#fff; background:#2c3344; font:inherit; font-size:.82rem; font-weight:650; cursor:pointer; }
+.forum-page .search-submit:hover { background:#171d2e; }
+
+.forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.forum-page .advanced-search summary { display:flex; align-items:center; gap:.55rem; padding:.78rem 1rem; color:#424a5c; font-size:.8rem; font-weight:650; cursor:pointer; }
+.forum-page .advanced-search summary small { color:#9aa1af; font-size:.7rem; font-weight:400; }
+.forum-page .advanced-search[open] summary { border-bottom:1px solid var(--border); }
+.forum-page .advanced-search-grid { padding:1rem; }
+.forum-page .advanced-search-actions { justify-content:flex-end; margin:0; padding:0 1rem 1rem; }
+
+.forum-page .post-list { gap:.65rem; margin-top:.9rem; }
+.forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.forum-page .post-item + .post-item { border-top:1px solid var(--border); }
+.forum-page .post-item:hover, .forum-page .post-item:focus-visible { transform:none; border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
+.forum-page .post-meta { gap:.5rem; }
+.forum-page .post-meta > span:first-child { padding:.2rem .48rem; border-radius:6px; color:#5b4dcc; background:#f0effc; font-weight:650; }
+.forum-page .post-title-button { margin:.65rem 0 .35rem; font-size:1.08rem; }
+.forum-page .post-item p { font-size:.86rem; line-height:1.6; }
+
+/* Post composer */
+.forum-page .composer-modal { width:min(720px, calc(100vw - 2rem)); max-width:720px; border:0; border-radius:16px; overflow:hidden; }
+.composer-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.35rem 1.5rem 1.2rem; border-bottom:1px solid var(--border); background:#fff; }
+.composer-kicker { display:block; margin-bottom:.25rem; color:var(--primary); font-size:.66rem; font-weight:750; letter-spacing:.08em; }
+.composer-header h2 { color:#171d2e; font-size:1.25rem; letter-spacing:-.02em; }
+.composer-header p { margin-top:.25rem; color:var(--text-secondary); font-size:.78rem; }
+.composer-header .icon-button { width:32px; height:32px; flex:0 0 auto; color:#697184; font-size:1.2rem; }
+.forum-page .composer-shell { display:block; padding:1.4rem 1.5rem 1.5rem; }
+.forum-page .composer-avatar { display:none; }
+.forum-page .composer-fields { gap:1rem; }
+.composer-meta-row { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; }
+.composer-meta-row label, .composer-field { display:flex; flex-direction:column; gap:.4rem; color:#4c5567; font-size:.76rem; font-weight:650; }
+.forum-page .composer-fields :is(input, select, textarea) { width:100%; padding:.72rem .8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; font-size:.88rem; font-weight:400; }
+.forum-page .composer-fields textarea { min-height:190px; padding:.8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; resize:vertical; }
+.forum-page .composer-fields :is(input, select, textarea):focus { border-color:#7463ee; outline:none; box-shadow:0 0 0 3px rgba(105,87,245,.09); }
+.composer-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-top:1rem; border-top:1px solid var(--border); }
+.forum-page .composer-tools { display:flex; align-items:center; gap:.55rem; padding:0; }
+.upload-button, .tag-suggest-button { min-height:36px; display:inline-flex; align-items:center; padding:.5rem .7rem; border:1px solid #dfe2e8; border-radius:8px; color:#566074; background:#fff; font:inherit; font-size:.76rem; font-weight:600; cursor:pointer; }
+.upload-button input { display:none; }
+.upload-button:hover, .tag-suggest-button:hover { color:var(--primary); border-color:#c8c4ee; background:#f7f6ff; }
+.forum-page .compose-submit { min-height:38px; padding:.58rem 1rem; border-radius:9px; background:var(--primary); box-shadow:none; font-size:.8rem; }
+
+@media(max-width:820px){
+  .forum-page .forum-layout { grid-template-columns:1fr; }
+  .forum-page .forum-sidebar { position:static; }
+}
+@media(max-width:640px){
+  .forum-page .feed-toolbar { padding:1rem; }
+  .feed-heading { align-items:flex-start; }
+  .forum-page .toolbar { display:grid; grid-template-columns:1fr auto; }
+  .forum-page .search-field { grid-column:1 / -1; }
+  .forum-page .toolbar > select { width:100%; }
+  .forum-page .advanced-search-grid { padding:.8rem; }
+  .composer-header { padding:1rem; }
+  .composer-header p { display:none; }
+  .forum-page .composer-shell { padding:1rem; }
+  .composer-meta-row { grid-template-columns:1fr; }
+  .composer-footer { align-items:stretch; flex-direction:column; }
+  .forum-page .composer-tools { display:grid; grid-template-columns:1fr 1fr; }
+  .upload-button, .tag-suggest-button, .forum-page .compose-submit { justify-content:center; width:100%; }
+}
+</style>
+
 <style>
 .comment-form {
   display: flex;
@@ -2541,4 +2655,32 @@ onMounted(async () => {
 @media (max-width: 640px) {
   .forum-page .comment-children { margin-left: 18px; padding-left: .7rem; }
 }
+</style>
+
+<style scoped>
+/* Last-pass overrides for legacy forum theme. */
+.forum-page .forum-layout { grid-template-columns:220px minmax(0,1fr); gap:1.25rem; }
+.forum-page .forum-sidebar { padding:.75rem; border-radius:14px; box-shadow:none; }
+.forum-page .section-title { padding:.45rem .65rem .55rem; color:#8990a0; font-size:.68rem; letter-spacing:.08em; }
+.forum-page .forum-filter { min-height:40px; margin:.1rem 0; padding:.6rem .7rem; border-radius:9px; }
+.forum-page .feed-toolbar { position:static; display:block; padding:1.15rem; border:1px solid var(--border); border-radius:14px; background:#fff; box-shadow:none; backdrop-filter:none; }
+.forum-page .toolbar { display:grid; grid-template-columns:minmax(240px,1fr) 132px auto; gap:.6rem; }
+.forum-page .search-field input { padding:.68rem 0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.forum-page .search-field input:focus { border:0; box-shadow:none; }
+.forum-page .toolbar > select { padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
+.forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.forum-page .advanced-search summary { padding:.78rem 1rem; color:#424a5c; }
+.forum-page .post-list { gap:.65rem; margin-top:.9rem; }
+.forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.forum-page .post-item + .post-item { border-top:1px solid var(--border); }
+.forum-page .post-item:hover, .forum-page .post-item:focus-visible { transform:none; border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
+.forum-page .post-title-button { margin:.65rem 0 .35rem; font-size:1.08rem; }
+.forum-page .composer-modal { max-width:720px; border:0; border-radius:16px; }
+.forum-page .composer-shell { display:block; padding:1.4rem 1.5rem 1.5rem; }
+.forum-page .composer-avatar { display:none; }
+.forum-page .composer-fields :is(input, select, textarea) { padding:.72rem .8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; box-shadow:none; }
+.forum-page .composer-fields textarea { min-height:190px; padding:.8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
+.forum-page .compose-trigger, .forum-page .compose-submit { border-radius:9px; background:var(--primary); box-shadow:none; }
+@media(max-width:820px){.forum-page .forum-layout{grid-template-columns:1fr}}
+@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .composer-shell{padding:1rem}}
 </style>
