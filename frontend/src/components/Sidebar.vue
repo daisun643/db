@@ -4,7 +4,12 @@
       <span class="brand-mark">同</span>
       <span v-if="!isCollapsed" class="brand-copy"><strong>同济校园</strong><small>Campus Hub</small></span>
     </router-link>
-    <button class="toggle-btn" @click="toggleSidebar" aria-label="切换侧边栏">
+    <button
+      class="toggle-btn"
+      @click="toggleSidebar"
+      :aria-label="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+    >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M15 18l-6-6 6-6" v-if="!isCollapsed" />
         <path d="M9 18l6-6-6-6" v-else />
@@ -13,7 +18,7 @@
 
     <nav class="sidebar-nav">
       <div class="nav-section">
-        <router-link to="/" class="nav-item">
+        <router-link to="/" class="nav-item" title="首页">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             <polyline points="9 22 9 12 15 12 15 22" />
@@ -21,14 +26,14 @@
           <span class="nav-label" v-if="!isCollapsed">首页</span>
         </router-link>
 
-        <router-link v-if="canAccess('/forums')" to="/forums" class="nav-item">
+        <router-link v-if="canAccess('/forums')" to="/forums" class="nav-item" title="论坛">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span class="nav-label" v-if="!isCollapsed">论坛</span>
         </router-link>
 
-        <router-link v-if="canAccess('/products')" to="/products" class="nav-item">
+        <router-link v-if="canAccess('/products')" to="/products" class="nav-item" title="交易">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1" />
             <circle cx="20" cy="21" r="1" />
@@ -37,7 +42,7 @@
           <span class="nav-label" v-if="!isCollapsed">交易</span>
         </router-link>
 
-        <router-link to="/finance" class="nav-item">
+        <router-link to="/finance" class="nav-item" title="资金流水">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
@@ -45,7 +50,7 @@
           <span class="nav-label" v-if="!isCollapsed">资金流水</span>
         </router-link>
 
-        <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item">
+        <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item" title="消息">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
             <polyline points="22,6 12,13 2,6" />
@@ -53,7 +58,7 @@
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
 
-        <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item">
+        <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item" title="系统状态">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -63,7 +68,7 @@
       </div>
 
       <div class="user-section">
-        <div class="user-profile" @click="$router.push('/profile')">
+        <div class="user-profile" title="个人资料" @click="$router.push('/profile')">
           <div class="user-avatar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -96,7 +101,7 @@ import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAcc
 
 const authStore = useAuthStore()
 const router = useRouter()
-const isCollapsed = ref(false)
+const isCollapsed = ref(true)
 const routeAccess = ref({})
 
 const toggleSidebar = () => {
@@ -130,7 +135,6 @@ const handleLogout = async () => {
 }
 
 onMounted(() => {
-  isCollapsed.value = window.innerWidth <= 900
   updateRouteAccess()
 })
 

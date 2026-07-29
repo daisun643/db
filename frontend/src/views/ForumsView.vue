@@ -143,77 +143,18 @@
         </details>
 
         <div v-if="loading" class="loading">加载中...</div>
-        <div v-else class="post-list">
-          <article
+        <div v-else class="post-list masonry-feed">
+          <ForumPostCard
             v-for="post in posts"
             :key="post.postID"
-            class="post-item"
-            role="button"
-            tabindex="0"
-            @click="openPostDetail(post)"
-            @keydown.enter="openPostDetail(post)"
-          >
-            <div class="post-meta">
-              <span>{{ post.forumName || '未分区' }}</span>
-              <span>{{ post.username || '匿名用户' }}</span>
-              <span>{{ formatDate(post.createTime) }}</span>
-              <span :class="['badge', post.status === 'Active' ? 'badge-green' : 'badge-yellow']">
-                {{ post.status }}
-              </span>
-            </div>
-            <button class="post-title-button" @click.stop="openPostDetail(post)">
-              {{ post.title }}
-            </button>
-            <p>{{ post.contentPreview }}</p>
-            <div v-if="post.imageUrls?.length" class="image-strip">
-              <img v-for="url in post.imageUrls.slice(0, 3)" :key="url" :src="url" alt="" loading="lazy" />
-            </div>
-            <div class="tag-row">
-              <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
-            </div>
-            <div class="post-actions">
-              <span
-                v-for="metric in postMetricItems(post)"
-                :key="metric.key"
-                class="post-metric"
-                :title="metric.label"
-                :aria-label="`${metric.label} ${metric.value}`"
-              >
-                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
-                <span>{{ metric.value }}</span>
-              </span>
-              <button
-                :class="['post-icon-action', { liked: post.isLiked }]"
-                @click.stop="handleLike(post)"
-                :title="post.isLiked ? '取消点赞' : '点赞'"
-                :aria-label="post.isLiked ? '取消点赞' : '点赞'"
-              >
-                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
-              </button>
-              <button class="post-icon-action" @click.stop="openPostDetail(post)" title="查看详情" aria-label="查看详情">
-                <span class="post-action-svg" :style="iconMaskStyle(openIcon)" aria-hidden="true"></span>
-              </button>
-              <button
-                :class="['post-icon-action', { favorited: post.isFavorited }]"
-                @click.stop="handleFavorite(post)"
-                :disabled="!post.isFavorited && favoriteFolders.length === 0"
-                :title="post.isFavorited ? '取消收藏' : '收藏'"
-                :aria-label="post.isFavorited ? '取消收藏' : '收藏'"
-              >
-                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
-              </button>
-              <button class="post-icon-action danger" @click.stop="openReport(post)" title="举报" aria-label="举报">
-                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
-              </button>
-            </div>
-          </article>
+            :post="post"
+            @open="openPostDetail"
+            @like="handleLike"
+            @favorite="handleFavorite"
+            @report="openReport"
+          />
           <div v-if="posts.length === 0" class="empty-state">
             <p>暂无帖子</p>
-          </div>
-          <div v-if="totalPosts > 0" class="pagination-row">
-            <button class="btn" :disabled="filters.page <= 1" @click="loadPosts(filters.page - 1)">上一页</button>
-            <span>第 {{ filters.page }} 页 · 共 {{ totalPosts }} 条</span>
-            <button class="btn" :disabled="!hasNextPage" @click="loadPosts(filters.page + 1)">下一页</button>
           </div>
         </div>
       </main>
@@ -221,32 +162,17 @@
 
     <div v-else-if="activeTab === 'my-posts'" class="tab-content">
       <div v-if="loadingMyPosts" class="loading">加载中...</div>
-      <div v-else class="post-list">
-        <article
+      <div v-else class="post-list masonry-feed personal-feed">
+        <ForumPostCard
           v-for="post in myPosts"
           :key="post.postID"
-          class="post-item"
-          role="button"
-          tabindex="0"
-          @click="openPostDetail(post)"
-          @keydown.enter="openPostDetail(post)"
-        >
-          <div class="post-meta">
-            <span>{{ post.forumName || '未分区' }}</span>
-            <span>{{ formatDate(post.createTime) }}</span>
-            <span :class="['badge', post.status === 'Active' ? 'badge-green' : 'badge-yellow']">
-              {{ post.status }}
-            </span>
-          </div>
-          <button class="post-title-button" @click.stop="openPostDetail(post)">
-            {{ post.title }}
-          </button>
-          <p>{{ post.contentPreview }}</p>
-          <div class="post-actions">
-            <button class="link-button" @click.stop="openEditPost(post)">编辑</button>
-            <button class="link-button danger" @click.stop="handleDeletePost(post)">删除</button>
-          </div>
-        </article>
+          :post="post"
+          mode="mine"
+          @open="openPostDetail"
+          @like="handleLike"
+          @edit="openEditPost"
+          @delete="handleDeletePost"
+        />
         <div v-if="myPosts.length === 0" class="empty-state">
           <p>暂无帖子</p>
         </div>
@@ -301,26 +227,16 @@
           <p>选择一个收藏夹查看帖子</p>
         </div>
         <div v-else-if="loadingFavorites" class="loading">加载中...</div>
-        <div v-else class="post-list">
-          <article
+        <div v-else class="post-list masonry-feed">
+          <ForumPostCard
             v-for="post in favoritePosts"
             :key="post.postID"
-            class="post-item"
-            role="button"
-            tabindex="0"
-            @click="openPostDetail(post)"
-            @keydown.enter="openPostDetail(post)"
-          >
-            <div class="post-meta">
-              <span>{{ post.forumName || '未分区' }}</span>
-              <span>{{ post.username || '匿名用户' }}</span>
-            </div>
-            <button class="post-title-button" @click.stop="openPostDetail(post)">
-              {{ post.title }}
-            </button>
-            <p>{{ post.contentPreview }}</p>
-            <button class="link-button danger" @click.stop="handleRemoveFavorite(post)">取消收藏</button>
-          </article>
+            :post="post"
+            mode="favorite"
+            @open="openPostDetail"
+            @like="handleLike"
+            @remove-favorite="handleRemoveFavorite"
+          />
           <div v-if="favoritePosts.length === 0" class="empty-state">
             <p>暂无收藏帖子</p>
           </div>
@@ -582,6 +498,7 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import ForumPostCard from '../components/ForumPostCard.vue'
 import bookmarkIcon from '../assets/icons/bookmark.svg'
 import commentIcon from '../assets/icons/comment.svg'
 import editIcon from '../assets/icons/edit.svg'
@@ -589,7 +506,6 @@ import eyeIcon from '../assets/icons/eye.svg'
 import flagIcon from '../assets/icons/flag.svg'
 import flameIcon from '../assets/icons/flame.svg'
 import heartIcon from '../assets/icons/heart.svg'
-import openIcon from '../assets/icons/open.svg'
 import {
   addPostToFavoriteFolder,
   createComment,
@@ -702,11 +618,8 @@ const filters = ref({
   minHeat: null,
   maxHeat: null,
   sort: 'latest',
-  page: 1,
-  pageSize: 20,
 })
 const totalPosts = ref(0)
-const hasNextPage = ref(false)
 
 const postForm = ref({
   forumID: '',
@@ -727,11 +640,10 @@ const loadForums = async () => {
   }
 }
 
-const loadPosts = async (page = filters.value.page) => {
+const loadPosts = async () => {
   try {
     loading.value = true
     error.value = null
-    filters.value.page = Math.max(1, Number(page) || 1)
     const res = await getPosts({
       forumId: filters.value.forumId || undefined,
       keyword: filters.value.keyword.trim() || undefined,
@@ -743,17 +655,16 @@ const loadPosts = async (page = filters.value.page) => {
       minHeat: Number.isFinite(filters.value.minHeat) ? filters.value.minHeat : undefined,
       maxHeat: Number.isFinite(filters.value.maxHeat) ? filters.value.maxHeat : undefined,
       sort: filters.value.sort,
-      page: filters.value.page,
-      pageSize: filters.value.pageSize,
+      page: 1,
+      pageSize: 50,
     })
     posts.value = Array.isArray(res.data) ? res.data : []
     const totalFromHeader = Number(res.headers?.['x-total-count'])
-    totalPosts.value = Number.isFinite(totalFromHeader) ? totalFromHeader : posts.value.length
-    hasNextPage.value = filters.value.page * filters.value.pageSize < totalPosts.value
+    const hasTotalHeader = Number.isFinite(totalFromHeader)
+    totalPosts.value = hasTotalHeader ? totalFromHeader : posts.value.length
   } catch (e) {
     posts.value = []
     totalPosts.value = 0
-    hasNextPage.value = false
     error.value = '无法加载帖子数据: ' + (e.response?.data?.message || e.message)
   } finally {
     loading.value = false
@@ -796,7 +707,6 @@ const loadFavoritePosts = async () => {
 
 const selectForum = async (forumId) => {
   filters.value.forumId = forumId
-  filters.value.page = 1
   await loadPosts()
 }
 
@@ -815,12 +725,10 @@ const selectTag = async (tagName) => {
   } else {
     filters.value.tag = tagName
   }
-  filters.value.page = 1
   await loadPosts()
 }
 
 const applyFilters = async () => {
-  filters.value.page = 1
   await loadPosts()
 }
 
@@ -836,8 +744,6 @@ const resetFilters = async () => {
     minHeat: null,
     maxHeat: null,
     sort: 'latest',
-    page: 1,
-    pageSize: 20,
   }
   await loadPosts()
 }
@@ -2220,6 +2126,8 @@ onMounted(async () => {
 .forum-page .advanced-search-actions { justify-content:flex-end; margin:0; padding:0 1rem 1rem; }
 
 .forum-page .post-list { gap:.65rem; margin-top:.9rem; }
+.forum-page .masonry-feed { display:block; column-width:230px; column-gap:1rem; }
+.forum-page .masonry-feed > .empty-state { column-span:all; }
 .forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
 .forum-page .post-item + .post-item { border-top:1px solid var(--border); }
 .forum-page .post-item:hover, .forum-page .post-item:focus-visible { transform:none; border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
@@ -2476,19 +2384,13 @@ onMounted(async () => {
   font-size: 0.8rem;
 }
 
-.advanced-search-actions, .pagination-row {
+.advanced-search-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
 
-.pagination-row {
-  justify-content: center;
-  padding: 1rem 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
 
 @media (max-width: 760px) {
   .advanced-search-grid { grid-template-columns: 1fr; }
@@ -2586,7 +2488,6 @@ onMounted(async () => {
 .forum-page .post-icon-action:hover, .forum-page .post-icon-action:focus-visible { color: #6654e8; background: #f0eeff; }
 .forum-page .image-strip { overflow: hidden; border-radius: 15px; }
 .forum-page .image-strip img { border: 0; border-radius: 0; }
-.forum-page .pagination-row { padding: 1rem; border-radius: 16px; background: #fff; }
 .forum-page .empty-state { border: 1px dashed #d9dbe5; border-radius: 20px; background: #fafaff; }
 
 .forum-page .folder-create-form { display: grid; grid-template-columns: 1fr; }
@@ -2659,7 +2560,7 @@ onMounted(async () => {
 
 <style scoped>
 /* Last-pass overrides for legacy forum theme. */
-.forum-page .forum-layout { grid-template-columns:220px minmax(0,1fr); gap:1.25rem; }
+.forum-page .forum-layout { grid-template-columns:210px minmax(0,1fr); gap:1.25rem; }
 .forum-page .forum-sidebar { padding:.75rem; border-radius:14px; box-shadow:none; }
 .forum-page .section-title { padding:.45rem .65rem .55rem; color:#8990a0; font-size:.68rem; letter-spacing:.08em; }
 .forum-page .forum-filter { min-height:40px; margin:.1rem 0; padding:.6rem .7rem; border-radius:9px; }
@@ -2671,6 +2572,7 @@ onMounted(async () => {
 .forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
 .forum-page .advanced-search summary { padding:.78rem 1rem; color:#424a5c; }
 .forum-page .post-list { gap:.65rem; margin-top:.9rem; }
+.forum-page .masonry-feed { display:block; column-width:230px; column-gap:1rem; }
 .forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
 .forum-page .post-item + .post-item { border-top:1px solid var(--border); }
 .forum-page .post-item:hover, .forum-page .post-item:focus-visible { transform:none; border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
@@ -2682,5 +2584,5 @@ onMounted(async () => {
 .forum-page .composer-fields textarea { min-height:190px; padding:.8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
 .forum-page .compose-trigger, .forum-page .compose-submit { border-radius:9px; background:var(--primary); box-shadow:none; }
 @media(max-width:820px){.forum-page .forum-layout{grid-template-columns:1fr}}
-@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .composer-shell{padding:1rem}}
+@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .composer-shell{padding:1rem}.forum-page .masonry-feed{column-width:128px;column-gap:.65rem}}
 </style>
