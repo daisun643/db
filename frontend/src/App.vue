@@ -28,7 +28,7 @@ const authStore = useAuthStore()
 
 .main-content {
   margin-left: 260px;
-  padding: 2rem;
+  padding: 2rem clamp(1.5rem, 3vw, 3rem);
   transition: margin-left 0.3s ease;
   background: var(--bg);
   min-height: 100vh;

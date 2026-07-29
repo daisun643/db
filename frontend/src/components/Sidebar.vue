@@ -1,5 +1,9 @@
 <template>
   <aside :class="['sidebar', { collapsed: isCollapsed }]">
+    <router-link to="/" class="sidebar-brand" aria-label="返回首页">
+      <span class="brand-mark">同</span>
+      <span v-if="!isCollapsed" class="brand-copy"><strong>同济校园</strong><small>Campus Hub</small></span>
+    </router-link>
     <button class="toggle-btn" @click="toggleSidebar" aria-label="切换侧边栏">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M15 18l-6-6 6-6" v-if="!isCollapsed" />
@@ -92,7 +96,7 @@ import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAcc
 
 const authStore = useAuthStore()
 const router = useRouter()
-const isCollapsed = ref(true)
+const isCollapsed = ref(false)
 const routeAccess = ref({})
 
 const toggleSidebar = () => {
@@ -125,7 +129,10 @@ const handleLogout = async () => {
   router.push('/login')
 }
 
-onMounted(updateRouteAccess)
+onMounted(() => {
+  isCollapsed.value = window.innerWidth <= 900
+  updateRouteAccess()
+})
 
 watch(
   () => [authStore.isAuthenticated, authStore.user?.roles, authStore.user?.permissions],
@@ -186,9 +193,35 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 1rem 0;
+  padding: 0 0 1rem;
   overflow-y: auto;
 }
+
+.sidebar-brand {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: 0 1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--primary);
+  font-weight: 750;
+}
+
+.brand-copy { display:flex; flex-direction:column; line-height:1.2; white-space:nowrap; }
+.brand-copy strong { font-size:.92rem; }
+.brand-copy small { margin-top:.2rem; color:var(--text-secondary); font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; }
 
 .nav-section {
   flex: 1;
