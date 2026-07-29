@@ -1,6 +1,6 @@
 -- ============================================================
--- 09_enriched_seed_data.sql
--- 覆盖论坛、收藏、媒体、钱包、订单和仲裁的完整演示数据
+-- 06_seed_scenarios.sql
+-- 收藏、媒体、钱包、订单和仲裁等跨模块演示场景
 -- ============================================================
 
 ALTER SESSION SET CONTAINER = XEPDB1;
@@ -51,6 +51,67 @@ INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Pos
 INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '高等数学期末复习资料索引' AND t."tagName" = '分享';
 INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '暑期实习简历互助修改' AND t."tagName" = '经验';
 INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '校园二手交易安全提醒' AND t."tagName" = '推荐';
+
+-- 帖子图片：使用外部演示图片，并通过 MediaFile/PostMedia 维护顺序与归属。
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 0 FROM "Post" p, "MediaFile" m
+WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？'
+  AND m."url" = 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 1 FROM "Post" p, "MediaFile" m
+WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？'
+  AND m."url" = 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 1));
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1567521464027-f127ff144326?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = '食堂新出的菜品测评来了！'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1567521464027-f127ff144326?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 0 FROM "Post" p, "MediaFile" m
+WHERE p."title" = '食堂新出的菜品测评来了！'
+  AND m."url" = 'https://images.unsplash.com/photo-1567521464027-f127ff144326?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = 'Vue 3 + TypeScript 项目搭建教程'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 0 FROM "Post" p, "MediaFile" m
+WHERE p."title" = 'Vue 3 + TypeScript 项目搭建教程'
+  AND m."url" = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = '毕业清仓：教材、考研资料、电子设备'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 0 FROM "Post" p, "MediaFile" m
+WHERE p."title" = '毕业清仓：教材、考研资料、电子设备'
+  AND m."url" = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"
+FROM "Post" p WHERE p."title" = '本周五四平路校区夜跑活动报名'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=80');
+INSERT INTO "PostMedia" ("postId", "mediaId", "displayOrder")
+SELECT p."postId", m."mediaId", 0 FROM "Post" p, "MediaFile" m
+WHERE p."title" = '本周五四平路校区夜跑活动报名'
+  AND m."url" = 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
 
 -- 收藏夹和收藏内容
 INSERT INTO "FavoriteFolder" ("folderName", "createTime", "userId")

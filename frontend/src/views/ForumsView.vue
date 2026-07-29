@@ -2229,8 +2229,8 @@ onMounted(async () => {
 .forum-page .post-item p { font-size:.86rem; line-height:1.6; }
 
 /* Post composer */
-.forum-page .composer-modal { width:min(720px, calc(100vw - 2rem)); max-width:720px; border:0; border-radius:16px; overflow:hidden; }
-.composer-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.35rem 1.5rem 1.2rem; border-bottom:1px solid var(--border); background:#fff; }
+.forum-page .composer-modal { width:min(720px, calc(100vw - 2rem)); max-width:720px; border:0; border-radius:16px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+.composer-header { position:sticky; top:0; z-index:2; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.35rem 1.5rem 1.2rem; border-bottom:1px solid var(--border); background:#fff; }
 .composer-kicker { display:block; margin-bottom:.25rem; color:var(--primary); font-size:.66rem; font-weight:750; letter-spacing:.08em; }
 .composer-header h2 { color:#171d2e; font-size:1.25rem; letter-spacing:-.02em; }
 .composer-header p { margin-top:.25rem; color:var(--text-secondary); font-size:.78rem; }
