@@ -2,9 +2,9 @@
   <div class="page-container product-page">
     <section class="market-hero">
       <div class="market-hero-copy">
-        <span class="market-eyebrow"><i></i>CAMPUS MARKET</span>
-        <h1>校园好物，<span>继续流转。</span></h1>
-        <p>发现同学们的闲置，也让你的物品遇见下一位主人。校园身份、交易锁定与清晰流水，为每次交换保驾护航。</p>
+        <span class="market-eyebrow"><i></i>校园闲置</span>
+        <h1>发现好物，<span>让闲置继续流转。</span></h1>
+        <p>浏览同学发布的商品，安全完成校内交易。</p>
         <div class="market-hero-pills">
           <span>校内实名</span><span>订单锁定</span><span>交易可追溯</span>
         </div>
@@ -53,7 +53,10 @@
           <span class="muted">共 {{ totalProducts }} 件</span>
         </div>
         <form class="market-filter-bar" @submit.prevent="loadProducts">
-          <input v-model="productFilter.keyword" type="text" placeholder="搜索标题 / 描述 / 卖家" />
+          <label class="market-search-field">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" /></svg>
+            <input v-model="productFilter.keyword" type="search" placeholder="搜索商品、描述或卖家" />
+          </label>
           <select v-model="productFilter.status">
             <option value="">全部状态</option>
             <option value="Active">上架中</option>
@@ -76,14 +79,20 @@
             <option value="stock-asc">库存从低到高</option>
             <option value="stock-desc">库存从高到低</option>
           </select>
-          <button class="btn" type="button" @click="resetProductFilters">清空筛选</button>
+          <button class="market-search-submit" type="submit">搜索</button>
+          <button class="market-reset" type="button" @click="resetProductFilters">重置</button>
         </form>
       </section>
 
+      <details class="product-create-panel">
+        <summary><span><strong>发布闲置</strong><small>填写商品信息并上传图片</small></span><b>＋</b></summary>
       <form class="product-form" @submit.prevent="handleCreateProduct">
-        <h2>发布闲置</h2>
+        <label class="product-form-field"><span>商品标题</span>
         <input v-model="productForm.title" type="text" placeholder="商品标题" required />
+        </label>
+        <label class="product-form-field"><span>商品描述</span>
         <textarea v-model="productForm.description" placeholder="商品描述"></textarea>
+        </label>
         <input
           type="file"
           multiple
@@ -119,6 +128,7 @@
           </button>
         </div>
       </form>
+      </details>
 
       <div v-if="loading" class="loading">加载中...</div>
       <div v-else class="product-grid">
@@ -140,15 +150,17 @@
             <span>{{ product.condition || '良好' }}</span>
             <span>{{ product.sellerName || '匿名卖家' }}</span>
           </div>
-          <button class="btn" @click="openProductDetail(product)">查看详情</button>
-          <button
-            class="btn btn-primary"
-            :disabled="product.status !== 'Active' || product.stock <= 0"
-            @click="handleCreateOrder(product)"
-          >
-            下单锁定
-          </button>
-          <button class="link-button danger" @click="openReport(product)">举报商品</button>
+          <div class="product-card-actions">
+            <button class="btn" @click="openProductDetail(product)">查看详情</button>
+            <button
+              class="btn btn-primary"
+              :disabled="product.status !== 'Active' || product.stock <= 0"
+              @click="handleCreateOrder(product)"
+            >
+              下单锁定
+            </button>
+            <button class="link-button danger" @click="openReport(product)">举报</button>
+          </div>
         </article>
         <div v-if="products.length === 0" class="empty-state">
           <p>暂无商品</p>
@@ -1544,4 +1556,43 @@ onMounted(async () => {
   .product-page .row-actions { display: grid; grid-template-columns: repeat(2, 1fr); }
   .product-page .row-actions .btn { width: 100%; }
 }
+</style>
+
+<style scoped>
+/* Marketplace hierarchy */
+.product-page .market-toolbar { padding:1.15rem; border:1px solid var(--border); border-radius:14px; background:#fff; box-shadow:none; }
+.toolbar-title { margin-bottom:1rem; }
+.toolbar-title h2 { color:#171d2e; font-size:1.05rem; }
+.product-page .market-filter-bar { display:grid; grid-template-columns:minmax(260px,1fr) repeat(3,minmax(120px,.42fr)) auto auto; gap:.6rem; }
+.market-search-field { min-width:0; display:flex; align-items:center; gap:.55rem; padding:0 .75rem; border:1px solid #dfe2e8; border-radius:9px; background:#f8f9fb; }
+.market-search-field:focus-within { border-color:#7463ee; background:#fff; box-shadow:0 0 0 3px rgba(105,87,245,.09); }
+.market-search-field svg { width:17px; height:17px; flex:0 0 auto; color:#8b93a3; }
+.product-page .market-search-field input { width:100%; padding:.68rem 0; border:0; border-radius:0; outline:0; background:transparent; box-shadow:none; }
+.product-page .market-search-field input:focus { border:0; box-shadow:none; }
+.product-page .market-filter-bar select { min-width:0; padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
+.market-search-submit, .market-reset { padding:.68rem .9rem; border:0; border-radius:9px; font:inherit; font-size:.8rem; font-weight:650; cursor:pointer; }
+.market-search-submit { color:#fff; background:#2c3344; }
+.market-search-submit:hover { background:#171d2e; }
+.market-reset { color:#626b7d; background:#f0f2f5; }
+.product-create-panel { overflow:hidden; margin-top:.75rem; border:1px solid var(--border); border-radius:14px; background:#fff; }
+.product-create-panel summary { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.15rem; cursor:pointer; list-style:none; }
+.product-create-panel summary::-webkit-details-marker { display:none; }
+.product-create-panel summary span { display:flex; flex-direction:column; }
+.product-create-panel summary strong { color:#252c3d; font-size:.9rem; }
+.product-create-panel summary small { margin-top:.15rem; color:var(--text-secondary); font-size:.72rem; }
+.product-create-panel summary b { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:var(--primary); background:#f0effc; font-size:1rem; transition:transform .2s; }
+.product-create-panel[open] summary { border-bottom:1px solid var(--border); }
+.product-create-panel[open] summary b { transform:rotate(45deg); }
+.product-page .product-create-panel .product-form { margin:0; padding:1.15rem; border:0; border-radius:0; box-shadow:none; background:#fff; }
+.product-form-field { display:flex; flex-direction:column; gap:.4rem; color:#4c5567; font-size:.76rem; font-weight:650; }
+.product-page .product-form-field :is(input,textarea) { width:100%; font-weight:400; }
+.product-page .product-card { padding:1rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.product-page .product-card:hover { transform:none; border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
+.product-page .product-card h2 { font-size:1rem; }
+.product-page .product-meta strong { color:#3f35a4; font-size:1.08rem; }
+.product-card-actions { display:grid; grid-template-columns:1fr 1fr auto; align-items:center; gap:.5rem; margin-top:auto; padding-top:.8rem; border-top:1px solid var(--border); }
+.product-card-actions .btn { justify-content:center; }
+.product-card-actions .link-button { padding:.45rem; font-size:.74rem; }
+@media(max-width:1100px){.product-page .market-filter-bar{grid-template-columns:minmax(240px,1fr) repeat(2,minmax(120px,.45fr))}.product-page .market-filter-bar select:nth-of-type(3){grid-column:2/3}.market-search-submit,.market-reset{grid-row:2}}
+@media(max-width:700px){.product-page .market-filter-bar{grid-template-columns:1fr 1fr}.market-search-field{grid-column:1/-1}.product-page .market-filter-bar select{width:100%}.product-page .market-filter-bar select:nth-of-type(3){grid-column:1/-1}.market-search-submit,.market-reset{grid-row:auto}.product-card-actions{grid-template-columns:1fr 1fr}.product-card-actions .link-button{grid-column:1/-1}}
 </style>

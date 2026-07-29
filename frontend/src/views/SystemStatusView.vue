@@ -1,8 +1,8 @@
 <template>
   <div class="page-container system-page">
     <section class="system-hero">
-      <div><span class="system-eyebrow"><i></i>ADMIN CONTROL CENTER</span><h1>系统全局，<span>尽在掌握。</span></h1><p>统一管理用户、权限、内容审核与交易治理，实时了解社区运行状态。</p></div>
-      <div class="system-health"><span>DATABASE STATUS</span><strong>{{ health?.status === 'healthy' ? '运行正常' : '检查中' }}</strong><small><i></i>{{ health?.database || '正在连接数据库' }}</small></div>
+      <div><span class="system-eyebrow"><i></i>管理后台</span><h1>系统状态与<span>社区治理</span></h1><p>管理访问权限、用户、内容与交易工单。</p></div>
+      <div class="system-health"><span>数据库状态</span><strong>{{ health?.status === 'healthy' ? '运行正常' : '检查中' }}</strong><small><i></i>{{ health?.database || '正在连接数据库' }}</small></div>
     </section>
 
     <div class="stat-cards">
@@ -24,16 +24,33 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>数据库连接状态</h2>
-      <SectionMessage :message="sectionMessages.system" />
-      <div v-if="loading" class="loading">正在检查系统状态...</div>
-      <div v-else-if="health" :class="['badge', health.status === 'healthy' ? 'badge-green' : 'badge-red']">
-        {{ health.status === 'healthy' ? '数据库连接正常' : '数据库连接异常' }}
+    <SectionMessage :message="sectionMessages.system" />
+    <section class="admin-launch-section">
+      <div class="admin-launch-heading">
+        <div><span>管理工具</span><h2>选择要管理的内容</h2></div>
+        <p>各模块独立打开，减少页面信息干扰。</p>
       </div>
-      <div v-if="health && health.database" class="muted">数据库: {{ health.database }}</div>
-    </div>
+      <div class="admin-launch-grid">
+        <button type="button" @click="activeAdminPanel = 'access'"><span class="launch-icon">权</span><span><strong>角色与权限</strong><small>{{ roles.length }} 个角色</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'forums'"><span class="launch-icon">版</span><span><strong>论坛版块</strong><small>{{ forums.length }} 个版块</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'users'"><span class="launch-icon">用</span><span><strong>用户管理</strong><small>{{ users.length }} 位用户</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'audits'"><span class="launch-icon">审</span><span><strong>内容审核</strong><small>{{ postAudits.length }} 条待处理</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'posts'"><span class="launch-icon">帖</span><span><strong>帖子管理</strong><small>状态与可见性</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'disputes'"><span class="launch-icon">纠</span><span><strong>交易纠纷</strong><small>{{ disputes.length }} 个工单</small></span><b>→</b></button>
+        <button type="button" @click="activeAdminPanel = 'reports'"><span class="launch-icon">举</span><span><strong>举报工单</strong><small>{{ reports.length }} 条举报</small></span><b>→</b></button>
+      </div>
+    </section>
 
+    <div v-if="activeAdminPanel" class="admin-panel-backdrop" @click.self="activeAdminPanel = null">
+      <section class="admin-panel-dialog" role="dialog" aria-modal="true" :aria-label="adminPanelTitles[activeAdminPanel]">
+        <header class="admin-panel-header">
+          <div><span>管理工具</span><h2>{{ adminPanelTitles[activeAdminPanel] }}</h2></div>
+          <button type="button" aria-label="关闭管理窗口" @click="activeAdminPanel = null">×</button>
+        </header>
+        <div class="admin-panel-body">
+
+    <template v-if="activeAdminPanel === 'access'">
+    <div class="admin-section-heading"><span>访问控制</span><h2>角色与权限</h2><p>定义后台角色，并配置对应的操作权限。</p></div>
     <div class="admin-grid">
       <section class="card">
         <h2>角色管理</h2>
@@ -89,7 +106,10 @@
         </template>
       </section>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'forums'">
+    <div class="admin-section-heading"><span>社区配置</span><h2>论坛版块</h2><p>维护版块信息与版主管理关系。</p></div>
     <div class="card">
       <h2>论坛版块管理</h2>
       <SectionMessage :message="sectionMessages.forums" />
@@ -126,7 +146,10 @@
         <div v-if="forums.length === 0" class="muted">暂无论坛版块</div>
       </div>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'users'">
+    <div class="admin-section-heading"><span>用户治理</span><h2>用户与角色</h2><p>创建用户、调整信用，并维护角色分配。</p></div>
     <div class="card">
       <h2>用户与角色</h2>
       <SectionMessage :message="sectionMessages.users" />
@@ -204,7 +227,10 @@
         </table>
       </div>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'audits'">
+    <div class="admin-section-heading"><span>内容与交易治理</span><h2>待处理事项</h2><p>审核社区内容，处理帖子状态、交易纠纷与举报。</p></div>
     <div class="card">
       <h2>内容审核队列</h2>
       <SectionMessage :message="sectionMessages.audits" />
@@ -223,7 +249,9 @@
         </article>
       </div>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'posts'">
     <div class="card">
       <h2>帖子状态管理</h2>
       <SectionMessage :message="sectionMessages.posts" />
@@ -257,7 +285,9 @@
         </article>
       </div>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'disputes'">
     <div class="card">
       <h2>交易纠纷仲裁</h2>
       <SectionMessage :message="sectionMessages.disputes" />
@@ -309,7 +339,9 @@
         </article>
       </div>
     </div>
+    </template>
 
+    <template v-if="activeAdminPanel === 'reports'">
     <div class="card">
       <h2>举报工单</h2>
       <SectionMessage :message="sectionMessages.reports" />
@@ -331,6 +363,11 @@
           </div>
         </article>
       </div>
+    </div>
+    </template>
+
+        </div>
+      </section>
     </div>
 
     <div v-if="selectedCreditUser" class="modal-backdrop" @click.self="closeCreditDialog">
@@ -464,6 +501,16 @@ const loadingCreditHistory = ref(false)
 const postStatusFilter = ref('')
 const selectedRoleId = ref(null)
 const selectedPermissionIds = ref([])
+const activeAdminPanel = ref(null)
+const adminPanelTitles = {
+  access: '角色与权限',
+  forums: '论坛版块',
+  users: '用户管理',
+  audits: '内容审核',
+  posts: '帖子管理',
+  disputes: '交易纠纷',
+  reports: '举报工单',
+}
 const loading = ref(true)
 const loadingUsers = ref(true)
 const messageTimers = new Map()
@@ -1473,4 +1520,67 @@ textarea {
 .system-page .credit-dialog { border-radius:20px;box-shadow:0 28px 70px rgba(13,10,40,.28); }
 @media(max-width:1000px){.system-page .admin-grid{grid-template-columns:1fr}.system-page .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.system-hero{grid-template-columns:1fr;padding:1.6rem;border-radius:21px}.system-hero h1{font-size:2.1rem}.system-hero p{font-size:.86rem}.system-health{padding:1rem}.system-page .stat-cards{gap:.65rem}.system-page .stat-card{padding:1rem}.system-page .card{padding:1rem;border-radius:17px}.system-page .admin-grid{margin:.7rem 0}.system-page .report-item,.system-page .forum-admin-item{flex-direction:column}.system-page .inline-form{align-items:stretch;flex-direction:column}}
+</style>
+
+<style scoped>
+/* Admin information hierarchy */
+.system-page .stat-cards { gap:.75rem; margin:1rem 0 0; }
+.system-page .stat-card { padding:1rem 1.1rem; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:none; }
+.system-page .stat-card::after { display:none; }
+.system-page .stat-card .number { color:#342c87; font-size:1.55rem; }
+.system-page .stat-card .label { margin-top:.15rem; color:#7d8595; font-size:.72rem; }
+.admin-section-heading { margin:2.4rem 0 .8rem; padding-bottom:.8rem; border-bottom:1px solid var(--border); }
+.admin-section-heading > span { display:block; margin-bottom:.2rem; color:var(--primary); font-size:.64rem; font-weight:750; letter-spacing:.1em; }
+.admin-section-heading h2 { color:#171d2e; font-size:1.18rem; letter-spacing:-.02em; }
+.admin-section-heading p { margin-top:.25rem; color:var(--text-secondary); font-size:.78rem; }
+.system-page .admin-grid { grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr); gap:.8rem; margin:0; }
+.system-page .card { margin-top:.75rem; padding:1.15rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.system-page .admin-section-heading + .card, .system-page .admin-section-heading + .admin-grid .card { margin-top:0; }
+.system-page .card h2 { margin-bottom:.9rem; color:#252c3d; font-size:.95rem; }
+.system-page :is(.inline-form,.permission-form,.user-create-form) { padding:.8rem; border:1px solid #e7e9ee; border-radius:10px; background:#f8f9fb; }
+.system-page :is(input,select,textarea) { border-radius:8px; background:#fff; }
+.system-page .role-item, .system-page .check-row, .system-page .report-item, .system-page .forum-admin-item, .system-page .credit-history-item { border-radius:9px; background:#fff; }
+.system-page .report-item { padding:.9rem; }
+.system-page .report-item p { font-size:.82rem; line-height:1.55; }
+.system-page th { background:#f6f7f9; color:#6f7788; }
+.system-page td { vertical-align:top; }
+.system-page .btn { border-radius:8px; }
+@media(max-width:1000px){.system-page .admin-grid{grid-template-columns:1fr}.system-page .permission-form,.system-page .user-create-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.admin-section-heading{margin-top:1.8rem}.system-page .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.system-page .permission-form,.system-page .user-create-form{grid-template-columns:1fr}.system-page :is(.inline-form,.permission-form,.user-create-form){padding:.7rem}}
+</style>
+
+<style scoped>
+/* Dashboard launchers and focused management dialogs */
+.admin-launch-section { margin-top:1.6rem; }
+.admin-launch-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:.85rem; }
+.admin-launch-heading span { display:block; margin-bottom:.2rem; color:var(--primary); font-size:.64rem; font-weight:750; letter-spacing:.1em; }
+.admin-launch-heading h2 { color:#171d2e; font-size:1.15rem; letter-spacing:-.02em; }
+.admin-launch-heading p { color:var(--text-secondary); font-size:.76rem; }
+.admin-launch-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; }
+.admin-launch-grid > button { min-width:0; display:flex; align-items:center; gap:.8rem; padding:1rem; border:1px solid var(--border); border-radius:12px; color:var(--text); background:#fff; text-align:left; cursor:pointer; transition:border-color .2s,box-shadow .2s; }
+.admin-launch-grid > button:hover { border-color:#c8c4ee; box-shadow:0 5px 18px rgba(31,35,55,.055); }
+.admin-launch-grid > button > span:nth-child(2) { min-width:0; display:flex; flex:1; flex-direction:column; }
+.admin-launch-grid strong { font-size:.88rem; }
+.admin-launch-grid small { margin-top:.15rem; overflow:hidden; color:var(--text-secondary); font-size:.7rem; text-overflow:ellipsis; white-space:nowrap; }
+.admin-launch-grid b { color:#9aa1af; font-size:.9rem; }
+.launch-icon { width:36px; height:36px; display:grid; place-items:center; flex:0 0 auto; border-radius:9px; color:#5145bf; background:#f0effc; font-size:.78rem; font-weight:750; }
+.admin-launch-grid > button:nth-child(3n+2) .launch-icon { color:#176c72; background:#eaf7f5; }
+.admin-launch-grid > button:nth-child(3n) .launch-icon { color:#315d9a; background:#edf3fb; }
+
+.admin-panel-backdrop { position:fixed; inset:0; z-index:1200; display:flex; align-items:flex-start; justify-content:center; padding:2rem 1rem; background:rgba(17,22,39,.58); backdrop-filter:blur(5px); }
+.admin-panel-dialog { width:min(1120px,100%); max-height:calc(100vh - 4rem); display:flex; flex-direction:column; overflow:hidden; border-radius:16px; background:#f6f7f9; box-shadow:0 24px 70px rgba(11,15,29,.28); }
+.admin-panel-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:0 0 auto; padding:1rem 1.2rem; border-bottom:1px solid var(--border); background:#fff; }
+.admin-panel-header span { display:block; margin-bottom:.1rem; color:var(--primary); font-size:.6rem; font-weight:750; letter-spacing:.09em; }
+.admin-panel-header h2 { color:#171d2e; font-size:1.05rem; }
+.admin-panel-header button { width:32px; height:32px; display:grid; place-items:center; border:0; border-radius:8px; color:#687184; background:#f0f2f5; font-size:1.2rem; cursor:pointer; }
+.admin-panel-header button:hover { color:#252c3d; background:#e5e8ed; }
+.admin-panel-body { min-height:0; overflow:auto; padding:1.2rem; }
+.admin-panel-body .admin-section-heading { margin:0 0 .8rem; }
+.admin-panel-body > .card, .admin-panel-body > template + .card { margin-top:0; }
+.system-page .admin-panel-body .card { background:#fff; }
+.system-page .admin-panel-body .modal-backdrop { z-index:1400; }
+.system-page > .modal-backdrop { z-index:1400; }
+
+@media(max-width:900px){.admin-launch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-dialog{max-height:calc(100vh - 2rem)}.admin-panel-backdrop{padding:1rem}}
+@media(max-width:600px){.admin-launch-heading{align-items:flex-start;flex-direction:column}.admin-launch-grid{grid-template-columns:1fr}.admin-panel-backdrop{padding:0}.admin-panel-dialog{width:100%;max-height:100vh;height:100vh;border-radius:0}.admin-panel-body{padding:.85rem}.admin-panel-body .admin-section-heading{display:none}}
 </style>
