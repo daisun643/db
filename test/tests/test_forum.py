@@ -37,6 +37,33 @@ class TestForumList:
         resp = forum_client.get_forums()
         assert resp.status_code == 200
 
+    def test_inactive_forum_is_hidden_from_regular_and_anonymous_users(
+            self, forum_client, admin_forum_client):
+        forum_name = f"隐藏版块-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "仅管理员可见")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            update_resp = admin_forum_client.update_forum(
+                forum_id, forum_name, "仅管理员可见", "Inactive"
+            )
+            assert update_resp.status_code == 200
+            assert update_resp.json()["status"] == "Inactive"
+
+            admin_ids = {forum["forumID"] for forum in admin_forum_client.get_forums().json()}
+            user_ids = {forum["forumID"] for forum in forum_client.get_forums().json()}
+            assert forum_id in admin_ids
+            assert forum_id not in user_ids
+            assert forum_client.get_forum(forum_id).status_code == 404
+
+            forum_client.post("/api/auth/logout")
+            anonymous_ids = {forum["forumID"] for forum in forum_client.get_forums().json()}
+            assert forum_id not in anonymous_ids
+            assert forum_client.get_forum(forum_id).status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
 
 class TestForumCRUD:
 
@@ -83,6 +110,81 @@ class TestForumCRUD:
         resp = admin_forum_client.create_forum("A", "名称太短")
         assert resp.status_code == 400
 
+    def test_create_forum_trims_name_and_description(self, admin_forum_client):
+        forum_name = self._unique_name("去除空格版块")
+        resp = admin_forum_client.create_forum(f"  {forum_name}  ", "  版块描述  ")
+        assert resp.status_code == 201
+        forum_id = resp.json()["forumID"]
+
+        try:
+            assert resp.json()["forumName"] == forum_name
+            assert resp.json()["description"] == "版块描述"
+            assert resp.headers["Location"].endswith(f"/api/Forums/{forum_id}")
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_duplicate_forum_name_rejected(self, admin_forum_client):
+        forum_name = self._unique_name("同名版块")
+        first = admin_forum_client.create_forum(forum_name, "原版块")
+        assert first.status_code == 201
+        forum_id = first.json()["forumID"]
+
+        try:
+            duplicate = admin_forum_client.create_forum(f" {forum_name} ", "重复版块")
+            assert duplicate.status_code == 400
+            assert duplicate.json()["message"] == "已存在同名版块"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_update_forum_to_duplicate_name_rejected(self, admin_forum_client):
+        first = admin_forum_client.create_forum(self._unique_name("已有版块"), "描述")
+        second = admin_forum_client.create_forum(self._unique_name("待改名版块"), "描述")
+        assert first.status_code == 201
+        assert second.status_code == 201
+        first_id = first.json()["forumID"]
+        second_id = second.json()["forumID"]
+
+        try:
+            resp = admin_forum_client.update_forum(
+                second_id, first.json()["forumName"], "重复名称", "Active"
+            )
+            assert resp.status_code == 400
+            assert resp.json()["message"] == "已存在同名版块"
+        finally:
+            admin_forum_client.delete_forum(first_id)
+            admin_forum_client.delete_forum(second_id)
+
+    @pytest.mark.parametrize("operation", ["update", "delete"])
+    def test_nonexistent_forum_mutation_returns_404(self, admin_forum_client, operation):
+        if operation == "update":
+            resp = admin_forum_client.update_forum(99999, "不存在版块", "描述")
+        else:
+            resp = admin_forum_client.delete_forum(99999)
+        assert resp.status_code == 404
+
+    def test_user_cannot_delete_forum(self, forum_client, admin_forum_client):
+        create_resp = admin_forum_client.create_forum(
+            self._unique_name("禁止用户删除"), "受保护版块"
+        )
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert forum_client.delete_forum(forum_id).status_code == 403
+            assert admin_forum_client.get_forum(forum_id).status_code == 200
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_forum_with_posts_cannot_be_deleted(self, admin_forum_client):
+        forum = next(
+            forum for forum in admin_forum_client.get_forums().json()
+            if forum["postCount"] > 0
+        )
+        resp = admin_forum_client.delete_forum(forum["forumID"])
+        assert resp.status_code == 400
+        assert "仍有帖子" in resp.json()["message"]
+        assert admin_forum_client.get_forum(forum["forumID"]).status_code == 200
+
 
 class TestForumManagers:
 
@@ -108,6 +210,78 @@ class TestForumManagers:
         fid = forums[0]["forumID"]
         resp = forum_client.assign_forum_manager(fid, 4)
         assert resp.status_code == 403
+
+    def test_assigned_manager_can_view_inactive_forum(
+            self, forum_client, admin_forum_client):
+        forum_name = f"版主可见版块-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "版主专用")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+            update_resp = admin_forum_client.update_forum(
+                forum_id, forum_name, "版主专用", "Inactive"
+            )
+            assert update_resp.status_code == 200
+
+            detail_resp = forum_client.get_forum(forum_id)
+            assert detail_resp.status_code == 200
+            assert detail_resp.json()["status"] == "Inactive"
+            assert forum_id in {
+                forum["forumID"] for forum in forum_client.get_forums().json()
+            }
+
+            assert admin_forum_client.remove_forum_manager(forum_id, 4).status_code == 200
+            assert forum_client.get_forum(forum_id).status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_assigning_same_manager_is_idempotent(self, admin_forum_client):
+        forum_name = f"重复指派版主-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "测试重复指派")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            first = admin_forum_client.assign_forum_manager(forum_id, 4)
+            second = admin_forum_client.assign_forum_manager(forum_id, 4)
+            assert first.status_code == 200
+            assert second.status_code == 200
+            assert second.json()["message"] == "该用户已经是版主"
+
+            managers = admin_forum_client.get_forum(forum_id).json()["managers"]
+            assert [manager["userID"] for manager in managers].count(4) == 1
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_assign_manager_validates_forum_and_user(self, admin_forum_client):
+        missing_forum = admin_forum_client.assign_forum_manager(99999, 4)
+        assert missing_forum.status_code == 404
+
+        forum_name = f"版主校验版块-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "校验用户")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            missing_user = admin_forum_client.assign_forum_manager(forum_id, 99999)
+            assert missing_user.status_code == 400
+            assert missing_user.json()["message"] == "用户不存在或不可用"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_remove_unassigned_manager_returns_404(self, admin_forum_client):
+        forum_name = f"未指派版主-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "没有版主")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            resp = admin_forum_client.remove_forum_manager(forum_id, 4)
+            assert resp.status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
 
 
 class TestPostList:
