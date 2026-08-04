@@ -39,11 +39,42 @@
           收藏夹
         </button>
       </div>
-      <span class="forum-nav-note">分享 · 连接 · 共鸣</span>
+      <button class="create-forum-trigger" type="button" @click="openForumCreator">
+        <span aria-hidden="true">＋</span> 创建版块
+      </button>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
     <div v-if="notice" class="success-message">{{ notice }}</div>
+
+    <div v-if="forumCreatorOpen" class="detail-backdrop" @click.self="closeForumCreator">
+      <form class="post-detail-panel composer-modal" @submit.prevent="handleCreateForum">
+        <div class="composer-header">
+          <div>
+            <span class="composer-kicker">新建版块</span>
+            <h2>创建新的讨论空间</h2>
+            <p>使用清晰的名称和描述，让同学容易找到对应话题。</p>
+          </div>
+          <button class="icon-button" type="button" aria-label="关闭创建版块窗口" @click="closeForumCreator">×</button>
+        </div>
+        <div class="forum-create-fields">
+          <label>
+            版块名称
+            <input v-model="forumForm.forumName" type="text" minlength="2" maxlength="100" required placeholder="例如：校园摄影" />
+          </label>
+          <label>
+            版块描述
+            <textarea v-model="forumForm.description" maxlength="500" rows="4" placeholder="简要说明这里适合讨论什么"></textarea>
+          </label>
+        </div>
+        <div class="composer-footer">
+          <button class="btn" type="button" :disabled="creatingForum" @click="closeForumCreator">取消</button>
+          <button class="btn btn-primary" type="submit" :disabled="creatingForum">
+            {{ creatingForum ? '创建中...' : '创建版块' }}
+          </button>
+        </div>
+      </form>
+    </div>
 
     <div v-if="activeTab === 'all'" class="forum-layout">
       <aside class="forum-sidebar">
@@ -510,6 +541,7 @@ import {
   addPostToFavoriteFolder,
   createComment,
   createFavoriteFolder,
+  createForum,
   createPost,
   createReport,
   deleteFavoriteFolder,
@@ -549,6 +581,8 @@ const commentsLoading = ref(false)
 const submitting = ref(false)
 const commentSubmitting = ref(false)
 const composerOpen = ref(false)
+const forumCreatorOpen = ref(false)
+const creatingForum = ref(false)
 const error = ref(null)
 const notice = ref('')
 const tagText = ref('')
@@ -627,6 +661,11 @@ const postForm = ref({
   content: '',
 })
 
+const forumForm = ref({
+  forumName: '',
+  description: '',
+})
+
 const editForm = ref({
   title: '',
   content: '',
@@ -637,6 +676,36 @@ const loadForums = async () => {
   forums.value = res.data
   if (!postForm.value.forumID && forums.value.length > 0) {
     postForm.value.forumID = forums.value[0].forumID
+  }
+}
+
+const openForumCreator = () => {
+  error.value = null
+  forumCreatorOpen.value = true
+}
+
+const closeForumCreator = () => {
+  if (creatingForum.value) return
+  forumCreatorOpen.value = false
+}
+
+const handleCreateForum = async () => {
+  try {
+    creatingForum.value = true
+    error.value = null
+    const res = await createForum({
+      forumName: forumForm.value.forumName.trim(),
+      description: forumForm.value.description.trim(),
+    })
+    forumForm.value = { forumName: '', description: '' }
+    forumCreatorOpen.value = false
+    notice.value = '版块创建成功。'
+    await loadForums()
+    await selectForum(res.data.forumID)
+  } catch (e) {
+    error.value = '创建版块失败: ' + (e.response?.data?.message || e.message)
+  } finally {
+    creatingForum.value = false
   }
 }
 
@@ -1916,6 +1985,49 @@ onMounted(async () => {
 
 .composer-modal {
   max-width: 620px;
+}
+
+.create-forum-trigger {
+  align-items: center;
+  background: linear-gradient(135deg, #5f50dc, #7967f3);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(95, 80, 220, 0.22);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 0.3rem;
+  margin-left: auto;
+  padding: 0.72rem 1.05rem;
+}
+
+.forum-create-fields {
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem;
+}
+
+.forum-create-fields label {
+  color: var(--text-secondary);
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 700;
+  gap: 0.45rem;
+}
+
+.forum-create-fields input,
+.forum-create-fields textarea {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+  padding: 0.8rem 0.9rem;
+  resize: vertical;
+}
+
+.forum-create-fields + .composer-footer {
+  margin: 0 1.5rem;
+  padding-bottom: 1.35rem;
 }
 
 .composer-shell {

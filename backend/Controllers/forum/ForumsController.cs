@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Backend.Authorization;
 using Backend.Data;
 using Backend.Models;
 using Backend.Models.DTOs;
@@ -72,7 +73,7 @@ public class ForumsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [RequirePermission("forums.create")]
     public async Task<ActionResult<ForumSummaryResponse>> Create([FromBody] CreateForumRequest request)
     {
         if (!ModelState.IsValid)

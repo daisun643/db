@@ -107,7 +107,7 @@ SELECT r."roleId", p."permissionId"
 FROM "Role" r, "Permission" p
 WHERE r."roleName" = 'User'
 AND p."permissionName" IN (
-    'forums.view',
+    'forums.view', 'forums.create',
     'posts.view', 'posts.create',
     'products.view', 'products.create'
 );

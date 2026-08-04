@@ -80,9 +80,19 @@ class TestForumCRUD:
         assert data["description"] == "这是一个测试论坛"
         assert data["status"] == "Active"
 
-    def test_user_cannot_create_forum(self, forum_client):
-        resp = forum_client.create_forum("非法论坛", "普通用户不应能创建")
-        assert resp.status_code == 403
+    def test_user_can_create_forum(self, forum_client, admin_forum_client):
+        forum_name = self._unique_name("用户创建版块")
+        resp = forum_client.create_forum(forum_name, "由普通用户创建")
+        assert resp.status_code == 201
+        assert resp.json()["forumName"] == forum_name
+        assert resp.json()["status"] == "Active"
+
+        admin_forum_client.delete_forum(resp.json()["forumID"])
+
+    def test_unauthenticated_user_cannot_create_forum(self, forum_client):
+        forum_client.post("/api/auth/logout")
+        resp = forum_client.create_forum(self._unique_name("未登录版块"), "未登录不应创建")
+        assert resp.status_code == 401
 
     def test_admin_can_update_forum(self, admin_forum_client):
         create_resp = admin_forum_client.create_forum(self._unique_name("待修改论坛"), "原描述")
