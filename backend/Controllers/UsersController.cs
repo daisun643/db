@@ -80,23 +80,13 @@ public class UsersController : ControllerBase
         if (usernameExists)
             return BadRequest(new { message = "该用户名已存在" });
 
-        var roleIds = request.RoleIds.Distinct().ToList();
-        if (roleIds.Count == 0)
-        {
-            var defaultRoleId = await _db.Roles
-                .Where(r => r.RoleName == "User")
-                .Select(r => r.RoleID)
-                .FirstOrDefaultAsync();
-            if (defaultRoleId > 0)
-                roleIds.Add(defaultRoleId);
-        }
-
-        if (roleIds.Count > 0)
-        {
-            var validRoleCount = await _db.Roles.CountAsync(r => roleIds.Contains(r.RoleID));
-            if (validRoleCount != roleIds.Count)
-                return BadRequest(new { message = "包含不存在的角色" });
-        }
+        var defaultRoleId = await _db.Roles
+            .Where(r => r.RoleName == "User")
+            .Select(r => r.RoleID)
+            .FirstOrDefaultAsync();
+        if (defaultRoleId == 0)
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "系统默认角色未配置" });
 
         var user = new User
         {
@@ -112,15 +102,12 @@ public class UsersController : ControllerBase
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        foreach (var roleId in roleIds)
+        _db.UserRoles.Add(new UserRole
         {
-            _db.UserRoles.Add(new UserRole
-            {
-                UserID = user.UserID,
-                RoleID = roleId,
-                AssignTime = DateTime.Now
-            });
-        }
+            UserID = user.UserID,
+            RoleID = defaultRoleId,
+            AssignTime = DateTime.Now
+        });
 
         await _db.SaveChangesAsync();
         user = await _db.Users

@@ -362,111 +362,37 @@ class TestStage3PasswordReset:
 
 class TestStage4Rbac:
 
-    def test_normal_user_cannot_access_rbac_management(self, user_client):
+    def test_normal_user_cannot_access_rbac_metadata(self, user_client):
         assert user_client.get_roles().status_code == 403
-        assert user_client.create_role(f"stage4_user_{uuid.uuid4().hex[:8]}").status_code == 403
 
-    def test_manager_cannot_manage_rbac(self, client):
+    def test_manager_cannot_access_rbac_metadata(self, client):
         assert_success(client.login("2@tongji.edu.cn", "Password2"))
-
-        assert client.get_roles().status_code == 403
-        assert client.create_role(f"stage4_manager_{uuid.uuid4().hex[:8]}").status_code == 403
-
-    def test_admin_can_create_role_permission_and_assign_permission(self, admin_client):
-        role_name = f"stage4_role_{uuid.uuid4().hex[:8]}"
-        permission_name = f"stage4.permission.{uuid.uuid4().hex[:8]}"
-
-        role_resp = admin_client.create_role(role_name, "阶段4测试角色")
-        assert role_resp.status_code == 201, role_resp.text
-        role_id = _role_id(role_resp.json())
-
-        permission_resp = admin_client.create_permission(
-            permission_name,
-            "阶段4测试权限",
-            "stage4",
-            "manage",
-        )
-        assert permission_resp.status_code == 201, permission_resp.text
-        permission_id = _permission_id(permission_resp.json())
-
-        assign_resp = admin_client.assign_permissions_to_role(role_id, [permission_id])
-        assert assign_resp.status_code == 200
-        assert assign_resp.json()["message"] == "权限分配成功"
-
-        role_detail = admin_client.get_role(role_id)
-        assert role_detail.status_code == 200
-
-    def test_create_role_name_must_be_unique_case_insensitive(self, admin_client):
-        role_name = f"stage4_unique_{uuid.uuid4().hex[:8]}"
-        assert admin_client.create_role(role_name).status_code == 201
-
-        duplicate = admin_client.create_role(role_name.upper())
-
-        assert duplicate.status_code == 400
-        assert duplicate.json()["message"] == "角色名称已存在"
-
-    def test_cannot_delete_role_that_has_users(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_role_user")
-        role_name = f"stage4_bound_{uuid.uuid4().hex[:8]}"
-        role = admin_client.create_role(role_name).json()
-        role_id = _role_id(role)
-
-        assign_resp = admin_client.assign_roles_to_user(created["user"]["userId"], [role_id])
-        assert assign_resp.status_code == 200
-
-        delete_resp = admin_client.delete_role(role_id)
-
-        assert delete_resp.status_code == 400
-        assert delete_resp.json()["message"] == "该角色下还有用户，无法删除"
-
-    def test_cannot_modify_delete_or_reassign_protected_roles(self, admin_client):
-        admin_role_id = _role_id(_get_role_by_name(admin_client, "Admin"))
-        user_role_id = _role_id(_get_role_by_name(admin_client, "User"))
-        permission_id = _permission_id(_get_permission_by_name(admin_client, "forums.view"))
-
-        update_resp = admin_client.update_role(user_role_id, "RenamedUser")
-        delete_resp = admin_client.delete_role(admin_role_id)
-        assign_resp = admin_client.assign_permissions_to_role(user_role_id, [permission_id])
-
-        assert update_resp.status_code == 400
-        assert update_resp.json()["message"] == "基础角色不能修改"
-        assert delete_resp.status_code == 400
-        assert delete_resp.json()["message"] == "基础角色不能删除"
-        assert assign_resp.status_code == 400
-        assert assign_resp.json()["message"] == "基础角色权限不能修改"
-
-    def test_role_assignment_refreshes_cookie_claims_after_relogin(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_claims")
-        role_name = f"stage4_claims_{uuid.uuid4().hex[:8]}"
-        role_id = _role_id(admin_client.create_role(role_name).json())
-        roles_manage_id = _permission_id(_get_permission_by_name(admin_client, "roles.manage"))
-
-        assert admin_client.assign_permissions_to_role(role_id, [roles_manage_id]).status_code == 200
-        assert admin_client.assign_roles_to_user(created["user"]["userId"], [role_id]).status_code == 200
-
         assert client.get_roles().status_code == 403
 
-        assert_success(client.logout())
-        assert_success(client.login(created["email"], created["password"]))
-        assert client.get_roles().status_code == 200
+    def test_admin_can_read_predefined_roles_and_permissions(self, admin_client):
+        roles = admin_client.get_roles()
+        permissions = admin_client.get_permissions()
 
-    def test_assigning_manager_role_requires_admin_add_permission(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_admin_add")
-        role_name = f"stage4_role_mgr_{uuid.uuid4().hex[:8]}"
-        role_id = _role_id(admin_client.create_role(role_name).json())
-        roles_manage_id = _permission_id(_get_permission_by_name(admin_client, "roles.manage"))
-        manager_role_id = _role_id(_get_role_by_name(admin_client, "Manager"))
+        assert roles.status_code == 200
+        assert permissions.status_code == 200
+        assert {role["roleName"] for role in roles.json()} >= {"Admin", "User"}
+        assert any(permission["permissionName"] == "forums.view" for permission in permissions.json())
 
-        assert admin_client.assign_permissions_to_role(role_id, [roles_manage_id]).status_code == 200
-        assert admin_client.assign_roles_to_user(created["user"]["userId"], [role_id]).status_code == 200
+    @pytest.mark.parametrize("mutation", [
+        lambda client: client.create_role("dynamic-role"),
+        lambda client: client.update_role(1, "renamed-role"),
+        lambda client: client.delete_role(1),
+        lambda client: client.create_permission("dynamic.permission"),
+        lambda client: client.assign_permissions_to_role(1, []),
+        lambda client: client.assign_roles_to_user(4, []),
+    ])
+    def test_rbac_mutation_endpoints_are_removed(self, admin_client, mutation):
+        assert mutation(admin_client).status_code in (404, 405)
 
-        assert_success(client.logout())
-        assert_success(client.login(created["email"], created["password"]))
-
-        resp = client.assign_roles_to_user(created["user"]["userId"], [manager_role_id])
-
-        assert resp.status_code == 403
-        assert resp.json()["message"] == "分配管理员角色需要 admin.add 权限"
+    def test_admin_can_read_existing_user_roles(self, admin_client):
+        resp = admin_client.get_user_roles(4)
+        assert resp.status_code == 200
+        assert [role["roleName"] for role in resp.json()] == ["User"]
 
 
 class TestStage5BackendEntryAccess:
@@ -648,19 +574,13 @@ class TestStage7MemberOneCoverage:
         assert list_resp.status_code == 403
         assert create_resp.status_code == 403
 
-    def test_admin_can_create_role_and_assign_role_to_user(self, admin_client, client):
-        created = _register_unique_user(client, "stage7_assign")
-        role_name = f"stage7_role_{uuid.uuid4().hex[:8]}"
+    def test_admin_created_user_always_receives_default_role(self, admin_client):
+        resp = admin_client.post("/api/users", json={
+            "username": f"stage7_default_{uuid.uuid4().hex[:8]}",
+            "email": _unique_email("stage7_default"),
+            "password": "Password123",
+            "roleIds": [1],
+        })
 
-        role_resp = admin_client.create_role(role_name, "阶段7角色分配测试")
-        assert role_resp.status_code == 201, role_resp.text
-        role_id = _role_id(role_resp.json())
-
-        assign_resp = admin_client.assign_roles_to_user(created["user"]["userId"], [role_id])
-        assert assign_resp.status_code == 200
-        assert assign_resp.json()["message"] == "角色分配成功"
-
-        roles_resp = admin_client.get_user_roles(created["user"]["userId"])
-        assert roles_resp.status_code == 200
-        assigned_role_ids = [_role_id(role) for role in roles_resp.json()]
-        assert role_id in assigned_role_ids
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["roles"] == ["User"]

@@ -54,19 +54,6 @@ export const uploadImages = (files, bucket = 'posts') => {
   })
 }
 export const changePassword = (data) => api.post('/user/password', data)
-export const getRoles = () => api.get('/rbac/roles')
-export const createRole = (data) => api.post('/rbac/roles', data)
-export const updateRole = (id, data) => api.put(`/rbac/roles/${id}`, data)
-export const deleteRole = (id) => api.delete(`/rbac/roles/${id}`)
-export const getPermissions = () => api.get('/rbac/permissions')
-export const createPermission = (data) => api.post('/rbac/permissions', data)
-export const deletePermission = (id) => api.delete(`/rbac/permissions/${id}`)
-export const assignPermissionsToRole = (roleId, permissionIds) =>
-  api.post(`/rbac/roles/${roleId}/permissions`, { permissionIds })
-export const getUserRoles = (userId) => api.get(`/rbac/users/${userId}/roles`)
-export const assignRolesToUser = (userId, roleIds) =>
-  api.post(`/rbac/users/${userId}/roles`, { roleIds })
-
 export const getForums = () => api.get('/forums')
 export const getForum = (id) => api.get(`/forums/${id}`)
 export const createForum = (data) => api.post('/forums', data)

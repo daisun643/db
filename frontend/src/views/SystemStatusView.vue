@@ -1,7 +1,7 @@
 <template>
   <div class="page-container system-page">
     <section class="system-hero">
-      <div><span class="system-eyebrow"><i></i>管理后台</span><h1>系统状态与<span>社区治理</span></h1><p>管理访问权限、用户、内容与交易工单。</p></div>
+      <div><span class="system-eyebrow"><i></i>管理后台</span><h1>系统状态与<span>社区治理</span></h1><p>管理用户、内容与交易工单。</p></div>
       <div class="system-health"><span>数据库状态</span><strong>{{ health?.status === 'healthy' ? '运行正常' : '检查中' }}</strong><small><i></i>{{ health?.database || '正在连接数据库' }}</small></div>
     </section>
 
@@ -31,7 +31,6 @@
         <p>各模块独立打开，减少页面信息干扰。</p>
       </div>
       <div class="admin-launch-grid">
-        <button type="button" @click="activeAdminPanel = 'access'"><span class="launch-icon">权</span><span><strong>角色与权限</strong><small>{{ roles.length }} 个角色</small></span><b>→</b></button>
         <button type="button" @click="activeAdminPanel = 'forums'"><span class="launch-icon">版</span><span><strong>论坛版块</strong><small>{{ forums.length }} 个版块</small></span><b>→</b></button>
         <button type="button" @click="activeAdminPanel = 'users'"><span class="launch-icon">用</span><span><strong>用户管理</strong><small>{{ users.length }} 位用户</small></span><b>→</b></button>
         <button type="button" @click="activeAdminPanel = 'audits'"><span class="launch-icon">审</span><span><strong>内容审核</strong><small>{{ postAudits.length }} 条待处理</small></span><b>→</b></button>
@@ -48,65 +47,6 @@
           <button type="button" aria-label="关闭管理窗口" @click="activeAdminPanel = null">×</button>
         </header>
         <div class="admin-panel-body">
-
-    <template v-if="activeAdminPanel === 'access'">
-    <div class="admin-section-heading"><span>访问控制</span><h2>角色与权限</h2><p>定义后台角色，并配置对应的操作权限。</p></div>
-    <div class="admin-grid">
-      <section class="card">
-        <h2>角色管理</h2>
-        <SectionMessage :message="sectionMessages.roles" />
-        <form class="inline-form" @submit.prevent="handleCreateRole">
-          <input v-model="roleForm.roleName" type="text" placeholder="角色名称" required />
-          <input v-model="roleForm.description" type="text" placeholder="描述" />
-          <button class="btn btn-primary" type="submit">创建角色</button>
-        </form>
-
-        <div class="role-list">
-          <div
-            v-for="role in roles"
-            :key="roleId(role)"
-            :class="['role-row', { active: selectedRoleId === roleId(role) }]"
-          >
-            <button class="role-item" type="button" @click="selectRole(role)">
-              <span>{{ role.roleName }}</span>
-              <small>{{ role.description }}</small>
-            </button>
-            <button class="btn btn-danger" type="button" @click="handleDeleteRole(role)">删除</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>权限分配</h2>
-        <SectionMessage :message="sectionMessages.permissions" />
-        <form class="permission-form" @submit.prevent="handleCreatePermission">
-          <input v-model="permissionForm.permissionName" type="text" placeholder="权限名，如 forums.create" required />
-          <input v-model="permissionForm.description" type="text" placeholder="说明" />
-          <input v-model="permissionForm.resource" type="text" placeholder="资源" />
-          <input v-model="permissionForm.action" type="text" placeholder="动作" />
-          <button class="btn" type="submit">创建权限</button>
-        </form>
-        <div v-if="!selectedRoleId" class="muted">选择一个角色后分配权限</div>
-        <template v-else>
-          <div class="permission-list">
-            <label v-for="permission in permissions" :key="permissionId(permission)" class="check-row">
-              <input
-                v-model="selectedPermissionIds"
-                type="checkbox"
-                :value="permissionId(permission)"
-              />
-              <span class="permission-content">
-                <span>{{ permission.permissionName }}</span>
-                <small>{{ permission.description }}</small>
-              </span>
-              <button class="btn btn-danger" type="button" @click.prevent.stop="handleDeletePermission(permission)">删除</button>
-            </label>
-          </div>
-          <button class="btn btn-primary" @click="handleAssignPermissions">保存权限</button>
-        </template>
-      </section>
-    </div>
-    </template>
 
     <template v-if="activeAdminPanel === 'forums'">
     <div class="admin-section-heading"><span>社区配置</span><h2>论坛版块</h2><p>维护版块信息与版主管理关系。</p></div>
@@ -149,19 +89,14 @@
     </template>
 
     <template v-if="activeAdminPanel === 'users'">
-    <div class="admin-section-heading"><span>用户治理</span><h2>用户与角色</h2><p>创建用户、调整信用，并维护角色分配。</p></div>
+    <div class="admin-section-heading"><span>用户治理</span><h2>用户管理</h2><p>创建用户并调整信用。</p></div>
     <div class="card">
-      <h2>用户与角色</h2>
+      <h2>用户管理</h2>
       <SectionMessage :message="sectionMessages.users" />
       <form class="user-create-form" @submit.prevent="handleCreateUser">
         <input v-model="userForm.username" type="text" placeholder="用户名" required />
         <input v-model="userForm.email" type="email" placeholder="校园邮箱" required />
         <input v-model="userForm.password" type="password" placeholder="初始密码" required />
-        <select v-model="userForm.roleIds" multiple>
-          <option v-for="role in roles" :key="roleId(role)" :value="roleId(role)">
-            {{ role.roleName }}
-          </option>
-        </select>
         <button class="btn btn-primary" type="submit">创建用户</button>
       </form>
       <div v-if="loadingUsers" class="loading">加载中...</div>
@@ -203,21 +138,8 @@
                 </span>
               </td>
               <td>
-                <div class="role-cell">
-                  <div class="role-checks">
-                    <label v-for="role in roles" :key="roleId(role)" class="mini-check">
-                      <input
-                        :checked="userRoleIds[user.userID]?.includes(roleId(role))"
-                        type="checkbox"
-                        @change="toggleUserRole(user.userID, roleId(role), $event.target.checked)"
-                      />
-                      <span>{{ role.roleName }}</span>
-                    </label>
-                  </div>
-                  <button class="btn role-save-button" type="button" @click="saveUserRoles(user.userID)">
-                    保存角色
-                  </button>
-                </div>
+                <span v-for="role in user.roles || []" :key="role" class="badge badge-green">{{ role }}</span>
+                <span v-if="!user.roles?.length" class="muted">暂无角色</span>
               </td>
             </tr>
             <tr v-if="users.length === 0">
@@ -452,26 +374,17 @@ import { ref, onMounted, h } from 'vue'
 import {
   adjustCredit,
   approvePostAudit,
-  assignPermissionsToRole,
   assignForumManager,
-  assignRolesToUser,
   changePostStatus,
   createForum,
   createUser,
-  createPermission,
-  createRole,
-  deletePermission,
-  deleteRole,
   getForums,
   getHealth,
-  getPermissions,
   getPostAudits,
   getPosts,
   getProducts,
   getReports,
   getDisputes,
-  getRoles,
-  getUserRoles,
   getUserCreditAdjustments,
   getUsers,
   rejectPostAudit,
@@ -484,9 +397,6 @@ const stats = ref({ users: '-', forums: '-', posts: '-', products: '-' })
 const health = ref(null)
 const users = ref([])
 const forums = ref([])
-const roles = ref([])
-const permissions = ref([])
-const userRoleIds = ref({})
 const reports = ref([])
 const postAudits = ref([])
 const managedPosts = ref([])
@@ -499,11 +409,8 @@ const selectedCreditHistoryUser = ref(null)
 const creditHistoryRecords = ref([])
 const loadingCreditHistory = ref(false)
 const postStatusFilter = ref('')
-const selectedRoleId = ref(null)
-const selectedPermissionIds = ref([])
 const activeAdminPanel = ref(null)
 const adminPanelTitles = {
-  access: '角色与权限',
   forums: '论坛版块',
   users: '用户管理',
   audits: '内容审核',
@@ -516,8 +423,6 @@ const loadingUsers = ref(true)
 const messageTimers = new Map()
 const sectionMessages = ref({
   system: null,
-  roles: null,
-  permissions: null,
   forums: null,
   users: null,
   audits: null,
@@ -533,18 +438,6 @@ const SectionMessage = (props) => {
   }, props.message.text)
 }
 
-const roleForm = ref({
-  roleName: '',
-  description: '',
-})
-
-const permissionForm = ref({
-  permissionName: '',
-  description: '',
-  resource: '',
-  action: '',
-})
-
 const forumForm = ref({
   forumName: '',
   description: '',
@@ -554,11 +447,7 @@ const userForm = ref({
   username: '',
   email: '',
   password: '',
-  roleIds: [],
 })
-
-const roleId = (role) => role.roleID ?? role.roleId
-const permissionId = (permission) => permission.permissionID ?? permission.permissionId
 
 const formatDate = (value) => {
   if (!value) return ''
@@ -640,20 +529,6 @@ const syncCreditDrafts = () => {
   creditDrafts.value = next
 }
 
-const loadRbac = async () => {
-  const [rolesRes, permissionsRes] = await Promise.all([getRoles(), getPermissions()])
-  roles.value = rolesRes.data
-  permissions.value = permissionsRes.data
-  if (selectedRoleId.value) {
-    const selected = roles.value.find(role => roleId(role) === selectedRoleId.value)
-    if (selected) selectRole(selected)
-    else {
-      selectedRoleId.value = null
-      selectedPermissionIds.value = []
-    }
-  }
-}
-
 const loadReports = async () => {
   const res = await getReports()
   reports.value = res.data
@@ -690,94 +565,6 @@ const loadForums = async () => {
   forums.value = res.data
 }
 
-const loadUserRoles = async () => {
-  const next = {}
-  await Promise.all(users.value.map(async (user) => {
-    const res = await getUserRoles(user.userID)
-    next[user.userID] = res.data.map(role => roleId(role)).filter(Boolean)
-  }))
-  userRoleIds.value = next
-}
-
-const selectRole = (role) => {
-  selectedRoleId.value = roleId(role)
-  selectedPermissionIds.value = (role.permissions || role.rolePermissions || [])
-    .map(item => item.permissionID ?? item.permissionId ?? item.permission?.permissionID ?? item.permission?.permissionId)
-    .filter(Boolean)
-}
-
-const handleCreateRole = async () => {
-  try {
-    clearMessage('roles')
-    await createRole(roleForm.value)
-    roleForm.value = { roleName: '', description: '' }
-    await loadRbac()
-    showMessage('roles', 'success', '角色已创建')
-  } catch (e) {
-    showMessage('roles', 'error', e.response?.data?.message || '角色创建失败')
-  }
-}
-
-const handleDeleteRole = async (role) => {
-  if (!window.confirm(`确认删除角色 ${role.roleName}？`)) return
-
-  try {
-    clearMessage('roles')
-    await deleteRole(roleId(role))
-    if (selectedRoleId.value === roleId(role)) {
-      selectedRoleId.value = null
-      selectedPermissionIds.value = []
-    }
-    await Promise.all([loadRbac(), loadUserRoles()])
-    showMessage('roles', 'success', '角色已删除')
-  } catch (e) {
-    showMessage('roles', 'error', e.response?.data?.message || '角色删除失败')
-  }
-}
-
-const handleCreatePermission = async () => {
-  try {
-    clearMessage('permissions')
-    await createPermission({
-      permissionName: permissionForm.value.permissionName.trim(),
-      description: permissionForm.value.description,
-      resource: permissionForm.value.resource,
-      action: permissionForm.value.action,
-    })
-    permissionForm.value = { permissionName: '', description: '', resource: '', action: '' }
-    await loadRbac()
-    showMessage('permissions', 'success', '权限已创建')
-  } catch (e) {
-    showMessage('permissions', 'error', e.response?.data?.message || '权限创建失败')
-  }
-}
-
-const handleDeletePermission = async (permission) => {
-  if (!window.confirm(`确认删除权限 ${permission.permissionName}？`)) return
-
-  try {
-    clearMessage('permissions')
-    await deletePermission(permissionId(permission))
-    selectedPermissionIds.value = selectedPermissionIds.value
-      .filter(id => id !== permissionId(permission))
-    await loadRbac()
-    showMessage('permissions', 'success', '权限已删除')
-  } catch (e) {
-    showMessage('permissions', 'error', e.response?.data?.message || '权限删除失败')
-  }
-}
-
-const handleAssignPermissions = async () => {
-  try {
-    clearMessage('permissions')
-    await assignPermissionsToRole(selectedRoleId.value, selectedPermissionIds.value)
-    await loadRbac()
-    showMessage('permissions', 'success', '权限已保存')
-  } catch (e) {
-    showMessage('permissions', 'error', e.response?.data?.message || '权限保存失败')
-  }
-}
-
 const handleCreateForum = async () => {
   try {
     clearMessage('forums')
@@ -798,11 +585,9 @@ const handleCreateUser = async () => {
       username: userForm.value.username.trim(),
       email: userForm.value.email.trim(),
       password: userForm.value.password,
-      roleIds: userForm.value.roleIds,
     })
-    userForm.value = { username: '', email: '', password: '', roleIds: [] }
+    userForm.value = { username: '', email: '', password: '' }
     await loadStats()
-    await loadUserRoles()
     showMessage('users', 'success', '用户已创建')
   } catch (e) {
     showMessage('users', 'error', e.response?.data?.message || '用户创建失败')
@@ -832,26 +617,6 @@ const handleRemoveManager = async (forum, manager) => {
     showMessage('forums', 'success', '版主已移除')
   } catch (e) {
     showMessage('forums', 'error', e.response?.data?.message || '版主移除失败')
-  }
-}
-
-const toggleUserRole = (userId, roleIdValue, checked) => {
-  const current = new Set(userRoleIds.value[userId] || [])
-  if (checked) current.add(roleIdValue)
-  else current.delete(roleIdValue)
-  userRoleIds.value = {
-    ...userRoleIds.value,
-    [userId]: Array.from(current),
-  }
-}
-
-const saveUserRoles = async (userId) => {
-  try {
-    clearMessage('users')
-    await assignRolesToUser(userId, userRoleIds.value[userId] || [])
-    showMessage('users', 'success', '用户角色已保存')
-  } catch (e) {
-    showMessage('users', 'error', e.response?.data?.message || '用户角色保存失败')
   }
 }
 
@@ -970,14 +735,11 @@ const handleResolveDispute = async (dispute) => {
 onMounted(async () => {
   const results = await Promise.allSettled([
     loadStats(),
-    loadRbac(),
     loadReports(),
     loadPostAudits(),
     loadManagedPosts(),
     loadDisputes(),
   ])
-
-  await loadUserRoles().catch(() => {})
 
   if (results.every(result => result.status === 'rejected')) {
     const firstReason = results.find(result => result.status === 'rejected')?.reason

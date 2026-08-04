@@ -16,7 +16,6 @@ public class CreateUserRequest
     [StringLength(100, MinimumLength = 8, ErrorMessage = "密码长度必须在8-100个字符之间")]
     public string Password { get; set; } = string.Empty;
 
-    public List<int> RoleIds { get; set; } = new();
 }
 
 public class AdminUserResponse
