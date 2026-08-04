@@ -75,19 +75,61 @@ class TestForumCRUD:
         forum_name = self._unique_name("测试论坛")
         resp = admin_forum_client.create_forum(forum_name, "这是一个测试论坛")
         assert resp.status_code == 201
-        data = resp.json()
-        assert data["forumName"] == forum_name
-        assert data["description"] == "这是一个测试论坛"
-        assert data["status"] == "Active"
+        forum_id = resp.json()["forumID"]
+
+        try:
+            data = resp.json()
+            assert data["forumName"] == forum_name
+            assert data["description"] == "这是一个测试论坛"
+            assert data["status"] == "Active"
+        finally:
+            assert admin_forum_client.delete_forum(forum_id).status_code == 200
 
     def test_user_can_create_forum(self, forum_client, admin_forum_client):
         forum_name = self._unique_name("用户创建版块")
         resp = forum_client.create_forum(forum_name, "由普通用户创建")
         assert resp.status_code == 201
-        assert resp.json()["forumName"] == forum_name
-        assert resp.json()["status"] == "Active"
+        forum_id = resp.json()["forumID"]
 
-        admin_forum_client.delete_forum(resp.json()["forumID"])
+        try:
+            assert resp.json()["forumName"] == forum_name
+            assert resp.json()["description"] == "由普通用户创建"
+            assert resp.json()["status"] == "Active"
+            assert resp.json()["postCount"] == 0
+            assert resp.headers["Location"].endswith(f"/api/Forums/{forum_id}")
+
+            detail = forum_client.get_forum(forum_id)
+            assert detail.status_code == 200
+            assert detail.json()["forumName"] == forum_name
+            assert forum_id in {forum["forumID"] for forum in forum_client.get_forums().json()}
+
+            assert forum_client.update_forum(forum_id, "不允许修改", "越权").status_code == 403
+            assert forum_client.delete_forum(forum_id).status_code == 403
+            assert forum_client.assign_forum_manager(forum_id, 4).status_code == 403
+        finally:
+            assert admin_forum_client.delete_forum(forum_id).status_code == 200
+
+    @pytest.mark.parametrize("client_fixture", [
+        "manager_forum_client",
+        "moderator_forum_client",
+    ])
+    def test_staff_roles_retain_create_forum_permission(
+            self, request, client_fixture, admin_forum_client):
+        role_client = request.getfixturevalue(client_fixture)
+        me = role_client.get("/api/auth/me")
+        assert me.status_code == 200
+        assert "forums.create" in me.json()["user"]["permissions"]
+
+        resp = role_client.create_forum(
+            self._unique_name(f"{client_fixture}创建版块"),
+            "管理角色应保留普通用户的创建能力",
+        )
+        assert resp.status_code == 201
+        forum_id = resp.json()["forumID"]
+        try:
+            assert resp.json()["status"] == "Active"
+        finally:
+            assert admin_forum_client.delete_forum(forum_id).status_code == 200
 
     def test_unauthenticated_user_cannot_create_forum(self, forum_client):
         forum_client.post("/api/auth/logout")
@@ -120,6 +162,31 @@ class TestForumCRUD:
         resp = admin_forum_client.create_forum("A", "名称太短")
         assert resp.status_code == 400
 
+    @pytest.mark.parametrize("forum_name", ["", " ", "  ", " A "])
+    def test_create_forum_rejects_name_invalid_after_trim(self, forum_client, forum_name):
+        resp = forum_client.create_forum(forum_name, "修剪后名称不合法")
+        assert resp.status_code == 400
+
+    def test_create_forum_accepts_maximum_lengths(self, forum_client, admin_forum_client):
+        forum_name = "N" * 100
+        resp = forum_client.create_forum(forum_name, "D" * 500)
+        assert resp.status_code == 201
+        forum_id = resp.json()["forumID"]
+
+        try:
+            assert len(resp.json()["forumName"]) == 100
+            assert len(resp.json()["description"]) == 500
+        finally:
+            assert admin_forum_client.delete_forum(forum_id).status_code == 200
+
+    @pytest.mark.parametrize("forum_name,description", [
+        ("N" * 101, "名称过长"),
+        ("描述过长版块", "D" * 501),
+    ])
+    def test_create_forum_rejects_oversized_fields(self, forum_client, forum_name, description):
+        resp = forum_client.create_forum(forum_name, description)
+        assert resp.status_code == 400
+
     def test_create_forum_trims_name_and_description(self, admin_forum_client):
         forum_name = self._unique_name("去除空格版块")
         resp = admin_forum_client.create_forum(f"  {forum_name}  ", "  版块描述  ")
@@ -145,6 +212,19 @@ class TestForumCRUD:
             assert duplicate.json()["message"] == "已存在同名版块"
         finally:
             admin_forum_client.delete_forum(forum_id)
+
+    def test_duplicate_forum_name_is_case_insensitive(self, forum_client, admin_forum_client):
+        forum_name = f"CaseForum-{uuid4().hex[:8]}"
+        first = forum_client.create_forum(forum_name, "原版块")
+        assert first.status_code == 201
+        forum_id = first.json()["forumID"]
+
+        try:
+            duplicate = forum_client.create_forum(forum_name.swapcase(), "大小写重复")
+            assert duplicate.status_code == 400
+            assert duplicate.json()["message"] == "已存在同名版块"
+        finally:
+            assert admin_forum_client.delete_forum(forum_id).status_code == 200
 
     def test_update_forum_to_duplicate_name_rejected(self, admin_forum_client):
         first = admin_forum_client.create_forum(self._unique_name("已有版块"), "描述")

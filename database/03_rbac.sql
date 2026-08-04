@@ -80,7 +80,7 @@ WHERE r."roleName" = 'Manager'
 AND p."permissionName" IN (
     'dashboard.view',
     'users.view', 'users.ban',
-    'forums.view', 'forums.edit',
+    'forums.view', 'forums.create', 'forums.edit',
     'posts.view', 'posts.edit', 'posts.delete', 'posts.moderate',
     'products.view'
 );
@@ -94,7 +94,7 @@ FROM "Role" r, "Permission" p
 WHERE r."roleName" = 'Moderator'
 AND p."permissionName" IN (
     'users.view', 'users.ban',
-    'forums.view', 'forums.edit',
+    'forums.view', 'forums.create', 'forums.edit',
     'posts.view', 'posts.edit', 'posts.delete', 'posts.moderate',
     'products.view'
 );

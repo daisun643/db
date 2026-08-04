@@ -80,7 +80,12 @@ public class ForumsController : ControllerBase
             return BadRequest(ModelState);
 
         var name = request.ForumName.Trim();
-        if ((await _db.Forums.CountAsync(f => f.ForumName == name)) > 0)
+        if (name.Length < 2)
+            return BadRequest(new { message = "版块名称长度必须在2-100个字符之间" });
+
+        var normalizedName = name.ToLower();
+        if ((await _db.Forums.CountAsync(f =>
+                f.ForumName != null && f.ForumName.ToLower() == normalizedName)) > 0)
             return BadRequest(new { message = "已存在同名版块" });
 
         var userId = TryGetCurrentUserId() ?? 0;
