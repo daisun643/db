@@ -62,6 +62,11 @@ SELECT '校园公告', '校园通知与官方通告', 'Active', SYSTIMESTAMP - I
 FROM "User" WHERE "email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '校园公告');
 
+INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
+SELECT '失物招领', '发布失物和招领信息，帮助物品回到主人身边', 'Active', SYSTIMESTAMP - INTERVAL '18' DAY, "userId"
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
+AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '失物招领');
+
 -- ============================================================
 -- 2. 帖子标签
 -- ============================================================
