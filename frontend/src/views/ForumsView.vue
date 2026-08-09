@@ -96,49 +96,52 @@
               </svg>
               <input v-model="filters.keyword" type="search" placeholder="搜索帖子标题或内容" @keyup.enter="applyFilters" />
             </label>
-            <select v-model="filters.sort" aria-label="帖子排序" @change="applyFilters">
-              <option value="latest">最新发布</option>
-              <option value="hot">最多互动</option>
-            </select>
+            <button class="filter-trigger" type="button" @click="filterDialogOpen = true">
+              筛选
+              <span v-if="filters.tags.length" class="filter-count">{{ filters.tags.length }}</span>
+            </button>
             <button class="search-submit" @click="applyFilters">搜索</button>
           </div>
         </div>
 
-        <details class="advanced-search">
-          <summary><span>更多筛选</span><small>标签与时间</small></summary>
-          <div class="advanced-search-grid">
-            <fieldset class="tag-filter-field">
-              <legend>标签</legend>
-              <div v-if="tagStats.length" class="tag-checkbox-list">
-                <label v-for="stat in tagStats" :key="stat.tagId" class="tag-checkbox">
-                  <input v-model="filters.tags" type="checkbox" :value="stat.tagName" />
-                  <span>#{{ stat.tagName }}</span>
-                  <small>{{ stat.postCount }}</small>
+        <div v-if="filterDialogOpen" class="filter-dialog-backdrop" @click.self="filterDialogOpen = false">
+          <section class="filter-dialog" role="dialog" aria-modal="true" aria-labelledby="filter-dialog-title">
+            <header class="filter-dialog-header">
+              <div>
+                <h3 id="filter-dialog-title">筛选</h3>
+                <p>按标签和发布时间筛选帖子</p>
+              </div>
+              <button class="icon-button" type="button" aria-label="关闭筛选窗口" @click="filterDialogOpen = false">×</button>
+            </header>
+            <div class="filter-dialog-body">
+              <fieldset class="tag-filter-field">
+                <legend>标签</legend>
+                <div v-if="tagStats.length" class="tag-checkbox-list">
+                  <label v-for="stat in tagStats" :key="stat.tagId" class="tag-checkbox">
+                    <input v-model="filters.tags" type="checkbox" :value="stat.tagName" />
+                    <span>#{{ stat.tagName }}</span>
+                    <small>{{ stat.postCount }}</small>
+                  </label>
+                </div>
+                <p v-else class="tag-filter-empty">暂无可选标签</p>
+              </fieldset>
+              <div class="filter-time-grid">
+                <label>
+                  开始时间
+                  <input v-model="filters.from" type="datetime-local" />
+                </label>
+                <label>
+                  结束时间
+                  <input v-model="filters.to" type="datetime-local" />
                 </label>
               </div>
-              <p v-else class="tag-filter-empty">暂无可选标签</p>
-            </fieldset>
-            <label>
-              标签关系
-              <select v-model="filters.tagOp">
-                <option value="and">同时包含</option>
-                <option value="or">包含任一</option>
-              </select>
-            </label>
-            <label>
-              开始时间
-              <input v-model="filters.from" type="datetime-local" />
-            </label>
-            <label>
-              结束时间
-              <input v-model="filters.to" type="datetime-local" />
-            </label>
-          </div>
-          <div class="advanced-search-actions">
-            <button class="btn btn-primary" @click="applyFilters">应用高级筛选</button>
-            <button class="btn" @click="resetFilters">清空筛选</button>
-          </div>
-        </details>
+            </div>
+            <footer class="filter-dialog-actions">
+              <button class="btn" type="button" @click="resetFilters">清空筛选</button>
+              <button class="btn btn-primary" type="button" @click="applyFiltersAndClose">应用筛选</button>
+            </footer>
+          </section>
+        </div>
 
         <div v-if="loading" class="loading">加载中...</div>
         <div v-else class="post-list masonry-feed">
@@ -550,6 +553,7 @@ const commentSubmitting = ref(false)
 const composerOpen = ref(false)
 const forumCreatorOpen = ref(false)
 const creatingForum = ref(false)
+const filterDialogOpen = ref(false)
 const error = ref(null)
 const notice = ref('')
 const tagText = ref('')
@@ -612,10 +616,8 @@ const filters = ref({
   forumId: null,
   keyword: '',
   tags: [],
-  tagOp: 'and',
   from: '',
   to: '',
-  sort: 'latest',
 })
 const totalPosts = ref(0)
 
@@ -681,10 +683,9 @@ const loadPosts = async () => {
       forumId: filters.value.forumId || undefined,
       keyword: filters.value.keyword.trim() || undefined,
       tags: filters.value.tags.join(',') || undefined,
-      tagOp: filters.value.tagOp,
+      tagOp: filters.value.tags.length ? 'or' : undefined,
       from: filters.value.from || undefined,
       to: filters.value.to || undefined,
-      sort: filters.value.sort,
       page: 1,
       pageSize: 50,
     })
@@ -753,15 +754,18 @@ const applyFilters = async () => {
   await loadPosts()
 }
 
+const applyFiltersAndClose = async () => {
+  await loadPosts()
+  filterDialogOpen.value = false
+}
+
 const resetFilters = async () => {
   filters.value = {
     forumId: filters.value.forumId,
     keyword: '',
     tags: [],
-    tagOp: 'and',
     from: '',
     to: '',
-    sort: 'latest',
   }
   await loadPosts()
 }
@@ -2175,16 +2179,8 @@ onMounted(async () => {
 .forum-page .search-field svg { width:17px; height:17px; flex:0 0 auto; color:#8b93a3; }
 .forum-page .search-field input { width:100%; min-width:0; padding:.68rem 0; border:0; border-radius:0; outline:0; background:transparent; box-shadow:none; }
 .forum-page .search-field input:focus { border:0; box-shadow:none; }
-.forum-page .toolbar > select { min-width:0; padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; color:#4c5567; background:#fff; }
 .forum-page .search-submit { padding:.68rem 1rem; border:0; border-radius:9px; color:#fff; background:#2c3344; font:inherit; font-size:.82rem; font-weight:650; cursor:pointer; }
 .forum-page .search-submit:hover { background:#171d2e; }
-
-.forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
-.forum-page .advanced-search summary { display:flex; align-items:center; gap:.55rem; padding:.78rem 1rem; color:#424a5c; font-size:.8rem; font-weight:650; cursor:pointer; }
-.forum-page .advanced-search summary small { color:#9aa1af; font-size:.7rem; font-weight:400; }
-.forum-page .advanced-search[open] summary { border-bottom:1px solid var(--border); }
-.forum-page .advanced-search-grid { padding:1rem; }
-.forum-page .advanced-search-actions { justify-content:flex-end; margin:0; padding:0 1rem 1rem; }
 
 .forum-page .post-list { gap:.65rem; margin-top:.9rem; }
 .forum-page .masonry-feed { display:block; column-width:230px; column-gap:1rem; }
@@ -2228,8 +2224,6 @@ onMounted(async () => {
   .feed-heading { align-items:flex-start; }
   .forum-page .toolbar { display:grid; grid-template-columns:1fr auto; }
   .forum-page .search-field { grid-column:1 / -1; }
-  .forum-page .toolbar > select { width:100%; }
-  .forum-page .advanced-search-grid { padding:.8rem; }
   .composer-header { padding:1rem; }
   .composer-header p { display:none; }
   .forum-page .composer-shell { padding:1rem; }
@@ -2418,44 +2412,6 @@ onMounted(async () => {
 
 
 <style scoped>
-.advanced-search {
-  margin: 0 0 1rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.advanced-search summary {
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.advanced-search-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-.advanced-search-grid label {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.advanced-search-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-
-@media (max-width: 760px) {
-  .advanced-search-grid { grid-template-columns: 1fr; }
-}
 .success-message {
   background: #dcfce7;
   color: #166534;
@@ -2491,14 +2447,10 @@ onMounted(async () => {
 
 .forum-page .forum-main, .forum-page .favorites-main, .forum-page .tab-content { min-width: 0; }
 .forum-page .feed-toolbar { top: 1rem; gap: .7rem; padding: .8rem; border: 1px solid rgba(25,34,59,.08); border-radius: 18px; background: rgba(255,255,255,.94); box-shadow: 0 12px 34px rgba(29,35,58,.07); backdrop-filter: blur(16px); }
-.forum-page .toolbar input, .forum-page .toolbar select, .forum-page .composer-fields input, .forum-page .composer-fields select, .forum-page .composer-fields textarea, .forum-page .folder-create-form input, .forum-page .folder-rename-input, .forum-page .folder-picker-form input { border: 1px solid #e2e4ed; border-radius: 11px; background: #fafafd; }
-.forum-page .toolbar input:focus, .forum-page .toolbar select:focus, .forum-page .composer-fields input:focus, .forum-page .composer-fields select:focus { border-color: #7463ee; box-shadow: 0 0 0 4px rgba(105,87,245,.1); }
+.forum-page .toolbar input, .forum-page .composer-fields input, .forum-page .composer-fields select, .forum-page .composer-fields textarea, .forum-page .folder-create-form input, .forum-page .folder-rename-input, .forum-page .folder-picker-form input { border: 1px solid #e2e4ed; border-radius: 11px; background: #fafafd; }
+.forum-page .toolbar input:focus, .forum-page .composer-fields input:focus, .forum-page .composer-fields select:focus { border-color: #7463ee; box-shadow: 0 0 0 4px rgba(105,87,245,.1); }
 .forum-page .compose-trigger, .forum-page .compose-submit { border-radius: 12px; background: linear-gradient(135deg, #5f50dc, #7563ef); box-shadow: 0 8px 20px rgba(95,80,220,.2); }
 .forum-page .compose-trigger:hover, .forum-page .compose-submit:hover { background: linear-gradient(135deg, #5142ca, #6956e7); }
-.forum-page .advanced-search { overflow: hidden; margin-top: .75rem; padding: .85rem 1rem; border: 1px solid rgba(25,34,59,.08); border-radius: 16px; background: #fff; }
-.forum-page .advanced-search summary { color: #6654d7; font-weight: 650; }
-.forum-page .advanced-search :is(input, select) { border: 1px solid #e2e4ed; border-radius: 10px; padding: .6rem; font: inherit; }
-
 .forum-page .post-list { gap: .75rem; margin-top: .85rem; }
 .forum-page .post-item { padding: 1.25rem 1.35rem; border: 1px solid rgba(25,34,59,.08); border-radius: 20px; background: #fff; box-shadow: 0 10px 30px rgba(29,35,58,.045); transition: transform .22s, box-shadow .22s, border-color .22s; }
 .forum-page .post-item + .post-item { border-top: 1px solid rgba(25,34,59,.08); }
@@ -2589,17 +2541,27 @@ onMounted(async () => {
 .forum-page .toolbar { display:grid; grid-template-columns:minmax(240px,1fr) 132px auto; gap:.6rem; }
 .forum-page .search-field input { padding:.68rem 0; border:0; border-radius:0; background:transparent; box-shadow:none; }
 .forum-page .search-field input:focus { border:0; box-shadow:none; }
-.forum-page .toolbar > select { padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
-.forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
-.forum-page .advanced-search summary { padding:.78rem 1rem; color:#424a5c; }
-.forum-page .tag-filter-field { min-width:0; grid-column:span 2; margin:0; padding:0; border:0; }
+.forum-page .filter-trigger { display:flex; align-items:center; justify-content:center; gap:.4rem; padding:.68rem .8rem; border:1px solid #dfe2e8; border-radius:9px; color:#4c5567; background:#fff; font:inherit; font-size:.82rem; font-weight:650; cursor:pointer; }
+.forum-page .filter-trigger:hover { color:var(--primary); border-color:#c8c4ee; background:#f7f6ff; }
+.forum-page .filter-count { min-width:1.2rem; padding:.08rem .3rem; border-radius:999px; color:#fff; background:var(--primary); font-size:.66rem; text-align:center; }
+.forum-page .filter-dialog-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:1rem; background:rgba(18,16,42,.58); backdrop-filter:blur(6px); }
+.forum-page .filter-dialog { width:min(620px,100%); max-height:calc(100vh - 2rem); overflow:auto; border:1px solid rgba(255,255,255,.15); border-radius:18px; background:#fff; box-shadow:0 28px 80px rgba(13,10,40,.3); }
+.forum-page .filter-dialog-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.2rem 1.3rem; border-bottom:1px solid var(--border); }
+.forum-page .filter-dialog-header h3 { color:#171d2e; font-size:1.15rem; }
+.forum-page .filter-dialog-header p { margin-top:.2rem; color:var(--text-secondary); font-size:.76rem; }
+.forum-page .filter-dialog-body { display:grid; gap:1.25rem; padding:1.25rem 1.3rem; }
+.forum-page .tag-filter-field { min-width:0; margin:0; padding:0; border:0; }
 .forum-page .tag-filter-field legend { margin-bottom:.35rem; color:var(--text-secondary); font-size:.8rem; }
 .forum-page .tag-checkbox-list { display:flex; flex-wrap:wrap; gap:.5rem; }
-.forum-page .advanced-search-grid .tag-checkbox { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .65rem; border:1px solid #e2e4ed; border-radius:9px; color:#566074; background:#fff; cursor:pointer; }
-.forum-page .advanced-search-grid .tag-checkbox:has(input:checked) { color:#5145bf; border-color:#c8c4ee; background:#f0effc; }
-.forum-page .advanced-search .tag-checkbox input[type="checkbox"] { width:1rem; height:1rem; margin:0; padding:0; accent-color:var(--primary); box-shadow:none; }
+.forum-page .filter-dialog .tag-checkbox { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .65rem; border:1px solid #e2e4ed; border-radius:9px; color:#566074; background:#fff; cursor:pointer; }
+.forum-page .filter-dialog .tag-checkbox:has(input:checked) { color:#5145bf; border-color:#c8c4ee; background:#f0effc; }
+.forum-page .filter-dialog .tag-checkbox input[type="checkbox"] { width:1rem; height:1rem; margin:0; padding:0; accent-color:var(--primary); box-shadow:none; }
 .forum-page .tag-checkbox small { color:#9299a8; font-size:.68rem; }
 .forum-page .tag-filter-empty { margin:0; color:var(--text-secondary); font-size:.78rem; }
+.forum-page .filter-time-grid { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+.forum-page .filter-time-grid label { display:grid; gap:.4rem; color:var(--text-secondary); font-size:.8rem; }
+.forum-page .filter-time-grid input { width:100%; min-width:0; padding:.65rem .7rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; font:inherit; }
+.forum-page .filter-dialog-actions { display:flex; justify-content:flex-end; gap:.65rem; padding:1rem 1.3rem; border-top:1px solid var(--border); }
 .forum-page .post-list { gap:.65rem; margin-top:.9rem; }
 .forum-page .masonry-feed { display:block; column-width:230px; column-gap:1rem; }
 .forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
@@ -2613,5 +2575,5 @@ onMounted(async () => {
 .forum-page .composer-fields textarea { min-height:190px; padding:.8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
 .forum-page .compose-trigger, .forum-page .compose-submit { border-radius:9px; background:var(--primary); box-shadow:none; }
 @media(max-width:820px){.forum-page .forum-layout{grid-template-columns:1fr}.forum-page .forum-sidebar-heading{grid-column:1/-1}}
-@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .forum-sidebar-heading{flex:0 0 auto}.forum-page .forum-sidebar .forum-sidebar-heading .section-title{display:block}.forum-page .tag-filter-field{grid-column:1}.forum-page .composer-shell{padding:1rem}.forum-page .masonry-feed{column-width:128px;column-gap:.65rem}}
+@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .forum-sidebar-heading{flex:0 0 auto}.forum-page .forum-sidebar .forum-sidebar-heading .section-title{display:block}.forum-page .filter-time-grid{grid-template-columns:1fr}.forum-page .filter-dialog-actions .btn{flex:1}.forum-page .composer-shell{padding:1rem}.forum-page .masonry-feed{column-width:128px;column-gap:.65rem}}
 </style>
