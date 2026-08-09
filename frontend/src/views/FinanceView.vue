@@ -1,19 +1,5 @@
 <template>
   <div class="page-container finance-page">
-    <section class="finance-hero">
-      <div>
-        <span class="finance-eyebrow"><i></i>FINANCE CENTER</span>
-        <h1>每一笔流动，<span>都清晰可见。</span></h1>
-        <p>集中查看账户余额、冻结资金与交易收支，让校园交易的每一步都有迹可循。</p>
-      </div>
-      <div class="finance-balance">
-        <span>AVAILABLE BALANCE</span>
-        <strong>¥ {{ summary.availableAmount?.toFixed(2) || '0.00' }}</strong>
-        <small>当前可用余额</small>
-        <div><span>总收入 <b>¥{{ summary.totalIncome?.toFixed(2) || '0.00' }}</b></span><span>总支出 <b>¥{{ summary.totalExpense?.toFixed(2) || '0.00' }}</b></span></div>
-      </div>
-    </section>
-
     <!-- 摘要卡片 -->
     <section class="summary-cards">
       <div class="card">
@@ -236,20 +222,6 @@ export default {
 
 <style scoped>
 .finance-page { width: 100%; max-width: 1480px; margin: 0 auto; color: #11182b; }
-.finance-hero { position: relative; isolation: isolate; min-height: 315px; display: grid; grid-template-columns: minmax(0,1.15fr) minmax(340px,.85fr); align-items: center; gap: clamp(2rem,5vw,5rem); overflow: hidden; padding: clamp(2rem,4.5vw,4rem); border-radius: 30px; color: #fff; background: radial-gradient(circle at 12% 0%,rgba(62,218,220,.24),transparent 30%),linear-gradient(135deg,#13263d 0%,#263a68 50%,#604cda 100%); box-shadow: 0 28px 65px rgba(31,44,91,.2); }
-.finance-hero::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.14; background-image:linear-gradient(rgba(255,255,255,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.17) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to right,#000,transparent 75%); }
-.finance-eyebrow { display:inline-flex; align-items:center; gap:.65rem; color:#9eeceb; font-size:.68rem; font-weight:800; letter-spacing:.18em; }
-.finance-eyebrow i { width:8px; height:8px; border-radius:50%; background:#65f2c9; box-shadow:0 0 0 6px rgba(101,242,201,.11),0 0 18px rgba(101,242,201,.72); }
-.finance-hero h1 { max-width:700px; margin-top:1.2rem; font-size:clamp(2.5rem,4.7vw,4.6rem); line-height:1; letter-spacing:-.055em; }
-.finance-hero h1 span { color:#a7eeeb; }
-.finance-hero p { max-width:580px; margin-top:1.2rem; color:rgba(255,255,255,.67); line-height:1.8; }
-.finance-balance { padding:1.4rem; border:1px solid rgba(255,255,255,.17); border-radius:24px; background:rgba(8,16,38,.36); box-shadow:0 22px 50px rgba(5,13,33,.25); backdrop-filter:blur(22px); }
-.finance-balance > span { color:#99e3df; font-size:.62rem; font-weight:800; letter-spacing:.14em; }
-.finance-balance > strong { display:block; margin-top:.7rem; font-size:clamp(2.2rem,4vw,3.5rem); letter-spacing:-.05em; }
-.finance-balance > small { color:rgba(255,255,255,.44); }
-.finance-balance > div { display:grid; grid-template-columns:1fr 1fr; gap:.55rem; margin-top:1.2rem; }
-.finance-balance > div span { display:flex; flex-direction:column; padding:.8rem; border-radius:13px; color:rgba(255,255,255,.45); background:rgba(255,255,255,.07); font-size:.68rem; }
-.finance-balance > div b { margin-top:.15rem; color:#fff; font-size:.9rem; }
 .finance-page .summary-cards { grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; margin:1.25rem 0; }
 .finance-page .card { position:relative; overflow:hidden; padding:1.3rem; border:1px solid rgba(25,34,59,.08); border-radius:20px; box-shadow:0 12px 32px rgba(29,35,58,.05); }
 .finance-page .card::after { content:''; position:absolute; width:70px; height:70px; right:-30px; bottom:-36px; border-radius:50%; background:#dcd7ff; opacity:.55; }
@@ -264,6 +236,6 @@ export default {
 .finance-page .flow-table td { padding:.85rem .8rem; }
 .finance-page .flow-table tr:last-child td { border-bottom:0; }
 .finance-page .flow-table tr:hover td { background:#faf9ff; }
-@media(max-width:900px){.finance-hero{grid-template-columns:1fr;padding:2rem;border-radius:24px}.finance-balance{max-width:620px}.finance-page .summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.finance-hero{min-height:auto;gap:1.5rem;padding:1.45rem;border-radius:20px}.finance-hero h1{font-size:2.05rem}.finance-hero p{font-size:.86rem}.finance-balance{padding:1rem;border-radius:18px}.finance-page .summary-cards{gap:.65rem}.finance-page .card{padding:1rem;border-radius:16px}.finance-page .card-value{font-size:1.05rem}.finance-page .flow-section{padding:.8rem;border-radius:18px}}
+@media(max-width:900px){.finance-page .summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.finance-page .summary-cards{gap:.65rem}.finance-page .card{padding:1rem;border-radius:16px}.finance-page .card-value{font-size:1.05rem}.finance-page .flow-section{padding:.8rem;border-radius:18px}}
 </style>

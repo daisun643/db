@@ -1,23 +1,5 @@
 <template>
   <div class="page-container forum-page">
-    <section class="forum-hero">
-      <div class="forum-hero-copy">
-        <span class="forum-eyebrow"><i></i>校园论坛</span>
-        <h1>发现讨论，<span>分享校园生活。</span></h1>
-        <p>浏览校园里的新鲜话题，或分享你的经验与想法。</p>
-      </div>
-      <div class="forum-pulse-card">
-        <span class="pulse-label">COMMUNITY PULSE</span>
-        <strong>社区正在发生</strong>
-        <div class="pulse-grid">
-          <span><b>{{ totalPosts }}</b><small>当前帖子</small></span>
-          <span><b>{{ forums.length }}</b><small>活跃版块</small></span>
-          <span><b>{{ tagStats.length }}</b><small>热门标签</small></span>
-        </div>
-        <div class="pulse-live"><i></i> 校园社区实时开放</div>
-      </div>
-    </section>
-
     <div class="forum-nav">
       <div class="tabs">
         <button 
@@ -39,9 +21,6 @@
           收藏夹
         </button>
       </div>
-      <button class="create-forum-trigger" type="button" @click="openForumCreator">
-        <span aria-hidden="true">＋</span> 创建版块
-      </button>
     </div>
 
     <div v-if="error" class="error-message">{{ error }}</div>
@@ -78,7 +57,12 @@
 
     <div v-if="activeTab === 'all'" class="forum-layout">
       <aside class="forum-sidebar">
-        <div class="section-title">版块</div>
+        <div class="forum-sidebar-heading">
+          <div class="section-title">版块</div>
+          <button class="create-forum-trigger" type="button" @click="openForumCreator">
+            <span aria-hidden="true">＋</span> 创建版块
+          </button>
+        </div>
         <button
           :class="['forum-filter', { active: filters.forumId === null }]"
           @click="selectForum(null)"
@@ -94,25 +78,13 @@
           <span>{{ forum.forumName }}</span>
           <span class="forum-count">{{ forum.postCount || 0 }}</span>
         </button>
-
-        <div class="section-title" style="margin-top:1.5rem">热门标签</div>
-        <div v-if="tagStats.length === 0" class="muted" style="font-size:0.8rem;padding:0 0.5rem">暂无标签</div>
-        <button
-          v-for="stat in tagStats"
-          :key="stat.tagId"
-          :class="['forum-filter', { active: filters.tag === stat.tagName }]"
-          @click="selectTag(stat.tagName)"
-        >
-          <span>#{{ stat.tagName }}</span>
-          <span class="forum-count">{{ stat.postCount }}</span>
-        </button>
       </aside>
 
       <main class="forum-main">
         <div class="feed-toolbar">
           <div class="feed-heading">
             <div>
-              <h2>全部讨论</h2>
+              <h2>全部帖子</h2>
               <p>共 {{ totalPosts }} 条帖子</p>
             </div>
             <button class="compose-trigger" @click="openComposer"><span aria-hidden="true">＋</span> 发布帖子</button>
@@ -133,16 +105,19 @@
         </div>
 
         <details class="advanced-search">
-          <summary><span>更多筛选</span><small>标签、时间与热度</small></summary>
+          <summary><span>更多筛选</span><small>标签与时间</small></summary>
           <div class="advanced-search-grid">
-            <label>
-              单个标签
-              <input v-model="filters.tag" type="search" placeholder="例如：课程" @keyup.enter="applyFilters" />
-            </label>
-            <label>
-              多个标签（逗号分隔）
-              <input v-model="filters.tags" type="text" placeholder="如：数据库, 课程设计" @keyup.enter="applyFilters" />
-            </label>
+            <fieldset class="tag-filter-field">
+              <legend>标签</legend>
+              <div v-if="tagStats.length" class="tag-checkbox-list">
+                <label v-for="stat in tagStats" :key="stat.tagId" class="tag-checkbox">
+                  <input v-model="filters.tags" type="checkbox" :value="stat.tagName" />
+                  <span>#{{ stat.tagName }}</span>
+                  <small>{{ stat.postCount }}</small>
+                </label>
+              </div>
+              <p v-else class="tag-filter-empty">暂无可选标签</p>
+            </fieldset>
             <label>
               标签关系
               <select v-model="filters.tagOp">
@@ -157,14 +132,6 @@
             <label>
               结束时间
               <input v-model="filters.to" type="datetime-local" />
-            </label>
-            <label>
-              最低热度
-              <input v-model.number="filters.minHeat" type="number" min="0" placeholder="不限" />
-            </label>
-            <label>
-              最高热度
-              <input v-model.number="filters.maxHeat" type="number" min="0" placeholder="不限" />
             </label>
           </div>
           <div class="advanced-search-actions">
@@ -644,13 +611,10 @@ const iconMaskStyle = (icon) => ({
 const filters = ref({
   forumId: null,
   keyword: '',
-  tag: '',
-  tags: '',
+  tags: [],
   tagOp: 'and',
   from: '',
   to: '',
-  minHeat: null,
-  maxHeat: null,
   sort: 'latest',
 })
 const totalPosts = ref(0)
@@ -716,13 +680,10 @@ const loadPosts = async () => {
     const res = await getPosts({
       forumId: filters.value.forumId || undefined,
       keyword: filters.value.keyword.trim() || undefined,
-      tag: filters.value.tag.trim() || undefined,
-      tags: filters.value.tags.trim() || undefined,
+      tags: filters.value.tags.join(',') || undefined,
       tagOp: filters.value.tagOp,
       from: filters.value.from || undefined,
       to: filters.value.to || undefined,
-      minHeat: Number.isFinite(filters.value.minHeat) ? filters.value.minHeat : undefined,
-      maxHeat: Number.isFinite(filters.value.maxHeat) ? filters.value.maxHeat : undefined,
       sort: filters.value.sort,
       page: 1,
       pageSize: 50,
@@ -788,15 +749,6 @@ const loadTagStats = async () => {
   }
 }
 
-const selectTag = async (tagName) => {
-  if (filters.value.tag === tagName) {
-    filters.value.tag = ''
-  } else {
-    filters.value.tag = tagName
-  }
-  await loadPosts()
-}
-
 const applyFilters = async () => {
   await loadPosts()
 }
@@ -805,13 +757,10 @@ const resetFilters = async () => {
   filters.value = {
     forumId: filters.value.forumId,
     keyword: '',
-    tag: '',
-    tags: '',
+    tags: [],
     tagOp: 'and',
     from: '',
     to: '',
-    minHeat: null,
-    maxHeat: null,
     sort: 'latest',
   }
   await loadPosts()
@@ -2526,42 +2475,6 @@ onMounted(async () => {
   color: var(--forum-ink);
 }
 
-.forum-hero {
-  position: relative;
-  isolation: isolate;
-  min-height: 330px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr);
-  align-items: center;
-  gap: clamp(2rem, 5vw, 5rem);
-  overflow: hidden;
-  padding: clamp(2rem, 4.5vw, 4.25rem);
-  border-radius: 30px;
-  color: #fff;
-  background: radial-gradient(circle at 16% 0%, rgba(173,148,255,.35), transparent 31%), linear-gradient(135deg, #201b4c 0%, #382b78 48%, #674bdd 100%);
-  box-shadow: 0 28px 65px rgba(50,37,116,.21);
-}
-.forum-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .15; background-image: linear-gradient(rgba(255,255,255,.17) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.17) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to right, #000, transparent 75%); }
-.forum-hero::after { content: ''; position: absolute; z-index: -1; width: 300px; height: 300px; right: -90px; top: -160px; border-radius: 50%; background: rgba(77,223,235,.19); }
-.forum-eyebrow { display: inline-flex; align-items: center; gap: .65rem; color: #d5ceff; font-size: .68rem; font-weight: 800; letter-spacing: .18em; }
-.forum-eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: #6fffc0; box-shadow: 0 0 0 6px rgba(111,255,192,.11), 0 0 20px rgba(111,255,192,.75); }
-.forum-hero h1 { max-width: 720px; margin-top: 1.25rem; font-size: clamp(2.5rem, 4.8vw, 4.7rem); line-height: 1; letter-spacing: -.055em; }
-.forum-hero h1 span { color: #d6ceff; }
-.forum-hero-copy > p { max-width: 620px; margin-top: 1.25rem; color: rgba(255,255,255,.68); font-size: .95rem; line-height: 1.8; }
-.forum-hero-action { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1.5rem; padding: .78rem 1.15rem; border: 0; border-radius: 13px; color: #382b78; background: #fff; box-shadow: 0 12px 28px rgba(10,7,39,.22); font: inherit; font-size: .84rem; font-weight: 750; cursor: pointer; transition: transform .2s, box-shadow .2s; }
-.forum-hero-action:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(10,7,39,.3); }
-.forum-hero-action span { font-size: 1.2rem; line-height: 1; }
-
-.forum-pulse-card { padding: 1.4rem; border: 1px solid rgba(255,255,255,.17); border-radius: 24px; background: rgba(10,8,39,.35); box-shadow: 0 22px 50px rgba(6,4,31,.25); backdrop-filter: blur(22px); }
-.pulse-label { color: #afa5ef; font-size: .62rem; font-weight: 800; letter-spacing: .14em; }
-.forum-pulse-card > strong { display: block; margin-top: .45rem; font-size: 1.2rem; }
-.pulse-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin-top: 1.1rem; }
-.pulse-grid > span { display: flex; flex-direction: column; padding: .9rem .7rem; border-radius: 14px; background: rgba(255,255,255,.075); }
-.pulse-grid b { font-size: 1.25rem; letter-spacing: -.03em; }
-.pulse-grid small { margin-top: .2rem; color: rgba(255,255,255,.45); font-size: .62rem; }
-.pulse-live { display: flex; align-items: center; gap: .5rem; margin-top: .8rem; padding: .7rem .8rem; border-radius: 12px; color: rgba(255,255,255,.68); background: rgba(255,255,255,.05); font-size: .68rem; }
-.pulse-live i { width: 7px; height: 7px; border-radius: 50%; background: #68f5c8; box-shadow: 0 0 12px rgba(104,245,200,.8); }
-
 .forum-nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.25rem 0; padding: .55rem; border: 1px solid rgba(24,32,55,.08); border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(28,34,64,.05); }
 .forum-nav .tabs { gap: .35rem; }
 .forum-nav .tab { border: 0; border-radius: 12px; padding: .72rem 1.05rem; color: #70778a; background: transparent; font-weight: 700; }
@@ -2624,8 +2537,6 @@ onMounted(async () => {
   .forum-page .toolbar input { flex-basis: 42%; }
 }
 @media (max-width: 820px) {
-  .forum-hero { grid-template-columns: 1fr; padding: 2rem; border-radius: 24px; }
-  .forum-pulse-card { max-width: 620px; }
   .forum-page .forum-layout, .forum-page .favorites-layout { grid-template-columns: 1fr; }
   .forum-page .forum-sidebar, .forum-page .favorites-sidebar { position: static; }
   .forum-page .forum-sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2633,10 +2544,6 @@ onMounted(async () => {
   .forum-page .feed-toolbar { position: static; }
 }
 @media (max-width: 640px) {
-  .forum-hero { min-height: auto; gap: 1.5rem; padding: 1.45rem; border-radius: 20px; }
-  .forum-hero h1 { font-size: 2.05rem; }
-  .forum-hero-copy > p { font-size: .86rem; }
-  .forum-pulse-card { padding: 1rem; border-radius: 18px; }
   .forum-nav { align-items: stretch; overflow-x: auto; }
   .forum-nav .tabs { flex-wrap: nowrap; }
   .forum-nav .tab { white-space: nowrap; }
@@ -2652,7 +2559,6 @@ onMounted(async () => {
   .forum-page .detail-backdrop { padding: 0; }
   .forum-page .post-detail-panel { max-height: 100vh; border-radius: 0; }
   .forum-page .composer-shell { padding: .85rem; }
-  .pulse-grid > span { padding: .75rem .55rem; }
 }
 </style>
 
@@ -2675,6 +2581,9 @@ onMounted(async () => {
 .forum-page .forum-layout { grid-template-columns:210px minmax(0,1fr); gap:1.25rem; }
 .forum-page .forum-sidebar { padding:.75rem; border-radius:14px; box-shadow:none; }
 .forum-page .section-title { padding:.45rem .65rem .55rem; color:#8990a0; font-size:.68rem; letter-spacing:.08em; }
+.forum-page .forum-sidebar-heading { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.35rem; }
+.forum-page .forum-sidebar-heading .section-title { margin:0; padding:.35rem 0; }
+.forum-page .forum-sidebar-heading .create-forum-trigger { flex:0 0 auto; margin:0; padding:.4rem .55rem; border-radius:8px; box-shadow:none; font-size:.7rem; white-space:nowrap; }
 .forum-page .forum-filter { min-height:40px; margin:.1rem 0; padding:.6rem .7rem; border-radius:9px; }
 .forum-page .feed-toolbar { position:static; display:block; padding:1.15rem; border:1px solid var(--border); border-radius:14px; background:#fff; box-shadow:none; backdrop-filter:none; }
 .forum-page .toolbar { display:grid; grid-template-columns:minmax(240px,1fr) 132px auto; gap:.6rem; }
@@ -2683,6 +2592,14 @@ onMounted(async () => {
 .forum-page .toolbar > select { padding:.68rem .7rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
 .forum-page .advanced-search { margin-top:.65rem; padding:0; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
 .forum-page .advanced-search summary { padding:.78rem 1rem; color:#424a5c; }
+.forum-page .tag-filter-field { min-width:0; grid-column:span 2; margin:0; padding:0; border:0; }
+.forum-page .tag-filter-field legend { margin-bottom:.35rem; color:var(--text-secondary); font-size:.8rem; }
+.forum-page .tag-checkbox-list { display:flex; flex-wrap:wrap; gap:.5rem; }
+.forum-page .advanced-search-grid .tag-checkbox { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .65rem; border:1px solid #e2e4ed; border-radius:9px; color:#566074; background:#fff; cursor:pointer; }
+.forum-page .advanced-search-grid .tag-checkbox:has(input:checked) { color:#5145bf; border-color:#c8c4ee; background:#f0effc; }
+.forum-page .advanced-search .tag-checkbox input[type="checkbox"] { width:1rem; height:1rem; margin:0; padding:0; accent-color:var(--primary); box-shadow:none; }
+.forum-page .tag-checkbox small { color:#9299a8; font-size:.68rem; }
+.forum-page .tag-filter-empty { margin:0; color:var(--text-secondary); font-size:.78rem; }
 .forum-page .post-list { gap:.65rem; margin-top:.9rem; }
 .forum-page .masonry-feed { display:block; column-width:230px; column-gap:1rem; }
 .forum-page .post-item { padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:12px; box-shadow:none; }
@@ -2695,6 +2612,6 @@ onMounted(async () => {
 .forum-page .composer-fields :is(input, select, textarea) { padding:.72rem .8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; box-shadow:none; }
 .forum-page .composer-fields textarea { min-height:190px; padding:.8rem; border:1px solid #dfe2e8; border-radius:9px; background:#fff; }
 .forum-page .compose-trigger, .forum-page .compose-submit { border-radius:9px; background:var(--primary); box-shadow:none; }
-@media(max-width:820px){.forum-page .forum-layout{grid-template-columns:1fr}}
-@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .composer-shell{padding:1rem}.forum-page .masonry-feed{column-width:128px;column-gap:.65rem}}
+@media(max-width:820px){.forum-page .forum-layout{grid-template-columns:1fr}.forum-page .forum-sidebar-heading{grid-column:1/-1}}
+@media(max-width:640px){.forum-page .toolbar{display:grid;grid-template-columns:1fr auto}.forum-page .search-field{grid-column:1/-1}.forum-page .forum-sidebar-heading{flex:0 0 auto}.forum-page .forum-sidebar .forum-sidebar-heading .section-title{display:block}.forum-page .tag-filter-field{grid-column:1}.forum-page .composer-shell{padding:1rem}.forum-page .masonry-feed{column-width:128px;column-gap:.65rem}}
 </style>

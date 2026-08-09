@@ -1,10 +1,5 @@
 <template>
   <div class="page-container system-page">
-    <section class="system-hero">
-      <div><span class="system-eyebrow"><i></i>管理后台</span><h1>系统状态与<span>社区治理</span></h1><p>管理用户、内容与交易工单。</p></div>
-      <div class="system-health"><span>数据库状态</span><strong>{{ health?.status === 'healthy' ? '运行正常' : '检查中' }}</strong><small><i></i>{{ health?.database || '正在连接数据库' }}</small></div>
-    </section>
-
     <div class="stat-cards">
       <div class="stat-card">
         <div class="number">{{ stats.users }}</div>
@@ -1248,18 +1243,6 @@ textarea {
 
 <style scoped>
 .system-page { width:100%; max-width:1480px; margin:0 auto; color:#11172a; }
-.system-hero { position:relative; isolation:isolate; min-height:290px; display:grid; grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr); align-items:center; gap:clamp(2rem,5vw,5rem); overflow:hidden; padding:clamp(2rem,4.5vw,3.8rem); border-radius:30px; color:#fff; background:radial-gradient(circle at 15% 0%,rgba(72,217,212,.22),transparent 31%),linear-gradient(135deg,#142638 0%,#253753 48%,#4b45a9 100%); box-shadow:0 28px 65px rgba(31,44,91,.2); }
-.system-hero::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.13; background-image:linear-gradient(rgba(255,255,255,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.17) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to right,#000,transparent 76%); }
-.system-eyebrow { display:inline-flex; align-items:center; gap:.65rem; color:#a5e8e3; font-size:.68rem; font-weight:800; letter-spacing:.18em; }
-.system-eyebrow i { width:8px;height:8px;border-radius:50%;background:#6fffc0;box-shadow:0 0 0 6px rgba(111,255,192,.11),0 0 20px rgba(111,255,192,.75); }
-.system-hero h1 { margin-top:1.15rem; font-size:clamp(2.4rem,4.4vw,4.4rem); line-height:1; letter-spacing:-.055em; }
-.system-hero h1 span { color:#a9e9e5; }
-.system-hero p { max-width:620px; margin-top:1.15rem; color:rgba(255,255,255,.66); line-height:1.8; }
-.system-health { display:flex; flex-direction:column; padding:1.4rem; border:1px solid rgba(255,255,255,.17); border-radius:22px; background:rgba(7,17,31,.38); box-shadow:0 22px 50px rgba(5,13,33,.24); backdrop-filter:blur(22px); }
-.system-health > span { color:#9ce3de; font-size:.62rem;font-weight:800;letter-spacing:.14em; }
-.system-health > strong { margin:.65rem 0; font-size:2rem;letter-spacing:-.04em; }
-.system-health > small { display:flex;align-items:center;gap:.5rem;padding:.7rem;border-radius:12px;color:rgba(255,255,255,.58);background:rgba(255,255,255,.06); }
-.system-health i { width:7px;height:7px;border-radius:50%;background:#67efc4;box-shadow:0 0 14px rgba(103,239,196,.75); }
 .system-page .stat-cards { grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; margin:1.25rem 0; }
 .system-page .stat-card { position:relative;overflow:hidden;padding:1.25rem;border:1px solid rgba(25,34,59,.08);border-radius:18px;text-align:left;box-shadow:0 10px 28px rgba(29,35,58,.045); }
 .system-page .stat-card::after { content:'';position:absolute;width:75px;height:75px;right:-32px;bottom:-40px;border-radius:50%;background:#d9d4ff;opacity:.65; }
@@ -1281,7 +1264,7 @@ textarea {
 .system-page .modal-backdrop { background:rgba(15,18,38,.58);backdrop-filter:blur(6px); }
 .system-page .credit-dialog { border-radius:20px;box-shadow:0 28px 70px rgba(13,10,40,.28); }
 @media(max-width:1000px){.system-page .admin-grid{grid-template-columns:1fr}.system-page .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.system-hero{grid-template-columns:1fr;padding:1.6rem;border-radius:21px}.system-hero h1{font-size:2.1rem}.system-hero p{font-size:.86rem}.system-health{padding:1rem}.system-page .stat-cards{gap:.65rem}.system-page .stat-card{padding:1rem}.system-page .card{padding:1rem;border-radius:17px}.system-page .admin-grid{margin:.7rem 0}.system-page .report-item,.system-page .forum-admin-item{flex-direction:column}.system-page .inline-form{align-items:stretch;flex-direction:column}}
+@media(max-width:760px){.system-page .stat-cards{gap:.65rem}.system-page .stat-card{padding:1rem}.system-page .card{padding:1rem;border-radius:17px}.system-page .admin-grid{margin:.7rem 0}.system-page .report-item,.system-page .forum-admin-item{flex-direction:column}.system-page .inline-form{align-items:stretch;flex-direction:column}}
 </style>
 
 <style scoped>

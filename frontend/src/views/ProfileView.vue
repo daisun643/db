@@ -1,24 +1,5 @@
 <template>
   <div class="page-container profile-page">
-    <section class="profile-hero">
-      <div class="profile-header">
-        <div class="profile-avatar">
-          <img v-if="profile?.avatarUrl" :src="profile.avatarUrl" alt="用户头像" />
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </div>
-        <div class="profile-info">
-          <span class="profile-eyebrow">CAMPUS IDENTITY</span>
-          <h2>{{ profile?.nickname || profile?.username || '用户' }}</h2>
-          <p class="profile-email">{{ profile?.email }}</p>
-          <div class="profile-tags"><span>Lv.{{ profile?.userLevel || 1 }}</span><span>信用 {{ profile?.credit ?? 0 }}</span><span>{{ profile?.status || '加载中' }}</span></div>
-        </div>
-      </div>
-      <div class="identity-mark">同济</div>
-    </section>
-
     <div v-if="loading" class="loading">加载中...</div>
     <template v-else>
       <div class="card">
@@ -327,42 +308,6 @@ onMounted(loadProfile)
 </script>
 
 <style scoped>
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 0;
-}
-
-.profile-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.profile-avatar svg {
-  width: 48px;
-  height: 48px;
-}
-
-.profile-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.profile-info h2 {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
-}
-
-.profile-email,
 .muted {
   color: var(--text-secondary);
 }
@@ -515,17 +460,6 @@ onMounted(loadProfile)
 
 <style scoped>
 .profile-page { width:100%; max-width:1480px; margin:0 auto; color:#11172a; }
-.profile-hero { position:relative; isolation:isolate; min-height:285px; display:flex; align-items:center; justify-content:space-between; overflow:hidden; padding:clamp(2rem,5vw,4rem); border-radius:30px; color:#fff; background:radial-gradient(circle at 16% 0%,rgba(166,144,255,.36),transparent 32%),linear-gradient(135deg,#211d50 0%,#362b76 48%,#6049d5 100%); box-shadow:0 28px 65px rgba(50,37,116,.2); }
-.profile-hero::before { content:''; position:absolute; inset:0; z-index:-1; opacity:.15; background-image:linear-gradient(rgba(255,255,255,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.17) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to right,#000,transparent 76%); }
-.profile-page .profile-header { gap:1.6rem; padding:0; }
-.profile-page .profile-avatar { width:112px; height:112px; overflow:hidden; border:1px solid rgba(255,255,255,.25); background:linear-gradient(135deg,#7765ee,#21b9b9); box-shadow:0 18px 40px rgba(9,6,39,.28); }
-.profile-page .profile-avatar svg { width:58px; height:58px; }
-.profile-eyebrow { color:#c6bcff; font-size:.66rem; font-weight:800; letter-spacing:.17em; }
-.profile-page .profile-info h2 { margin:.45rem 0 .2rem; font-size:clamp(2rem,3.8vw,3.8rem); line-height:1; letter-spacing:-.05em; }
-.profile-page .profile-email { color:rgba(255,255,255,.55); }
-.profile-tags { display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.85rem; }
-.profile-tags span { padding:.38rem .65rem; border:1px solid rgba(255,255,255,.13); border-radius:999px; color:rgba(255,255,255,.74); background:rgba(255,255,255,.07); font-size:.68rem; }
-.identity-mark { color:rgba(255,255,255,.07); font-size:clamp(5rem,12vw,10rem); font-weight:900; letter-spacing:-.13em; }
 .profile-page > .loading { margin-top:1rem; }
 .profile-page > template + * { margin-top:1rem; }
 .profile-page .card { padding:1.4rem; border:1px solid rgba(25,34,59,.08); border-radius:22px; box-shadow:0 12px 34px rgba(29,35,58,.05); }
@@ -545,5 +479,5 @@ onMounted(loadProfile)
 .profile-page .credit-item { border:0; border-radius:14px; background:#f8f8fc; }
 .profile-page .chip { color:#5d4dd7; background:#efedff; }
 .profile-page .permission-item { border:1px solid #eceafc; border-radius:12px; color:#5f56a8; background:#faf9ff; }
-@media(max-width:640px){.profile-hero{min-height:auto;padding:1.45rem;border-radius:20px}.profile-page .profile-header{align-items:flex-start;flex-direction:column;gap:1rem}.profile-page .profile-avatar{width:82px;height:82px}.profile-page .profile-info h2{font-size:2rem}.identity-mark{position:absolute;right:1.2rem;top:1rem;font-size:4rem}.profile-page .card{padding:1rem;border-radius:18px}.profile-page .info-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.profile-page .info-item{padding:.7rem}.profile-page .settings-grid{grid-template-columns:1fr}.profile-page .credit-item{align-items:flex-start}}
+@media(max-width:640px){.profile-page .card{padding:1rem;border-radius:18px}.profile-page .info-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.profile-page .info-item{padding:.7rem}.profile-page .settings-grid{grid-template-columns:1fr}.profile-page .credit-item{align-items:flex-start}}
 </style>
