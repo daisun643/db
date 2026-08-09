@@ -1052,43 +1052,6 @@ onMounted(async () => {
   min-width: 150px;
 }
 
-.wallet-panel {
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding: 0.875rem 1rem;
-}
-
-.wallet-panel > div {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.wallet-panel strong {
-  color: var(--primary);
-  font-size: 1.25rem;
-}
-
-.wallet-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.wallet-actions input {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  padding: 0.5rem 0.625rem;
-  width: 140px;
-}
-
 .product-form,
 .dispute-form {
   display: flex;
@@ -1377,16 +1340,6 @@ onMounted(async () => {
     flex-direction: column;
   }
 
-  .wallet-panel,
-  .wallet-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .wallet-actions input {
-    width: 100%;
-  }
-
   .detail-backdrop {
     display: block;
   }
@@ -1422,9 +1375,8 @@ onMounted(async () => {
 
 .product-page .market-layout { gap: 1.1rem; }
 .product-page .market-toolbar, .product-page .product-form, .product-page .orders-panel, .product-page .dispute-form { border: 1px solid rgba(25,34,59,.08); border-radius: 22px; background: #fff; box-shadow: 0 12px 35px rgba(29,35,58,.05); }
-.product-page .market-toolbar { padding: 1.25rem; background: linear-gradient(135deg, #f2f0ff 0%, #f0fbfa 100%); }
-.product-page .toolbar-title h2, .product-page .product-form h2, .product-page .orders-panel h2 { font-size: 1.15rem; letter-spacing: -.025em; }
-.product-page .market-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(135px, .65fr)) auto; }
+.product-page .toolbar-title h2 { letter-spacing: -.025em; }
+.product-page .product-form h2, .product-page .orders-panel h2 { font-size: 1.15rem; letter-spacing: -.025em; }
 .product-page .market-filter-bar input, .product-page .market-filter-bar select, .product-page .product-form input, .product-page .product-form select, .product-page .product-form textarea, .product-page .product-edit-form input, .product-page .product-edit-form select, .product-page .product-edit-form textarea, .product-page .dispute-form textarea, .product-page .message-form input { border: 1px solid #e3e5ed; border-radius: 12px; background: #fff; transition: border-color .2s, box-shadow .2s; }
 .product-page :is(input, select, textarea):focus { border-color: #7463ee; outline: none; box-shadow: 0 0 0 4px rgba(105,87,245,.1); }
 .product-page .product-form { position: relative; overflow: hidden; padding: 1.35rem; }
@@ -1435,8 +1387,7 @@ onMounted(async () => {
 .product-page .form-row > * { flex: 1 1 130px; }
 
 .product-page .product-grid { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 1rem; }
-.product-page .product-card { position: relative; overflow: hidden; gap: .85rem; padding: 1.15rem; border: 1px solid rgba(25,34,59,.08); border-radius: 22px; background: #fff; box-shadow: 0 12px 32px rgba(29,35,58,.055); transition: transform .25s, box-shadow .25s, border-color .25s; }
-.product-page .product-card:hover { transform: translateY(-5px); border-color: rgba(102,84,238,.22); box-shadow: 0 22px 48px rgba(45,39,99,.12); }
+.product-page .product-card { position: relative; overflow: hidden; gap: .85rem; background: #fff; transition: transform .25s, box-shadow .25s, border-color .25s; }
 .product-page .product-head h2 { font-size: 1.05rem; letter-spacing: -.02em; }
 .product-page .product-images { overflow: hidden; border-radius: 15px; background: #f2f4f7; }
 .product-page .product-card .product-images img:first-child:last-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
@@ -1444,7 +1395,7 @@ onMounted(async () => {
 .product-page .product-card > p { min-height: 2.8em; margin: 0; line-height: 1.55; }
 .product-page .product-meta { gap: .45rem; }
 .product-page .product-meta span { padding: .28rem .5rem; border-radius: 999px; background: #f4f5f8; font-size: .7rem; }
-.product-page .product-meta strong { width: 100%; color: #5d4dd7; font-size: 1.45rem; letter-spacing: -.04em; }
+.product-page .product-meta strong { width: 100%; letter-spacing: -.04em; }
 .product-page .product-card > .btn { min-height: 42px; border-radius: 12px; }
 .product-page .product-card > .btn-primary { background: linear-gradient(135deg, #5f50dc, #7563ef); }
 .product-page .product-card > .link-button { align-self: center; font-size: .72rem; }

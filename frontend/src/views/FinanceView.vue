@@ -122,14 +122,6 @@ export default {
 .page-container {
   padding: 20px;
 }
-.page-header {
-  margin-bottom: 24px;
-}
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1e293b;
-}
 
 .summary-cards {
   display: grid;
