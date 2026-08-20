@@ -36,6 +36,9 @@ class NotificationAPI(BaseAPIClient):
             body["receiverUserIDs"] = receiver_user_ids
         return self.post(f"{self.PREFIX}/notifications/system", json=body)
 
+    def get_announcements(self, **params) -> requests.Response:
+        return self.get(f"{self.PREFIX}/notifications/announcements", params=params)
+
     def get_pending_audits(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/audits/posts")
 

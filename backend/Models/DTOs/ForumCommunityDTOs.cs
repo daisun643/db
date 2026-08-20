@@ -10,6 +10,7 @@ public class ForumSummaryResponse
     public string Status { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public int PostCount { get; set; }
+    public bool CanManage { get; set; }
     public List<ForumManagerResponse> Managers { get; set; } = new();
 }
 

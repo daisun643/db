@@ -20,6 +20,9 @@ class ForumAPI(BaseAPIClient):
     def get_forum(self, forum_id: int) -> requests.Response:
         return self.get(f"{self.PREFIX}/forums/{forum_id}")
 
+    def get_my_forums(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/forums/mine")
+
     def create_forum(self, forum_name: str, description: str = "") -> requests.Response:
         return self.post(f"{self.PREFIX}/forums", json={
             "forumName": forum_name,

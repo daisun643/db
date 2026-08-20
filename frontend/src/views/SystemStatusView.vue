@@ -32,6 +32,7 @@
         <button type="button" @click="activeAdminPanel = 'posts'"><span class="launch-icon">帖</span><span><strong>帖子管理</strong><small>状态与可见性</small></span><b>→</b></button>
         <button type="button" @click="activeAdminPanel = 'disputes'"><span class="launch-icon">纠</span><span><strong>交易纠纷</strong><small>{{ disputes.length }} 个工单</small></span><b>→</b></button>
         <button type="button" @click="activeAdminPanel = 'reports'"><span class="launch-icon">举</span><span><strong>举报工单</strong><small>{{ reports.length }} 条举报</small></span><b>→</b></button>
+        <button type="button" @click="openAnnouncementPanel"><span class="launch-icon">公</span><span><strong>系统公告</strong><small>{{ announcementCount }} 条公告</small></span><b>→</b></button>
       </div>
     </section>
 
@@ -283,6 +284,65 @@
     </div>
     </template>
 
+    <template v-if="activeAdminPanel === 'announcements'">
+    <div class="admin-section-heading"><span>运营工具</span><h2>系统公告</h2><p>发布系统公告，向全体用户或指定用户推送通知。</p></div>
+    <div class="card">
+      <h2>发布系统公告</h2>
+      <SectionMessage :message="sectionMessages.announcements" />
+      <form class="announcement-form" @submit.prevent="handleCreateAnnouncement">
+        <input v-model="announcementForm.title" type="text" placeholder="系统公告标题" required />
+        <textarea v-model="announcementForm.content" placeholder="系统公告内容" rows="3" required></textarea>
+        <div class="announcement-form-actions">
+          <label class="announcement-target-label">
+            <span>推送范围</span>
+            <select v-model="announcementForm.targetType">
+              <option value="all">全体用户</option>
+              <option value="specified">指定用户</option>
+            </select>
+          </label>
+          <div v-if="announcementForm.targetType === 'specified'" class="announcement-user-select">
+            <div class="announcement-user-chips" v-if="announcementForm.receiverUserIDs.length">
+              <span v-for="uid in announcementForm.receiverUserIDs" :key="uid" class="manager-tag">
+                {{ getUserDisplayName(uid) }}
+                <button type="button" @click="removeReceiverUser(uid)">×</button>
+              </span>
+            </div>
+            <div class="announcement-user-picker">
+              <select v-model.number="announcementUserDraft" @change="addReceiverUser">
+                <option disabled :value="0">选择用户添加</option>
+                <option v-for="user in users" :key="user.userID" :value="user.userID"
+                  :disabled="announcementForm.receiverUserIDs.includes(user.userID)">
+                  {{ user.username }} · {{ user.email }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" type="submit" :disabled="loadingAnnouncements">发布</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>系统公告列表</h2>
+      <div class="toolbar-row">
+        <button class="btn" @click="loadAnnouncements">刷新</button>
+      </div>
+      <div v-if="loadingAnnouncements" class="loading">加载中...</div>
+      <div v-else-if="announcements.length === 0" class="muted">暂无系统公告</div>
+      <div v-else class="report-list">
+        <article v-for="announcement in announcements" :key="announcement.id" class="report-item">
+          <div>
+            <strong>{{ announcement.title }}</strong>
+            <p>{{ announcement.content }}</p>
+            <small>{{ formatDate(announcement.date) }}</small>
+          </div>
+          <div class="report-actions">
+            <button class="btn" @click="handleDeleteAnnouncement(announcement.id)">删除</button>
+          </div>
+        </article>
+      </div>
+    </div>
+    </template>
+
         </div>
       </section>
     </div>
@@ -379,6 +439,9 @@ import {
   getPosts,
   getProducts,
   getReports,
+  getAnnouncements,
+  createSystemNotification,
+  deleteNotification,
   getDisputes,
   getUserCreditAdjustments,
   getUsers,
@@ -403,6 +466,17 @@ const selectedCreditUser = ref(null)
 const selectedCreditHistoryUser = ref(null)
 const creditHistoryRecords = ref([])
 const loadingCreditHistory = ref(false)
+const announcementForm = ref({
+  title: '',
+  content: '',
+  targetType: 'all',
+  receiverUserIDs: [],
+})
+const announcementUserDraft = ref(0)
+const announcements = ref([])
+const announcementCount = ref(0)
+const loadingAnnouncements = ref(false)
+
 const postStatusFilter = ref('')
 const activeAdminPanel = ref(null)
 const adminPanelTitles = {
@@ -412,6 +486,7 @@ const adminPanelTitles = {
   posts: '帖子管理',
   disputes: '交易纠纷',
   reports: '举报工单',
+  announcements: '系统公告',
 }
 const loading = ref(true)
 const loadingUsers = ref(true)
@@ -424,6 +499,7 @@ const sectionMessages = ref({
   posts: null,
   disputes: null,
   reports: null,
+  announcements: null,
 })
 
 const SectionMessage = (props) => {
@@ -707,6 +783,78 @@ const handlePostStatus = async (post, action) => {
     showMessage('posts', 'success', '帖子状态已更新')
   } catch (e) {
     showMessage('posts', 'error', e.response?.data?.message || '帖子状态更新失败')
+  }
+}
+
+const getUserDisplayName = (uid) => {
+  const user = users.value.find(u => u.userID === uid)
+  return user ? `${user.username} (${user.email})` : `用户 #${uid}`
+}
+
+const addReceiverUser = () => {
+  const uid = announcementUserDraft.value
+  if (uid && !announcementForm.value.receiverUserIDs.includes(uid)) {
+    announcementForm.value.receiverUserIDs.push(uid)
+  }
+  announcementUserDraft.value = 0
+}
+
+const removeReceiverUser = (uid) => {
+  announcementForm.value.receiverUserIDs = announcementForm.value.receiverUserIDs.filter(id => id !== uid)
+}
+
+const openAnnouncementPanel = () => {
+  activeAdminPanel.value = 'announcements'
+  loadAnnouncements()
+}
+
+const loadAnnouncements = async () => {
+  loadingAnnouncements.value = true
+  try {
+    const res = await getAnnouncements({ page: 1, pageSize: 50 })
+    announcements.value = res.data.items || []
+    announcementCount.value = res.data.total ?? announcements.value.length
+  } catch {
+    announcements.value = []
+    announcementCount.value = 0
+  } finally {
+    loadingAnnouncements.value = false
+  }
+}
+
+const handleCreateAnnouncement = async () => {
+  if (!announcementForm.value.title.trim() || !announcementForm.value.content.trim()) return
+
+  try {
+    clearMessage('announcements')
+    loadingAnnouncements.value = true
+    const payload = {
+      title: announcementForm.value.title.trim(),
+      content: announcementForm.value.content.trim(),
+    }
+    if (announcementForm.value.targetType === 'specified') {
+      payload.receiverUserIDs = announcementForm.value.receiverUserIDs
+    }
+    await createSystemNotification(payload)
+    announcementForm.value = { title: '', content: '', targetType: 'all', receiverUserIDs: [] }
+    announcementUserDraft.value = 0
+    await loadAnnouncements()
+    showMessage('announcements', 'success', '系统公告已发布')
+  } catch (e) {
+    showMessage('announcements', 'error', e.response?.data?.message || '系统公告发布失败')
+  } finally {
+    loadingAnnouncements.value = false
+  }
+}
+
+const handleDeleteAnnouncement = async (id) => {
+  try {
+    clearMessage('announcements')
+    await deleteNotification(id)
+    await loadAnnouncements()
+    showMessage('announcements', 'success', '系统公告已删除')
+  } catch (e) {
+    showMessage('announcements', 'error', e.response?.data?.message || '系统公告删除失败')
   }
 }
 
@@ -1167,4 +1315,17 @@ textarea {
 
 @media(max-width:900px){.admin-launch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-dialog{max-height:calc(100vh - 2rem)}.admin-panel-backdrop{padding:1rem}}
 @media(max-width:600px){.admin-launch-heading{align-items:flex-start;flex-direction:column}.admin-launch-grid{grid-template-columns:1fr}.admin-panel-backdrop{padding:0}.admin-panel-dialog{width:100%;max-height:100vh;height:100vh;border-radius:0}.admin-panel-body{padding:.85rem}.admin-panel-body .admin-section-heading{display:none}}
+</style>
+
+<style scoped>
+/* Announcement management */
+.announcement-form { display:flex; flex-direction:column; gap:.75rem; }
+.announcement-form textarea { min-height:80px; resize:vertical; }
+.announcement-form-actions { display:flex; align-items:flex-end; gap:.75rem; flex-wrap:wrap; }
+.announcement-target-label { display:flex; flex-direction:column; gap:.3rem; font-size:.82rem; font-weight:600; }
+.announcement-target-label select { min-width:140px; }
+.announcement-user-select { display:flex; flex-direction:column; gap:.5rem; flex:1; min-width:200px; }
+.announcement-user-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
+.announcement-user-picker select { width:100%; }
+@media(max-width:640px){.announcement-form-actions{flex-direction:column;align-items:stretch}}
 </style>

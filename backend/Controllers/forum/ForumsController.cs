@@ -72,6 +72,27 @@ public class ForumsController : ControllerBase
         return Ok((await MapForumsAsync(new[] { forum })).Single());
     }
 
+    [HttpGet("mine")]
+    [Authorize]
+    public async Task<ActionResult<List<ForumSummaryResponse>>> GetMine()
+    {
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+            return Unauthorized();
+
+        var query = _db.Forums
+            .Include(f => f.ForumManagers)
+            .ThenInclude(fm => fm.User)
+            .AsQueryable();
+
+        query = User.IsInRole("Admin")
+            ? query
+            : query.Where(f => f.ForumManagers.Any(fm => fm.UserID == userId.Value));
+
+        var forums = await query.OrderBy(f => f.ForumName).ToListAsync();
+        return Ok(await MapForumsAsync(forums));
+    }
+
     [HttpPost]
     [RequirePermission("forums.create")]
     public async Task<ActionResult<ForumSummaryResponse>> Create([FromBody] CreateForumRequest request)
@@ -106,7 +127,7 @@ public class ForumsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public async Task<ActionResult<ForumSummaryResponse>> Update(int id, [FromBody] UpdateForumRequest request)
     {
         if (!ModelState.IsValid)
@@ -119,14 +140,25 @@ public class ForumsController : ControllerBase
         if (forum is null)
             return NotFound();
 
+        if (!await CanManageForumAsync(id))
+            return Forbid();
+
         var name = request.ForumName.Trim();
-        var duplicate = (await _db.Forums.CountAsync(f => f.ForumID != id && f.ForumName == name)) > 0;
+        if (name.Length < 2)
+            return BadRequest(new { message = "版块名称长度必须在2-100个字符之间" });
+
+        var normalizedName = name.ToLower();
+        var duplicate = (await _db.Forums.CountAsync(f =>
+            f.ForumID != id && f.ForumName != null && f.ForumName.ToLower() == normalizedName)) > 0;
         if (duplicate)
             return BadRequest(new { message = "已存在同名版块" });
 
+        if (request.Status is not "Active" and not "Inactive")
+            return BadRequest(new { message = "版块状态不合法" });
+
         forum.ForumName = name;
         forum.Description = request.Description?.Trim();
-        forum.Status = request.Status is "Active" or "Inactive" ? request.Status : "Active";
+        forum.Status = request.Status;
 
         await _db.SaveChangesAsync();
         return Ok((await MapForumsAsync(new[] { forum })).Single());
@@ -211,9 +243,21 @@ public class ForumsController : ControllerBase
             fm.ForumID == forum.ForumID && fm.UserID == userId.Value)) > 0;
     }
 
+    private async Task<bool> CanManageForumAsync(int forumId)
+    {
+        if (User.IsInRole("Admin"))
+            return true;
+
+        var userId = TryGetCurrentUserId();
+        return userId.HasValue && await _db.ForumManagers.CountAsync(fm =>
+            fm.ForumID == forumId && fm.UserID == userId.Value) > 0;
+    }
+
     private async Task<List<ForumSummaryResponse>> MapForumsAsync(IEnumerable<Forum> forums)
     {
         var forumList = forums.ToList();
+        var currentUserId = TryGetCurrentUserId();
+        var isAdmin = User.IsInRole("Admin");
         var ids = forumList.Select(f => f.ForumID).ToList();
         var publicStatuses = new[] { "Active", "Elite", "Pinned" };
         var postCounts = await _db.Posts
@@ -232,6 +276,8 @@ public class ForumsController : ControllerBase
             Status = forum.Status ?? "",
             CreateTime = forum.CreateTime,
             PostCount = postCounts.TryGetValue(forum.ForumID, out var count) ? count : 0,
+            CanManage = isAdmin || (currentUserId.HasValue &&
+                forum.ForumManagers.Any(fm => fm.UserID == currentUserId.Value)),
             Managers = forum.ForumManagers
                 .Where(fm => fm.User is not null)
                 .Select(fm => new ForumManagerResponse

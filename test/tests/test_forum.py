@@ -19,6 +19,7 @@ class TestForumList:
         assert "description" in forum
         assert "status" in forum
         assert "postCount" in forum
+        assert "canManage" in forum
         assert "managers" in forum
 
     def test_get_forum_by_id(self, forum_client):
@@ -278,6 +279,55 @@ class TestForumCRUD:
 
 class TestForumManagers:
 
+    def test_unauthenticated_user_cannot_list_managed_forums(self, forum_client):
+        forum_client.post("/api/auth/logout")
+        assert forum_client.get_my_forums().status_code == 401
+
+    def test_my_forums_only_returns_assigned_forums(
+            self, forum_client, admin_forum_client):
+        managed_name = f"我的版块-{uuid4().hex[:8]}"
+        other_name = f"其他版块-{uuid4().hex[:8]}"
+        managed = admin_forum_client.create_forum(managed_name, "由当前用户管理")
+        other = admin_forum_client.create_forum(other_name, "不由当前用户管理")
+        assert managed.status_code == 201
+        assert other.status_code == 201
+        managed_id = managed.json()["forumID"]
+        other_id = other.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(managed_id, 4).status_code == 200
+            response = forum_client.get_my_forums()
+            assert response.status_code == 200
+            forum_ids = {forum["forumID"] for forum in response.json()}
+            assert managed_id in forum_ids
+            assert other_id not in forum_ids
+            assigned = next(f for f in response.json() if f["forumID"] == managed_id)
+            assert assigned["canManage"] is True
+        finally:
+            admin_forum_client.delete_forum(managed_id)
+            admin_forum_client.delete_forum(other_id)
+
+    def test_assigned_manager_can_update_own_forum(
+            self, forum_client, admin_forum_client):
+        forum_name = f"版主管理-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "修改前")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+            updated_name = f"版主已修改-{uuid4().hex[:8]}"
+            response = forum_client.update_forum(
+                forum_id, updated_name, "由版主更新", "Inactive"
+            )
+            assert response.status_code == 200
+            assert response.json()["forumName"] == updated_name
+            assert response.json()["description"] == "由版主更新"
+            assert response.json()["status"] == "Inactive"
+            assert response.json()["canManage"] is True
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
     def test_admin_can_assign_manager(self, admin_forum_client):
         forums = admin_forum_client.get_forums().json()
         fid = forums[0]["forumID"]
@@ -520,6 +570,21 @@ class TestPostCRUD:
         assert data["title"] == "测试帖子标题"
         assert data["content"] == "这是测试帖子的内容"
         assert data["status"] == "Active"
+
+    def test_create_post_preserves_markdown_content(self, forum_client):
+        fid = self._get_first_forum_id(forum_client)
+        markdown = "## 二级标题\n\n- 条目一\n- **加粗条目**\n\n`inline_code`"
+        resp = forum_client.create_post(fid, "Markdown 帖子", markdown)
+        assert resp.status_code == 201
+        post_id = resp.json()["postID"]
+
+        try:
+            assert resp.json()["content"] == markdown
+            detail = forum_client.get_post(post_id)
+            assert detail.status_code == 200
+            assert detail.json()["content"] == markdown
+        finally:
+            forum_client.delete_post(post_id)
 
     def test_create_post_with_tags(self, forum_client):
         fid = self._get_first_forum_id(forum_client)

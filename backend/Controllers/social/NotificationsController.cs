@@ -163,6 +163,43 @@ public class NotificationsController : ControllerBase
         return Ok(new { message = "通知已删除" });
     }
 
+    [HttpGet("announcements")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetAnnouncements([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var notifications = await _db.Notifications
+            .Where(n => n.Type == "System" && n.TargetType == "System")
+            .OrderByDescending(n => n.CreateTime)
+            .ThenByDescending(n => n.NotificationID)
+            .ToListAsync();
+
+        // 按 EventKey 前缀去重（同一广播每个用户一条记录，前缀为 system:{timestamp}）
+        var distinct = notifications
+            .GroupBy(n => n.EventKey != null && n.EventKey.Contains(':')
+                ? n.EventKey[..n.EventKey.LastIndexOf(':')]
+                : n.EventKey ?? "")
+            .Select(g => g.First())
+            .ToList();
+
+        var total = distinct.Count;
+        var announcements = distinct
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(n => new
+            {
+                id = n.NotificationID,
+                title = n.Title ?? "",
+                content = n.Content ?? "",
+                date = n.CreateTime
+            })
+            .ToList();
+
+        return Ok(new { items = announcements, total, page, pageSize });
+    }
+
     private int CurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 
     private static NotificationResponse MapNotification(Notification notification)

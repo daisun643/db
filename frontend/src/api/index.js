@@ -55,6 +55,7 @@ export const uploadImages = (files, bucket = 'posts') => {
 }
 export const changePassword = (data) => api.post('/user/password', data)
 export const getForums = () => api.get('/forums')
+export const getMyForums = () => api.get('/forums/mine')
 export const getForum = (id) => api.get(`/forums/${id}`)
 export const createForum = (data) => api.post('/forums', data)
 export const updateForum = (id, data) => api.put(`/forums/${id}`, data)
@@ -132,6 +133,7 @@ export const markNotificationRead = (id) => api.post('/notifications/' + id + '/
 export const markAllNotificationsRead = () => api.post('/notifications/read-all')
 export const createSystemNotification = (data) => api.post('/notifications/system', data)
 export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
+export const getAnnouncements = (params = {}) => api.get('/notifications/announcements', { params })
 
 export const getHealth = () => api.get('/health')
 

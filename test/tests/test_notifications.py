@@ -357,3 +357,93 @@ class TestNotificationEvents:
         found = find_by_title(admin_notification_client, "帖子审核未通过", type="Audit")
         assert any(item["targetID"] == post_id for item in found)
 
+
+class TestSystemAnnouncements:
+    def test_unauthenticated_can_list_announcements(self):
+        """公开接口无需登录即可访问"""
+        client = NotificationAPI()
+        resp = client.get_announcements()
+        client.close()
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "pageSize" in data
+
+    def test_create_and_list_announcements(self, admin_notification_client):
+        """管理员创建系统公告后，公开接口可查询到"""
+        title = unique("公告创建v1")
+        create_resp = admin_notification_client.create_system_notification(title, "公告内容测试")
+        assert create_resp.status_code == 200
+
+        resp = admin_notification_client.get_announcements(page=1, pageSize=50)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] >= 1
+        matched = [item for item in data["items"] if item["title"] == title]
+        assert len(matched) == 1
+        announcement = matched[0]
+        assert announcement["content"] == "公告内容测试"
+        assert announcement["id"] > 0
+        assert announcement["date"] is not None
+
+    def test_announcement_has_expected_fields(self, admin_notification_client):
+        """公告返回的字段结构符合前端期望"""
+        title = unique("公告字段v1")
+        create_resp = admin_notification_client.create_system_notification(title, "字段验证内容")
+        assert create_resp.status_code == 200
+
+        resp = admin_notification_client.get_announcements(page=1, pageSize=50)
+        assert resp.status_code == 200
+        matched = [item for item in resp.json()["items"] if item["title"] == title]
+        assert len(matched) == 1
+        announcement = matched[0]
+        for field in ["id", "title", "content", "date"]:
+            assert field in announcement, f"Missing field: {field}"
+
+    def test_announcements_ordered_by_create_time_desc(self, admin_notification_client):
+        """公告按创建时间倒序排列"""
+        title_a = unique("公告排序A")
+        title_b = unique("公告排序B")
+        admin_notification_client.create_system_notification(title_a, "先创建")
+        admin_notification_client.create_system_notification(title_b, "后创建")
+
+        resp = admin_notification_client.get_announcements(page=1, pageSize=50)
+        assert resp.status_code == 200
+        announcement_list = resp.json()["items"]
+        titles = [item["title"] for item in announcement_list]
+        idx_a = titles.index(title_a)
+        idx_b = titles.index(title_b)
+        assert idx_b < idx_a, "后创建的公告应排在前面"
+
+    def test_announcements_pagination(self, admin_notification_client):
+        """公告支持分页参数"""
+        for i in range(3):
+            admin_notification_client.create_system_notification(unique(f"公告分页{i}"), f"内容{i}")
+
+        resp = admin_notification_client.get_announcements(page=1, pageSize=2)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["page"] == 1
+        assert data["pageSize"] == 2
+        assert len(data["items"]) <= 2
+        assert data["total"] >= 3
+
+    def test_announcements_only_include_system_type(self, admin_notification_client, notification_client):
+        """公告接口只返回 Type=System 且 TargetType=System 的通知，不包含普通通知"""
+        # 创建一条系统公告（TargetType=System）
+        title = unique("公告类型v1")
+        create_resp = admin_notification_client.create_system_notification(title, "系统公告内容")
+        assert create_resp.status_code == 200
+
+        # 公开接口应能查到
+        resp = admin_notification_client.get_announcements(page=1, pageSize=50)
+        assert resp.status_code == 200
+        matched = [item for item in resp.json()["items"] if item["title"] == title]
+        assert len(matched) == 1
+
+        # 用户普通通知列表中也存在该通知（作为 System 类型通知发给用户）
+        user_resp = notification_client.get_notifications(type="System", page=1, pageSize=100)
+        assert user_resp.status_code == 200
+

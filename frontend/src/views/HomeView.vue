@@ -91,7 +91,7 @@
       <div v-else class="announcements">
         <article v-for="announcement in announcements" :key="announcement.id" class="announcement-item">
           <div><h3>{{ announcement.title }}</h3><p>{{ announcement.content }}</p></div>
-          <time>{{ announcement.date }}</time>
+          <time>{{ formatDate(announcement.date) }}</time>
         </article>
       </div>
     </section>
@@ -99,8 +99,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { getAnnouncements } from '../api'
 
 const authStore = useAuthStore()
 const announcements = ref([])
@@ -110,6 +111,28 @@ const error = ref(null)
 const displayName = computed(() =>
   authStore.user?.nickname || authStore.user?.username || '同学'
 )
+
+const formatDate = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const res = await getAnnouncements({ page: 1, pageSize: 10 })
+    announcements.value = res.data.items || []
+  } catch (e) {
+    error.value = '加载公告失败'
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
 <style scoped>
