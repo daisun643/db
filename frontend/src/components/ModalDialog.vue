@@ -13,6 +13,7 @@
         role="dialog"
         aria-modal="true"
         :aria-label="title"
+        @submit.prevent="$emit('submit')"
       >
         <header class="modal-dialog-header">
           <div>
@@ -51,7 +52,7 @@ const props = defineProps({
   dialogClass: { type: [String, Array, Object], default: '' },
 })
 
-defineEmits(['close'])
+defineEmits(['close', 'submit'])
 
 const titleTag = computed(() => props.variant === 'panel' ? 'h2' : 'h3')
 </script>

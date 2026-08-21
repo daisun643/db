@@ -879,6 +879,7 @@ onMounted(async () => {
     loadPostAudits(),
     loadManagedPosts(),
     loadDisputes(),
+    loadAnnouncements(),
   ])
 
   if (results.every(result => result.status === 'rejected')) {
