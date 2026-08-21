@@ -36,13 +36,13 @@
       </div>
     </section>
 
-    <div v-if="activeAdminPanel" class="admin-panel-backdrop" @click.self="activeAdminPanel = null">
-      <section class="admin-panel-dialog" role="dialog" aria-modal="true" :aria-label="adminPanelTitles[activeAdminPanel]">
-        <header class="admin-panel-header">
-          <div><span>管理工具</span><h2>{{ adminPanelTitles[activeAdminPanel] }}</h2></div>
-          <button type="button" aria-label="关闭管理窗口" @click="activeAdminPanel = null">×</button>
-        </header>
-        <div class="admin-panel-body">
+    <ModalDialog
+      :visible="!!activeAdminPanel"
+      variant="panel"
+      kicker="管理工具"
+      :title="adminPanelTitles[activeAdminPanel] || ''"
+      @close="activeAdminPanel = null"
+    >
 
     <template v-if="activeAdminPanel === 'forums'">
     <div class="admin-section-heading"><span>社区配置</span><h2>论坛版块</h2><p>维护版块信息与版主管理关系。</p></div>
@@ -343,21 +343,19 @@
     </div>
     </template>
 
-        </div>
-      </section>
-    </div>
+    </ModalDialog>
 
-    <div v-if="selectedCreditUser" class="modal-backdrop" @click.self="closeCreditDialog">
-      <form class="credit-dialog" @submit.prevent="handleAdjustCredit(selectedCreditUser.userID)">
-        <div class="modal-header">
-          <div>
-            <h3>调整信用分</h3>
-            <p>{{ selectedCreditUser.username }} · 当前信用分 {{ selectedCreditUser.credit }}</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="关闭" @click="closeCreditDialog">×</button>
-        </div>
+    <ModalDialog
+      :visible="!!selectedCreditUser"
+      variant="dialog"
+      title="调整信用分"
+      :subtitle="selectedCreditUser ? `${selectedCreditUser.username} · 当前信用分 ${selectedCreditUser.credit}` : ''"
+      tag="form"
+      @close="closeCreditDialog"
+      @submit.prevent="handleAdjustCredit(selectedCreditUser.userID)"
+    >
 
-        <label>
+        <label class="credit-form-label">
           调整分值
           <input
             v-model.number="creditDrafts[selectedCreditUser.userID].credit"
@@ -369,9 +367,10 @@
           />
         </label>
 
-        <label>
+        <label class="credit-form-label">
           调整原因
           <textarea
+            class="credit-form-textarea"
             v-model="creditDrafts[selectedCreditUser.userID].reason"
             maxlength="500"
             placeholder="请填写本次调整原因"
@@ -379,22 +378,20 @@
           />
         </label>
 
-        <div class="dialog-actions">
-          <button class="btn" type="button" @click="closeCreditDialog">取消</button>
-          <button class="btn btn-primary" type="submit">确认调整</button>
-        </div>
-      </form>
-    </div>
+      <template #actions>
+        <button class="btn" type="button" @click="closeCreditDialog">取消</button>
+        <button class="btn btn-primary" type="submit">确认调整</button>
+      </template>
+    </ModalDialog>
 
-    <div v-if="selectedCreditHistoryUser" class="modal-backdrop" @click.self="closeCreditHistoryDialog">
-      <section class="credit-dialog credit-history-dialog">
-        <div class="modal-header">
-          <div>
-            <h3>信用分调整记录</h3>
-            <p>{{ selectedCreditHistoryUser.username }} · 当前信用分 {{ selectedCreditHistoryUser.credit }}</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="关闭" @click="closeCreditHistoryDialog">×</button>
-        </div>
+    <ModalDialog
+      :visible="!!selectedCreditHistoryUser"
+      variant="dialog"
+      title="信用分调整记录"
+      :subtitle="selectedCreditHistoryUser ? `${selectedCreditHistoryUser.username} · 当前信用分 ${selectedCreditHistoryUser.credit}` : ''"
+      dialog-class="credit-history-dialog"
+      @close="closeCreditHistoryDialog"
+    >
 
         <div v-if="loadingCreditHistory" class="loading">加载中...</div>
         <div v-else-if="creditHistoryRecords.length === 0" class="muted">暂无信用分调整记录</div>
@@ -419,13 +416,13 @@
             </b>
           </article>
         </div>
-      </section>
-    </div>
+    </ModalDialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, h } from 'vue'
+import ModalDialog from '../components/ModalDialog.vue'
 import {
   adjustCredit,
   approvePostAudit,
@@ -1110,72 +1107,19 @@ textarea {
   margin-bottom: 1rem;
 }
 
-.modal-backdrop {
-  align-items: center;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 1rem;
-  position: fixed;
-  z-index: 50;
-}
-
-.credit-dialog {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 420px;
-  padding: 1.25rem;
-  width: 100%;
-}
-
-.modal-header {
-  align-items: flex-start;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-}
-
-.modal-header h3,
-.modal-header p {
-  margin: 0;
-}
-
-.modal-header p {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-}
-
-.modal-close {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 1.4rem;
-  line-height: 1;
-}
-
-.credit-dialog label {
+.credit-form-label {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   font-weight: 600;
 }
 
-.credit-dialog textarea {
+.credit-form-textarea {
   min-height: 96px;
   resize: vertical;
 }
 
 .credit-history-dialog {
-  max-height: min(720px, 90vh);
   max-width: 560px;
 }
 
@@ -1208,11 +1152,6 @@ textarea {
   white-space: nowrap;
 }
 
-.dialog-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-}
 
 @media (max-width: 900px) {
   .user-create-form {
@@ -1249,8 +1188,6 @@ textarea {
 .system-page .manager-form select { width:100%;max-width:100%; }
 .system-page th { font-size:.68rem; }
 .system-page tr:hover td { background:#faf9ff; }
-.system-page .modal-backdrop { background:rgba(15,18,38,.58);backdrop-filter:blur(6px); }
-.system-page .credit-dialog { border-radius:20px;box-shadow:0 28px 70px rgba(13,10,40,.28); }
 @media(max-width:1000px){.system-page .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.system-page .stat-cards{gap:.65rem}.system-page .stat-card{padding:1rem}.system-page .card{padding:1rem;border-radius:17px}.system-page .report-item,.system-page .forum-admin-item{flex-direction:column}.system-page .inline-form{align-items:stretch;flex-direction:column}}
 </style>
@@ -1299,22 +1236,8 @@ textarea {
 .admin-launch-grid > button:nth-child(3n+2) .launch-icon { color:#176c72; background:#eaf7f5; }
 .admin-launch-grid > button:nth-child(3n) .launch-icon { color:#315d9a; background:#edf3fb; }
 
-.admin-panel-backdrop { position:fixed; inset:0; z-index:1200; display:flex; align-items:flex-start; justify-content:center; padding:2rem 1rem; background:rgba(17,22,39,.58); backdrop-filter:blur(5px); }
-.admin-panel-dialog { width:min(1120px,100%); max-height:calc(100vh - 4rem); display:flex; flex-direction:column; overflow:hidden; border-radius:16px; background:#f6f7f9; box-shadow:0 24px 70px rgba(11,15,29,.28); }
-.admin-panel-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:0 0 auto; padding:1rem 1.2rem; border-bottom:1px solid var(--border); background:#fff; }
-.admin-panel-header span { display:block; margin-bottom:.1rem; color:var(--primary); font-size:.6rem; font-weight:750; letter-spacing:.09em; }
-.admin-panel-header h2 { color:#171d2e; font-size:1.05rem; }
-.admin-panel-header button { width:32px; height:32px; display:grid; place-items:center; border:0; border-radius:8px; color:#687184; background:#f0f2f5; font-size:1.2rem; cursor:pointer; }
-.admin-panel-header button:hover { color:#252c3d; background:#e5e8ed; }
-.admin-panel-body { min-height:0; overflow:auto; padding:1.2rem; }
-.admin-panel-body .admin-section-heading { margin:0 0 .8rem; }
-.admin-panel-body > .card, .admin-panel-body > template + .card { margin-top:0; }
-.system-page .admin-panel-body .card { background:#fff; }
-.system-page .admin-panel-body .modal-backdrop { z-index:1400; }
-.system-page > .modal-backdrop { z-index:1400; }
-
-@media(max-width:900px){.admin-launch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-dialog{max-height:calc(100vh - 2rem)}.admin-panel-backdrop{padding:1rem}}
-@media(max-width:600px){.admin-launch-heading{align-items:flex-start;flex-direction:column}.admin-launch-grid{grid-template-columns:1fr}.admin-panel-backdrop{padding:0}.admin-panel-dialog{width:100%;max-height:100vh;height:100vh;border-radius:0}.admin-panel-body{padding:.85rem}.admin-panel-body .admin-section-heading{display:none}}
+@media(max-width:900px){.admin-launch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.admin-launch-heading{align-items:flex-start;flex-direction:column}.admin-launch-grid{grid-template-columns:1fr}}
 </style>
 
 <style scoped>

@@ -6,7 +6,7 @@
           :class="['tab', { active: activeTab === 'all' }]" 
           @click="activeTab = 'all'"
         >
-          所有论坛
+          所有版块
         </button>
         <button 
           :class="['tab', { active: activeTab === 'my-posts' }]" 
