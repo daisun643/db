@@ -4,8 +4,8 @@
       <ForumTabs v-model="activeTab" />
     </div>
 
-    <div v-if="error" class="error-message">{{ error }}</div>
-    <div v-if="notice" class="success-message">{{ notice }}</div>
+    <MessagePopup :message="error" type="error" @close="error = null" />
+    <MessagePopup :message="notice" type="success" @close="notice = ''" />
 
     <ForumCreatorModal
       :open="forumCreatorOpen"
@@ -117,8 +117,9 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import ForumCreatorModal from '../components/ForumCreatorModal.vue'
-import ForumTabs from '../components/forum/ForumTabs.vue'
+import ForumCreatorModal from '../components/forum/ForumCreatorModal.vue'
+import MessagePopup from '../components/MessagePopup.vue'
+import ForumTabs from '../tab/ForumTabs.vue'
 import AllForumPanel from '../tab/forum/AllForumPanel.vue'
 import MyPostsPanel from '../tab/forum/MyPostsPanel.vue'
 import MyForumsPanel from '../tab/forum/MyForumsPanel.vue'
@@ -484,17 +485,6 @@ onMounted(async () => {
   }
 })
 </script>
-
-
-<style scoped>
-.success-message {
-  background: #dcfce7;
-  color: #166534;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  margin-bottom: 1rem;
-}
-</style>
 
 <style scoped>
 .forum-page {

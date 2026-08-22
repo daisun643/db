@@ -19,7 +19,7 @@
         :class="['forum-filter', { active: filters.forumId === forum.forumID }]"
         @click="selectForum(forum.forumID)"
       >
-        <span>{{ forum.forumName }}</span>
+        <span class="forum-filter-name" :title="forum.forumName">{{ forum.forumName }}</span>
         <span class="forum-count">{{ forum.postCount || 0 }}</span>
       </button>
     </aside>
@@ -108,7 +108,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import ForumPostCard from '../../components/ForumPostCard.vue'
+import ForumPostCard from '../../components/forum/ForumPostCard.vue'
 import { getPosts, getTagStats } from '../../api'
 
 defineProps({
@@ -288,6 +288,14 @@ onMounted(() => {
   color: #5d4dd7;
   background: #efedff;
   font-weight: 700;
+}
+
+.forum-filter-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .forum-count {
@@ -674,6 +682,11 @@ onMounted(() => {
     gap: .5rem;
     margin: 0;
     white-space: nowrap;
+  }
+
+  .forum-filter-name {
+    flex: 0 1 auto;
+    max-width: 9rem;
   }
 
   .feed-toolbar,

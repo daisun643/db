@@ -21,7 +21,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import ForumPostCard from '../../components/ForumPostCard.vue'
+import ForumPostCard from '../../components/forum/ForumPostCard.vue'
 import { getMyPosts } from '../../api'
 
 const emit = defineEmits(['open-post', 'like', 'edit-post', 'delete-post', 'error'])

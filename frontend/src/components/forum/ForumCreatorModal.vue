@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import ModalDialog from './ModalDialog.vue'
+import ModalDialog from '../ModalDialog.vue'
 
 defineProps({
   open: { type: Boolean, default: false },

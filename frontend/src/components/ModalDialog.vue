@@ -98,7 +98,7 @@ const titleTag = computed(() => props.variant === 'panel' ? 'h2' : 'h3')
 }
 
 .modal-dialog--panel {
-  width: min(1120px, 100%);
+  width: min(1120px, 75%);
   max-height: calc(100vh - 4rem);
   border-radius: 16px;
   box-shadow: 0 24px 70px rgba(11, 15, 29, 0.28);

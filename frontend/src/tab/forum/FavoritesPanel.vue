@@ -66,7 +66,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import ForumPostCard from '../../components/ForumPostCard.vue'
+import ForumPostCard from '../../components/forum/ForumPostCard.vue'
 import {
   createFavoriteFolder,
   deleteFavoriteFolder,
