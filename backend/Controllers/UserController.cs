@@ -240,6 +240,46 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
+    /// 获取指定用户的公开资料（用于个人主页展示）
+    /// </summary>
+    [Authorize]
+    [HttpGet("{userId}/public-profile")]
+    public async Task<ActionResult> GetPublicProfile(int userId)
+    {
+        var user = await _db.Users
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(a => a!.Media)
+            .FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (user == null)
+            return NotFound(new { message = "用户不存在" });
+
+        var currentUserId = GetCurrentUserId();
+        var publicPostStatuses = new[] { "Active", "Elite", "Pinned" };
+        var postCount = await _db.Posts
+            .CountAsync(p => p.UserID == userId && publicPostStatuses.Contains(p.Status));
+        var productCount = await _db.Products
+            .CountAsync(p => p.UserID == userId && p.Status != "Inactive");
+        var friendCount = await _db.FriendShips
+            .CountAsync(f => (f.UserID == userId || f.FriendID == userId) && f.Status == "Accepted");
+
+        return Ok(new
+        {
+            userId = user.UserID,
+            username = user.Username,
+            nickname = user.Nickname,
+            avatarUrl = user.AvatarUrl,
+            bio = user.Bio,
+            userLevel = user.UserLevel,
+            totalCredit = user.TotalCredit,
+            postCount,
+            productCount,
+            friendCount,
+            isSelf = user.UserID == currentUserId
+        });
+    }
+
+    /// <summary>
     /// 更新当前登录用户的基本资料
     /// </summary>
     [Authorize]

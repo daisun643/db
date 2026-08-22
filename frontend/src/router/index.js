@@ -44,6 +44,11 @@ const routes = [
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/profile') }
   },
   { 
+    path: '/user/:id', 
+    component: () => import('../views/UserProfileView.vue'),
+    meta: { requiresAuth: true }
+  },
+  { 
     path: '/system-status', 
     component: () => import('../views/SystemStatusView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status') }

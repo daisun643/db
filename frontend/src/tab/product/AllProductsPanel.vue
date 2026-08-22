@@ -101,7 +101,11 @@
           <span>库存 {{ product.stock }}</span>
           <span>{{ product.category || '其他' }}</span>
           <span>{{ product.condition || '良好' }}</span>
-          <span>{{ product.sellerName || '匿名卖家' }}</span>
+          <span
+            class="seller-link"
+            :title="product.userID ? '查看卖家主页' : ''"
+            @click.stop="openSellerHome(product)"
+          >{{ product.sellerName || '匿名卖家' }}</span>
         </div>
         <div class="product-card-actions">
           <button class="btn" @click="$emit('open-detail', product)">查看详情</button>
@@ -130,9 +134,18 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { createProduct, getProducts, uploadImages } from '../../api'
 
 const emit = defineEmits(['open-detail', 'order', 'report', 'error', 'products-changed'])
+
+const router = useRouter()
+
+const openSellerHome = (product) => {
+  if (product.userID) {
+    router.push(`/user/${product.userID}`)
+  }
+}
 
 const products = ref([])
 const loading = ref(true)
@@ -566,6 +579,8 @@ onMounted(() => {
 .product-card > p { min-height: 2.8em; margin: 0; line-height: 1.55; }
 .product-meta { gap: .45rem; }
 .product-meta span { padding: .28rem .5rem; border-radius: 999px; background: #f4f5f8; font-size: .7rem; }
+.product-meta .seller-link { color: #5d4fd5; cursor: pointer; }
+.product-meta .seller-link:hover { text-decoration: underline; }
 .product-meta strong { width: 100%; letter-spacing: -.04em; }
 .product-card > .btn { min-height: 42px; border-radius: 12px; }
 .product-card > .btn-primary { background: linear-gradient(135deg, #5f50dc, #7563ef); }

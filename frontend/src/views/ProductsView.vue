@@ -97,7 +97,11 @@
               <span>库存 {{ selectedProduct.stock }}</span>
               <span>{{ selectedProduct.category || '其他' }}</span>
               <span>{{ selectedProduct.condition || '良好' }}</span>
-              <span>卖家 {{ selectedProduct.sellerName || '匿名卖家' }}</span>
+              <span
+                class="seller-link"
+                :title="selectedProduct.userID ? '查看卖家主页' : ''"
+                @click="openSellerHome(selectedProduct)"
+              >卖家 {{ selectedProduct.sellerName || '匿名卖家' }}</span>
               <span>{{ formatDate(selectedProduct.publishTime) }}</span>
             </div>
             <div class="row-actions">
@@ -165,6 +169,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import ProductTabs from '../tab/product/ProductTabs.vue'
 import AllProductsPanel from '../tab/product/AllProductsPanel.vue'
 import MyProductsPanel from '../tab/product/MyProductsPanel.vue'
@@ -183,6 +188,14 @@ import {
   sendOrderMessage,
   updateProduct,
 } from '../api'
+
+const router = useRouter()
+
+const openSellerHome = (product) => {
+  if (product.userID) {
+    router.push(`/user/${product.userID}`)
+  }
+}
 
 const activeTab = ref('all')
 const allProductsPanel = ref(null)
@@ -778,6 +791,8 @@ onMounted(async () => {
 .product-page .product-images img { border: 0; border-radius: 0; }
 .product-page .product-meta { gap: .45rem; }
 .product-page .product-meta span { padding: .28rem .5rem; border-radius: 999px; background: #f4f5f8; font-size: .7rem; }
+.product-page .product-meta .seller-link { color: #5d4fd5; cursor: pointer; }
+.product-page .product-meta .seller-link:hover { text-decoration: underline; }
 .product-page .product-meta strong { width: 100%; letter-spacing: -.04em; }
 
 .product-page .row-actions .btn { border-radius: 10px; }

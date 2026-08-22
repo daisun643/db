@@ -32,6 +32,7 @@ public class ProductsController : ControllerBase
         [FromQuery] string? keyword,
         [FromQuery] string? category,
         [FromQuery] string? condition,
+        [FromQuery] int? sellerId,
         [FromQuery] decimal? minPrice,
         [FromQuery] decimal? maxPrice,
         [FromQuery] int? minStock,
@@ -82,6 +83,9 @@ public class ProductsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(condition))
             query = query.Where(p => p.Condition != null && p.Condition.ConditionName == condition.Trim());
+
+        if (sellerId.HasValue)
+            query = query.Where(p => p.UserID == sellerId.Value);
 
         if (minPrice.HasValue)
             query = query.Where(p => (p.Price ?? 0) >= minPrice.Value);

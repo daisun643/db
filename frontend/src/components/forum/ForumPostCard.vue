@@ -23,7 +23,15 @@
       </div>
 
       <footer class="post-card-footer">
-        <div class="card-author">
+        <div
+          class="card-author"
+          :class="{ clickable: !!post.userID }"
+          role="link"
+          tabindex="0"
+          title="查看个人主页"
+          @click.stop="openAuthorHome"
+          @keydown.enter.stop="openAuthorHome"
+        >
           <span class="author-avatar">{{ authorInitial }}</span>
           <span class="author-copy">
             <strong>{{ post.username || '校园用户' }}</strong>
@@ -73,6 +81,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -80,6 +89,14 @@ const props = defineProps({
 })
 
 defineEmits(['open', 'like', 'favorite', 'report', 'edit', 'delete', 'remove-favorite'])
+
+const router = useRouter()
+
+const openAuthorHome = () => {
+  if (props.post.userID) {
+    router.push(`/user/${props.post.userID}`)
+  }
+}
 
 const coverImage = computed(() => props.post.imageUrls?.[0] || '')
 const authorInitial = computed(() => (props.post.username || '校')[0]?.toUpperCase() || '校')
@@ -169,6 +186,8 @@ const formattedDate = computed(() => {
 
 .post-card-footer { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .8rem; }
 .card-author { min-width: 0; display: flex; align-items: center; gap: .5rem; }
+.card-author.clickable { cursor: pointer; }
+.card-author.clickable:hover .author-copy strong { color: #6e5ec6; text-decoration: underline; }
 .author-avatar { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #ff6678, #8b6be8); font-size: .7rem; font-weight: 800; }
 .author-copy { min-width: 0; display: flex; flex-direction: column; }
 .author-copy strong { overflow: hidden; color: #4c4c52; font-size: .7rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }

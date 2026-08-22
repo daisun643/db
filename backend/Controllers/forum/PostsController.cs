@@ -35,6 +35,7 @@ public class PostsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<List<PostListItemResponse>>> GetAll(
         [FromQuery] int? forumId,
+        [FromQuery] int? authorId,
         [FromQuery] string? keyword,
         [FromQuery] string? tag,
         [FromQuery] string? tags,
@@ -73,6 +74,9 @@ public class PostsController : ControllerBase
 
         if (forumId.HasValue)
             query = query.Where(p => p.ForumID == forumId.Value);
+
+        if (authorId.HasValue)
+            query = query.Where(p => p.UserID == authorId.Value);
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {

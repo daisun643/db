@@ -68,6 +68,34 @@ public class FriendsController : ControllerBase
 
         return Ok(requests.Select(f => MapFriend(f, userId)).ToList());
     }
+    [HttpGet("relation/{userId}")]
+    public async Task<ActionResult> GetRelation(int userId)
+    {
+        var currentUserId = CurrentUserId();
+        if (userId == currentUserId)
+            return Ok(new { userId, relation = "self", friendshipId = 0 });
+
+        var friendship = await _db.FriendShips.FirstOrDefaultAsync(f =>
+            (f.UserID == currentUserId && f.FriendID == userId) ||
+            (f.UserID == userId && f.FriendID == currentUserId));
+
+        var relation = "none";
+        if (friendship != null)
+        {
+            if (friendship.Status == "Accepted")
+                relation = "friend";
+            else if (friendship.Status == "Pending")
+                relation = friendship.UserID == currentUserId ? "pending-sent" : "pending-received";
+        }
+
+        return Ok(new
+        {
+            userId,
+            relation,
+            friendshipId = friendship?.FriendshipID ?? 0
+        });
+    }
+
     [HttpPost]
     public async Task<ActionResult<FriendResponse>> CreateRequest([FromBody] CreateFriendRequest request)
     {
