@@ -156,12 +156,18 @@ class ForumAPI(BaseAPIClient):
 
     # ---- Reports ----
 
-    def create_report(self, target_type: str, target_id: int, reason: str) -> requests.Response:
-        return self.post(f"{self.PREFIX}/reports", json={
+    def create_report(self, target_type: str, target_id: int, reason: str, description: str | None = None) -> requests.Response:
+        payload = {
             "targetType": target_type,
             "targetID": target_id,
             "reason": reason,
-        })
+        }
+        if description is not None:
+            payload["description"] = description
+        return self.post(f"{self.PREFIX}/reports", json=payload)
+
+    def get_report(self, report_id: int) -> requests.Response:
+        return self.get(f"{self.PREFIX}/reports/{report_id}")
 
     def get_reports(self, status: str | None = None) -> requests.Response:
         params = {}

@@ -34,12 +34,29 @@ public class ReportsController : ControllerBase
     [RequirePermission("dashboard.view", "posts.moderate", "products.edit")]
     public async Task<ActionResult<List<ReportTicketResponse>>> GetReports([FromQuery] string? status)
     {
-        var query = _db.ReportTickets.Include(r => r.Reporter).AsQueryable();
+        var query = _db.ReportTickets.Include(r => r.Reporter).Include(r => r.Reviewer).AsQueryable();
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(r => r.Status == status);
 
         var reports = await query.OrderByDescending(r => r.CreateTime).Take(100).ToListAsync();
         return Ok(reports.Select(MapReport).ToList());
+    }
+
+    /// <summary>举报详情：包含被举报内容的快照，供审核员查看</summary>
+    [HttpGet("{id}")]
+    [RequirePermission("dashboard.view", "posts.moderate", "products.edit")]
+    public async Task<ActionResult<ReportTicketResponse>> GetReportDetail(int id)
+    {
+        var report = await _db.ReportTickets
+            .Include(r => r.Reporter)
+            .Include(r => r.Reviewer)
+            .FirstOrDefaultAsync(r => r.ReportID == id);
+        if (report == null)
+            return NotFound();
+
+        var response = MapReport(report);
+        response.Target = await BuildTargetSnapshotAsync(report.TargetType, report.TargetID);
+        return Ok(response);
     }
 
     [HttpPost]
@@ -57,11 +74,27 @@ public class ReportsController : ControllerBase
             return NotFound(new { message = "举报对象不存在" });
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        // 用户不能举报自己
+        var ownerId = await GetTargetOwnerIdAsync(targetType, request.TargetID);
+        if (ownerId == userId)
+            return BadRequest(new { message = "不能举报自己" });
+
+        // 同一用户不能对同一对象重复提交相同举报
+        var duplicated = await _db.ReportTickets.CountAsync(r =>
+            r.ReporterID == userId &&
+            r.TargetType == targetType &&
+            r.TargetID == request.TargetID &&
+            r.Reason == request.Reason) > 0;
+        if (duplicated)
+            return BadRequest(new { message = "请勿重复举报同一对象" });
+
         var report = new ReportTicket
         {
             TargetType = targetType,
             TargetID = request.TargetID,
             Reason = request.Reason,
+            Description = request.Description,
             Status = "Pending",
             CreateTime = DateTime.Now,
             ReporterID = userId
@@ -187,6 +220,7 @@ public class ReportsController : ControllerBase
             "Post" => await _db.Posts.CountAsync(p => p.PostID == targetId) > 0,
             "Comment" => await _db.PostComments.CountAsync(c => c.CommentID == targetId) > 0,
             "Product" => await _db.Products.CountAsync(p => p.ProductID == targetId) > 0,
+            "User" => await _db.Users.CountAsync(u => u.UserID == targetId) > 0,
             _ => false
         };
     }
@@ -225,6 +259,11 @@ public class ReportsController : ControllerBase
                     await PenalizeReportedUserAsync(product.UserID.Value, -20, $"举报成立：商品《{product.Title}》被下架", "Product", product.ProductID);
             }
         }
+        else if (report.TargetType == "User")
+        {
+            // 举报用户行为成立：直接对目标用户扣减信用分并通知
+            await PenalizeReportedUserAsync(report.TargetID.Value, -20, "举报成立：用户行为违规", "User", report.TargetID.Value);
+        }
     }
 
     private async Task PenalizeReportedUserAsync(int userId, int points, string reason, string targetType, int targetId)
@@ -249,6 +288,7 @@ public class ReportsController : ControllerBase
             "post" => "Post",
             "comment" => "Comment",
             "product" => "Product",
+            "user" => "User",
             _ => null
         };
     }
@@ -261,13 +301,106 @@ public class ReportsController : ControllerBase
             TargetType = report.TargetType ?? "",
             TargetID = report.TargetID,
             Reason = report.Reason ?? "",
+            Description = report.Description,
             Status = report.Status ?? "",
             CreateTime = report.CreateTime,
             ReviewTime = report.ReviewTime,
             Result = report.Result ?? "",
             ReporterID = report.ReporterID,
             ReporterName = report.Reporter?.Username ?? "",
-            ReviewerID = report.ReviewerID
+            ReviewerID = report.ReviewerID,
+            ReviewerName = report.Reviewer?.Username ?? ""
+        };
+    }
+
+    private async Task<int?> GetTargetOwnerIdAsync(string targetType, int targetId)
+    {
+        return targetType switch
+        {
+            "Post" => (await _db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.PostID == targetId))?.UserID,
+            "Comment" => (await _db.PostComments.AsNoTracking().FirstOrDefaultAsync(c => c.CommentID == targetId))?.UserID,
+            "Product" => (await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.ProductID == targetId))?.UserID,
+            "User" => (await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == targetId))?.UserID,
+            _ => null
+        };
+    }
+
+    private async Task<ReportTargetSnapshot?> BuildTargetSnapshotAsync(string? targetType, int? targetId)
+    {
+        if (targetType == null || targetId == null)
+            return null;
+
+        return targetType switch
+        {
+            "Post" => await BuildPostSnapshotAsync(targetId.Value),
+            "Comment" => await BuildCommentSnapshotAsync(targetId.Value),
+            "Product" => await BuildProductSnapshotAsync(targetId.Value),
+            "User" => await BuildUserSnapshotAsync(targetId.Value),
+            _ => null
+        };
+    }
+
+    private async Task<ReportTargetSnapshot?> BuildPostSnapshotAsync(int targetId)
+    {
+        var post = await _db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.PostID == targetId);
+        if (post == null) return null;
+        var owner = post.UserID.HasValue ? await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == post.UserID.Value) : null;
+        return new ReportTargetSnapshot
+        {
+            TargetID = post.PostID,
+            Title = post.Title,
+            Content = post.Content,
+            Status = post.Status,
+            OwnerID = post.UserID,
+            OwnerName = owner?.Username,
+            OwnerCredit = owner?.Credit
+        };
+    }
+
+    private async Task<ReportTargetSnapshot?> BuildCommentSnapshotAsync(int targetId)
+    {
+        var comment = await _db.PostComments.AsNoTracking().FirstOrDefaultAsync(c => c.CommentID == targetId);
+        if (comment == null) return null;
+        var owner = comment.UserID.HasValue ? await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == comment.UserID.Value) : null;
+        return new ReportTargetSnapshot
+        {
+            TargetID = comment.CommentID,
+            Content = comment.Content,
+            Status = comment.Status,
+            OwnerID = comment.UserID,
+            OwnerName = owner?.Username,
+            OwnerCredit = owner?.Credit
+        };
+    }
+
+    private async Task<ReportTargetSnapshot?> BuildProductSnapshotAsync(int targetId)
+    {
+        var product = await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.ProductID == targetId);
+        if (product == null) return null;
+        var owner = product.UserID.HasValue ? await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == product.UserID.Value) : null;
+        return new ReportTargetSnapshot
+        {
+            TargetID = product.ProductID,
+            Title = product.Title,
+            Status = product.Status,
+            OwnerID = product.UserID,
+            OwnerName = owner?.Username,
+            OwnerCredit = owner?.Credit
+        };
+    }
+
+    private async Task<ReportTargetSnapshot?> BuildUserSnapshotAsync(int targetId)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == targetId);
+        if (user == null) return null;
+        return new ReportTargetSnapshot
+        {
+            TargetID = user.UserID,
+            Title = user.Username,
+            Status = user.Status,
+            OwnerID = user.UserID,
+            OwnerName = user.Username,
+            OwnerCredit = user.Credit
         };
     }
 }

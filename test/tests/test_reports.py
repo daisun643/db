@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 
@@ -23,11 +25,11 @@ class TestCreateReport:
         assert data["targetType"] == "Product"
 
     def test_report_self_should_be_prevented(self, forum_client):
-        """用户不能举报自己（当前后端未实现此限制，保留测试占位）"""
+        """用户不能举报自己"""
         post = forum_client.create_post(1, "自举报测试", "自举报内容").json()
         resp = forum_client.create_report("Post", post["postID"], "测试自举报")
-        # 当前后端未做自举报限制，验证请求能正常返回
-        assert resp.status_code in (200, 400)
+        assert resp.status_code == 400
+        assert "自己" in resp.json().get("message", "")
 
     def test_report_invalid_target(self, forum_client):
         """举报不存在的对象"""
@@ -35,14 +37,46 @@ class TestCreateReport:
         assert resp.status_code == 404
 
     def test_duplicate_report_should_be_prevented(self, forum_client, admin_forum_client):
-        """同一用户对同一对象重复提交举报"""
+        """同一用户对同一对象重复提交相同举报"""
         post = admin_forum_client.create_post(2, "重复举报测试", "重复内容").json()
         resp1 = forum_client.create_report("Post", post["postID"], "第一次举报")
         assert resp1.status_code == 200
 
-        resp2 = forum_client.create_report("Post", post["postID"], "第二次举报")
-        # 当前后端可能允许重复提交，验证能正常返回
-        assert resp2.status_code in (200, 400)
+        resp2 = forum_client.create_report("Post", post["postID"], "第一次举报")
+        assert resp2.status_code == 400
+        assert "重复" in resp2.json().get("message", "")
+
+    def test_report_comment_success(self, forum_client, admin_forum_client):
+        """举报评论成功"""
+        post = admin_forum_client.create_post(2, "评论举报测试", "评论内容").json()
+        comment = admin_forum_client.create_comment(post["postID"], "违规评论内容").json()
+        resp = forum_client.create_report("Comment", comment["commentID"], "评论违规")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["targetType"] == "Comment"
+        assert data["status"] == "Pending"
+
+    def test_report_user_success(self, forum_client):
+        """举报用户行为成功"""
+        # 举报管理员（user id=1），不是自己；reason 加时间戳避免跨测试运行数据污染
+        resp = forum_client.create_report("User", 1, f"用户行为不当-{time.time_ns()}", "多次发布垃圾信息")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["targetType"] == "User"
+        assert data["status"] == "Pending"
+
+    def test_report_user_self_should_be_prevented(self, forum_client):
+        """不能举报自己（用户维度）"""
+        my_id = forum_client.get("/api/auth/me").json()["user"]["userId"]
+        resp = forum_client.create_report("User", my_id, f"自举报-{time.time_ns()}")
+        assert resp.status_code == 400
+
+    def test_report_with_description(self, forum_client, admin_forum_client):
+        """举报携带补充说明并持久化"""
+        post = admin_forum_client.create_post(2, "补充说明测试", "内容").json()
+        resp = forum_client.create_report("Post", post["postID"], "违规内容", description="详细补充说明：多次发送广告")
+        assert resp.status_code == 200
+        assert resp.json()["description"] == "详细补充说明：多次发送广告"
 
 
 class TestReviewReport:
@@ -118,3 +152,42 @@ class TestReportList:
         assert resp.status_code == 200
         for r in resp.json():
             assert r["status"] == "Approved"
+
+
+class TestReportDetail:
+
+    def test_admin_can_view_report_detail_with_target(self, forum_client, admin_forum_client):
+        """审核员查看举报详情（含被举报内容快照）"""
+        post = admin_forum_client.create_post(9, "详情快照测试", "快照内容").json()
+        report = forum_client.create_report("Post", post["postID"], "详情测试").json()
+
+        resp = admin_forum_client.get_report(report["reportID"])
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["reportID"] == report["reportID"]
+        assert data["target"] is not None
+        assert data["target"]["targetID"] == post["postID"]
+        assert data["target"]["title"] == "详情快照测试"
+        assert data["target"]["status"] == "Active"
+
+    def test_normal_user_cannot_view_report_detail(self, forum_client, admin_forum_client):
+        """普通用户不能查看举报详情"""
+        post = admin_forum_client.create_post(9, "详情权限测试", "内容").json()
+        report = forum_client.create_report("Post", post["postID"], "详情权限").json()
+
+        resp = forum_client.get_report(report["reportID"])
+        assert resp.status_code == 403
+
+    def test_report_user_approved_credit_deducted(self, forum_client, admin_forum_client):
+        """举报用户行为成立后，被举报人信用分扣减"""
+        # 举报管理员（user id=1）；reason 加时间戳避免跨测试运行数据污染
+        resp = forum_client.create_report("User", 1, f"行为违规-{time.time_ns()}")
+        assert resp.status_code == 200
+        report = resp.json()
+
+        before = admin_forum_client.get_report(report["reportID"]).json()["target"]["ownerCredit"]
+
+        admin_forum_client.review_report(report["reportID"], "approve", "确认违规")
+
+        after = admin_forum_client.get_report(report["reportID"]).json()["target"]["ownerCredit"]
+        assert after == before - 20

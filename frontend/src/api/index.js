@@ -123,6 +123,7 @@ export const resolveDispute = (id, data) => api.post(`/disputes/${id}/resolve`, 
 export const getFinanceFlows = () => api.get('/finance/flows')
 export const getFinanceSummary = () => api.get('/finance/summary')
 export const getReports = (params = {}) => api.get('/reports', { params })
+export const getReport = (id) => api.get(`/reports/${id}`)
 export const createReport = (data) => api.post('/reports', data)
 export const reviewReport = (id, data) => api.post(`/reports/${id}/review`, data)
 export const getFriends = () => api.get('/friends')

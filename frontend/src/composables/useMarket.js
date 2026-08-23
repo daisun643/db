@@ -28,6 +28,7 @@ const disputeTarget = ref(null)
 const disputeReason = ref('')
 const reportTarget = ref(null)
 const reportReason = ref('')
+const reportDescription = ref('')
 const messageTarget = ref(null)
 const orderMessages = ref([])
 const orderMessageText = ref('')
@@ -214,6 +215,7 @@ const openReport = (product) => {
     title: product.title,
   }
   reportReason.value = ''
+  reportDescription.value = ''
 }
 
 const closeReport = () => {
@@ -227,9 +229,11 @@ const handleCreateReport = async () => {
       targetType: reportTarget.value.targetType,
       targetID: reportTarget.value.id,
       reason: reportReason.value,
+      description: reportDescription.value || undefined,
     })
     closeReport()
     reportReason.value = ''
+    reportDescription.value = ''
     notice.value = '举报已提交，我们会尽快核实处理。'
   } catch (e) {
     error.value = '提交举报失败: ' + (e.response?.data?.message || e.message)
@@ -316,6 +320,7 @@ export function useMarket() {
     // 举报
     reportTarget,
     reportReason,
+    reportDescription,
     openReport,
     closeReport,
     handleCreateReport,

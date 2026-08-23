@@ -25,6 +25,12 @@
                 :title="selectedPost.userID ? '查看个人主页' : ''"
                 @click="openUserHome(selectedPost.userID)"
               >{{ selectedPost.username || '匿名用户' }}</span>
+              <button
+                v-if="selectedPost.userID"
+                class="report-user-link danger"
+                type="button"
+                @click="openUserReport(selectedPost)"
+              >举报用户</button>
               <span>{{ formatDate(selectedPost.createTime) }}</span>
               <span :class="['badge', selectedPost.status === 'Active' ? 'badge-green' : 'badge-yellow']">
                 {{ selectedPost.status }}
@@ -249,6 +255,7 @@ const {
   handleFavorite,
   openEditPost,
   openReport,
+  openUserReport,
   handleCreateComment,
   startReply,
   cancelReply,
@@ -997,5 +1004,22 @@ onBeforeUnmount(() => {
     border-radius: 0;
     width: 100%;
   }
+}
+
+.report-user-link {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #536471);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.report-user-link:hover {
+  text-decoration: underline;
+}
+
+.report-user-link.danger {
+  color: #ef4444;
 }
 </style>
