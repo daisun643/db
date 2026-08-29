@@ -16,8 +16,6 @@ public class User
     public string? PasswordHash { get; set; }
     [MaxLength(50)]
     public string? UserCode { get; set; }
-    [MaxLength(50)]
-    public string? Nickname { get; set; }
     [MaxLength(100)]
     public string? Contact { get; set; }
     [MaxLength(500)]

@@ -39,7 +39,7 @@
             <h2>好友</h2>
             <small v-if="conversations.length > 0">{{ conversations.length }} 位</small>
           </div>
-          <input v-model="friendSearch" class="friend-search" type="search" placeholder="搜索好友昵称 / 邮箱" />
+          <input v-model="friendSearch" class="friend-search" type="search" placeholder="搜索好友 / 邮箱" />
 
           <div
             v-for="conversation in filteredConversations"

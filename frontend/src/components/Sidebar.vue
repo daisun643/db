@@ -1,7 +1,7 @@
 <template>
   <aside :class="['sidebar', { collapsed: isCollapsed }]">
     <router-link to="/" class="sidebar-brand" aria-label="返回首页">
-      <span class="brand-mark">同</span>
+      <span class="brand-mark">济</span>
       <span v-if="!isCollapsed" class="brand-copy"><strong>同济校园</strong><small>Campus Hub</small></span>
     </router-link>
     <button

@@ -45,10 +45,8 @@ public class CreditAdjustmentResponse
 public class UpdateProfileRequest
 {
     [StringLength(50, MinimumLength = 2, ErrorMessage = "用户名长度必须在2-50个字符之间")]
+    [RegularExpression(@"^\S+$", ErrorMessage = "用户名不能包含空格")]
     public string? Username { get; set; }
-
-    [StringLength(50, ErrorMessage = "昵称长度不能超过50个字符")]
-    public string? Nickname { get; set; }
 
     [StringLength(500, ErrorMessage = "头像链接长度不能超过500个字符")]
     public string? AvatarUrl { get; set; }

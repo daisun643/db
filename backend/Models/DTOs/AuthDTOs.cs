@@ -11,6 +11,7 @@ public class RegisterRequest
 
     [Required(ErrorMessage = "用户名不能为空")]
     [StringLength(50, MinimumLength = 2, ErrorMessage = "用户名长度必须在2-50个字符之间")]
+    [RegularExpression(@"^\S+$", ErrorMessage = "用户名不能包含空格")]
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "密码不能为空")]
@@ -77,7 +78,6 @@ public class UserInfo
     public int UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string Nickname { get; set; } = string.Empty;
     public string AvatarUrl { get; set; } = string.Empty;
     public string Contact { get; set; } = string.Empty;
     public string Bio { get; set; } = string.Empty;

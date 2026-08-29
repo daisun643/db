@@ -84,7 +84,7 @@ const activeTab = ref('posts')
 const toast = reactive({ message: '', type: 'success' })
 
 const displayName = computed(() =>
-  profile.value?.nickname || profile.value?.username || '校园用户'
+  profile.value?.username || '校园用户'
 )
 
 const avatarInitial = computed(() =>

@@ -17,7 +17,6 @@ CREATE TABLE "User" (
     "email"        VARCHAR2(100),
     "passwordHash" VARCHAR2(255),
     "userCode"     VARCHAR2(50),
-    "nickname"     VARCHAR2(50),
     "contact"      VARCHAR2(100),
     "bio"          VARCHAR2(500),
     "credit"       NUMBER,

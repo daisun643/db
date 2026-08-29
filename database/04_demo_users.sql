@@ -17,19 +17,19 @@ ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 
 -- 用户1 - Admin (密码: Password1)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('Admin User', '1@tongji.edu.cn', '$2b$11$qhCJLT7aCwPGasI0QVh/hOjWvtYwHfEJb.5bOwVo1Hsi362Kq4kHy', 'ADMIN00001', 1000, 'Active', 2700);
+VALUES ('AdminUser', '1@tongji.edu.cn', '$2b$11$qhCJLT7aCwPGasI0QVh/hOjWvtYwHfEJb.5bOwVo1Hsi362Kq4kHy', 'ADMIN00001', 1000, 'Active', 2700);
 
 -- 用户2 - Manager (密码: Password2)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('Manager User', '2@tongji.edu.cn', '$2b$11$apixksR2vP7HoAQw2YXt.eMoY4CLX6CXKnfIossSDVAgwQ/C84Rq.', 'MANGER00002', 500, 'Active', 700);
+VALUES ('ManagerUser', '2@tongji.edu.cn', '$2b$11$apixksR2vP7HoAQw2YXt.eMoY4CLX6CXKnfIossSDVAgwQ/C84Rq.', 'MANGER00002', 500, 'Active', 700);
 
 -- 用户3 - Moderator (密码: Password3)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('Moderator User', '3@tongji.edu.cn', '$2b$11$LBh/YZ8C.6g82E./7Rsoe.jja7rVgIENjVtOqVPdELUMc6LFHB35W', 'MODER00003', 300, 'Active', 450);
+VALUES ('ModeratorUser', '3@tongji.edu.cn', '$2b$11$LBh/YZ8C.6g82E./7Rsoe.jja7rVgIENjVtOqVPdELUMc6LFHB35W', 'MODER00003', 300, 'Active', 450);
 
 -- 用户4 - User (密码: Password4)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('Normal User', '4@tongji.edu.cn', '$2b$11$alUNRE/Pr407uL92P4XaOOzLFDdvGlw4S.KwikGwMOPH1WNrBEVdy', 'USER000004', 100, 'Active', 0);
+VALUES ('NormalUser', '4@tongji.edu.cn', '$2b$11$alUNRE/Pr407uL92P4XaOOzLFDdvGlw4S.KwikGwMOPH1WNrBEVdy', 'USER000004', 100, 'Active', 0);
 -- 分配角色给用户
 -- ============================================================
 -- 用户1 分配 Admin 角色

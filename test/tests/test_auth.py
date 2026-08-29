@@ -125,6 +125,10 @@ class TestStage1Registration:
         resp = client.register(second_email, username, "Password123", second_code)
         assert_failure(resp, message="该用户名已被使用")
 
+    def test_register_username_with_whitespace_rejected(self, client):
+        resp = client.register(_unique_email("space_name"), "user name 1", "Password123", "000000")
+        assert_failure(resp, message="用户名不能包含空格")
+
     def test_register_non_tongji_email_rejected(self, client):
         resp = client.register("student@example.com", "external_user", "Password123", "123456")
         assert_failure(resp, message="仅支持 @tongji.edu.cn 邮箱注册")
@@ -173,7 +177,6 @@ class TestStage2Profile:
 
         resp = client.put("/api/user/profile", json={
             "username": new_username,
-            "nickname": "阶段二昵称",
             "contact": "wechat: stage2",
             "bio": "阶段二个人简介",
         })
@@ -181,14 +184,14 @@ class TestStage2Profile:
         assert resp.status_code == 200
         data = resp.json()
         assert data["username"] == new_username
-        assert data["nickname"] == "阶段二昵称"
         assert data["contact"] == "wechat: stage2"
         assert data["bio"] == "阶段二个人简介"
+        assert "nickname" not in data
 
         profile = client.get("/api/user/profile").json()
         assert profile["userId"] == created["user"]["userId"]
         assert profile["email"] == created["email"]
-        assert profile["nickname"] == "阶段二昵称"
+        assert profile["username"] == new_username
 
     def test_profile_update_ignores_user_id_and_sensitive_fields(self, client):
         created = _register_unique_user(client, "guard")
@@ -548,7 +551,6 @@ class TestStage7MemberOneCoverage:
         resp = client.put("/api/user/profile", json={
             "userId": victim["user"]["userId"],
             "username": attacker_new_username,
-            "nickname": "stage7 attacker nickname",
         })
 
         assert resp.status_code == 200

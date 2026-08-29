@@ -109,7 +109,7 @@ const loading = ref(false)
 const error = ref(null)
 
 const displayName = computed(() =>
-  authStore.user?.nickname || authStore.user?.username || '同学'
+  authStore.user?.username || '同学'
 )
 
 const formatDate = (value) => {

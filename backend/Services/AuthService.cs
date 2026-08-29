@@ -105,6 +105,11 @@ public class AuthService : IAuthService
             return (false, "用户名长度必须在2-50个字符之间", null);
         }
 
+        if (username.Any(char.IsWhiteSpace))
+        {
+            return (false, "用户名不能包含空格", null);
+        }
+
         if (!ValidateEmailDomain(email))
         {
             return (false, $"仅支持 @{_emailSettings.AllowedDomain} 邮箱注册", null);
@@ -152,7 +157,6 @@ public class AuthService : IAuthService
         {
             Email = email,
             Username = username,
-            Nickname = username,
             PasswordHash = passwordHash,
             Credit = 100,
             Status = "Active",

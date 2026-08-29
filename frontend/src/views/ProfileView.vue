@@ -14,10 +14,6 @@
             <span class="info-value">{{ profile?.username || '-' }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">昵称</span>
-            <span class="info-value">{{ profile?.nickname || '-' }}</span>
-          </div>
-          <div class="info-item">
             <span class="info-label">联系方式</span>
             <span class="info-value">{{ profile?.contact || '-' }}</span>
           </div>
@@ -45,11 +41,7 @@
           <h3>资料维护</h3>
           <label>
             <span>用户名</span>
-            <input v-model="profileForm.username" type="text" minlength="2" maxlength="50" required />
-          </label>
-          <label>
-            <span>昵称</span>
-            <input v-model="profileForm.nickname" type="text" maxlength="50" placeholder="展示给其他用户的名称" />
+            <input v-model="profileForm.username" type="text" minlength="2" maxlength="50" pattern="\S+" placeholder="2-50个字符，不能包含空格" required />
           </label>
           <label>
             <span>头像</span>
@@ -147,7 +139,6 @@ let messageTimer = null
 
 const profileForm = ref({
   username: '',
-  nickname: '',
   avatarUrl: '',
   contact: '',
   bio: '',
@@ -166,7 +157,6 @@ const loadProfile = async () => {
     profile.value = res.data
     creditAdjustments.value = adjustmentsRes.data
     profileForm.value.username = res.data.username || ''
-    profileForm.value.nickname = res.data.nickname || ''
     profileForm.value.avatarUrl = res.data.avatarUrl || ''
     profileForm.value.contact = res.data.contact || ''
     profileForm.value.bio = res.data.bio || ''
@@ -262,7 +252,6 @@ const handleUpdateProfile = async () => {
     clearMessages()
     const res = await updateProfile({
       username: profileForm.value.username,
-      nickname: profileForm.value.nickname,
       contact: profileForm.value.contact,
       bio: profileForm.value.bio,
     })
@@ -270,7 +259,6 @@ const handleUpdateProfile = async () => {
     authStore.user = {
       ...authStore.user,
       username: res.data.username,
-      nickname: res.data.nickname,
       contact: res.data.contact,
       bio: res.data.bio,
     }

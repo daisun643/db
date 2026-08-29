@@ -226,7 +226,6 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
-            nickname = user.Nickname,
             avatarUrl = user.AvatarUrl,
             contact = user.Contact,
             bio = user.Bio,
@@ -267,7 +266,6 @@ public class UserController : ControllerBase
         {
             userId = user.UserID,
             username = user.Username,
-            nickname = user.Nickname,
             avatarUrl = user.AvatarUrl,
             bio = user.Bio,
             userLevel = user.UserLevel,
@@ -306,6 +304,9 @@ public class UserController : ControllerBase
             if (username.Length < 2 || username.Length > 50)
                 return BadRequest(new { message = "用户名长度必须在2-50个字符之间" });
 
+            if (username.Any(char.IsWhiteSpace))
+                return BadRequest(new { message = "用户名不能包含空格" });
+
             var existingUsernameUserId = await _db.Users
                 .Where(u => u.UserID != currentUserId &&
                             u.Username != null &&
@@ -318,8 +319,6 @@ public class UserController : ControllerBase
             user.Username = username;
         }
 
-        if (request.Nickname != null)
-            user.Nickname = NormalizeProfileField(request.Nickname, 50);
         if (request.AvatarUrl != null)
         {
             var avatarPath = NormalizeAvatarPath(request.AvatarUrl);
@@ -340,7 +339,6 @@ public class UserController : ControllerBase
             userId = user.UserID,
             username = user.Username,
             email = user.Email,
-            nickname = user.Nickname,
             avatarUrl = user.AvatarUrl,
             contact = user.Contact,
             bio = user.Bio,

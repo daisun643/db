@@ -330,7 +330,6 @@ public class AuthController : ControllerBase
             UserId = user.UserID,
             Username = user.Username ?? "",
             Email = user.Email ?? "",
-            Nickname = user.Nickname ?? "",
             AvatarUrl = user.AvatarUrl ?? "",
             Contact = user.Contact ?? "",
             Bio = user.Bio ?? "",
