@@ -592,6 +592,32 @@ public class PostsController : ControllerBase
         return Ok(await MapPostListAsync(posts));
     }
 
+    [HttpGet("me/comments")]
+    [Authorize]
+    public async Task<ActionResult<List<MyCommentResponse>>> GetMyComments()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var comments = await _db.PostComments
+            .Include(c => c.Post)
+            .ThenInclude(p => p!.Forum)
+            .Where(c => c.UserID == userId && c.Status != "Deleted" && c.Post != null && c.Post.Status != "Deleted")
+            .OrderByDescending(c => c.CreateTime)
+            .ToListAsync();
+
+        return Ok(comments.Select(c => new MyCommentResponse
+        {
+            CommentID = c.CommentID,
+            Content = c.Content ?? "",
+            Status = c.Status ?? "",
+            CreateTime = c.CreateTime,
+            ParentCommentID = c.ParentCommentID,
+            PostID = c.PostID,
+            PostTitle = c.Post!.Title ?? "",
+            ForumID = c.Post.ForumID,
+            ForumName = c.Post.Forum?.ForumName ?? ""
+        }).ToList());
+    }
+
     private async Task<List<PostListItemResponse>> MapPostListAsync(IEnumerable<Post> posts)
     {
         var postList = posts.ToList();

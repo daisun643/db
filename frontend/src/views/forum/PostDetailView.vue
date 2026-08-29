@@ -1,123 +1,198 @@
 <template>
-  <section class="post-detail-panel">
-    <div class="detail-header">
-      <button class="icon-button" @click="goBack" aria-label="返回">
-        <span>←</span>
-      </button>
-      <span v-if="selectedPost" class="muted">{{ selectedPost.forumName || '未分区' }}</span>
-    </div>
-
-    <div v-if="detailLoading" class="loading">加载中...</div>
-    <template v-else-if="selectedPost">
-      <article class="post-detail">
-        <div class="post-meta">
-          <span
-            :class="['author-link', { plain: !selectedPost.userID }]"
-            :title="selectedPost.userID ? '查看个人主页' : ''"
-            @click="openUserHome(selectedPost.userID)"
-          >{{ selectedPost.username || '匿名用户' }}</span>
-          <span>{{ formatDate(selectedPost.createTime) }}</span>
-          <span :class="['badge', selectedPost.status === 'Active' ? 'badge-green' : 'badge-yellow']">
-            {{ selectedPost.status }}
-          </span>
+  <section class="post-detail-grid">
+    <div class="detail-column">
+      <section class="post-detail-panel">
+        <div class="detail-header">
+          <button class="icon-button" @click="goBack" aria-label="返回">
+            <span>←</span>
+          </button>
+          <span v-if="selectedPost" class="muted">{{ selectedPost.forumName || '未分区' }}</span>
         </div>
-        <h2>{{ selectedPost.title }}</h2>
-        <div
-          class="post-content markdown-body"
-          v-html="renderMarkdown(selectedPost.content || selectedPost.contentPreview)"
-        ></div>
-        <div v-if="selectedPost.imageUrls?.length" class="detail-images">
-          <img v-for="url in selectedPost.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
-        </div>
-        <div class="post-actions">
-          <span
-            v-for="metric in postMetricItems(selectedPost)"
-            :key="metric.key"
-            class="post-metric"
-            :title="metric.label"
-            :aria-label="`${metric.label} ${metric.value}`"
-          >
-            <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
-            <span>{{ metric.value }}</span>
-          </span>
-          <button
-            :class="['post-icon-action', { liked: selectedPost.isLiked }]"
-            @click="handleLike(selectedPost)"
-            :title="selectedPost.isLiked ? '取消点赞' : '点赞'"
-            :aria-label="selectedPost.isLiked ? '取消点赞' : '点赞'"
-          >
-            <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
-          </button>
-          <button
-            :class="['post-icon-action', { favorited: selectedPost.isFavorited }]"
-            @click.stop="handleFavorite(selectedPost)"
-            :disabled="!selectedPost.isFavorited && favoriteFolders.length === 0"
-            :title="selectedPost.isFavorited ? '取消收藏' : '收藏'"
-            :aria-label="selectedPost.isFavorited ? '取消收藏' : '收藏'"
-          >
-            <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
-          </button>
-          <button
-            v-if="canEditPost(selectedPost)"
-            class="post-icon-action"
-            @click="openEditPost(selectedPost)"
-            title="编辑"
-            aria-label="编辑"
-          >
-            <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
-          </button>
-          <button class="post-icon-action danger" @click="openReport(selectedPost)" title="举报" aria-label="举报">
-            <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
-          </button>
-        </div>
-      </article>
 
-      <section class="comment-section">
-        <h3>评论</h3>
-        <form class="comment-form" @submit.prevent="handleCreateComment(null)">
-          <textarea
-            v-model="commentText"
-            placeholder="写下评论，支持 @用户名 提及"
-            required
-          ></textarea>
-          <button class="btn btn-primary" type="submit" :disabled="commentSubmitting">
-            {{ commentSubmitting ? '发送中...' : '发表评论' }}
-          </button>
-        </form>
+        <div v-if="detailLoading" class="loading">加载中...</div>
+        <template v-else-if="selectedPost">
+          <article class="post-detail">
+            <div class="post-meta">
+              <span
+                :class="['author-link', { plain: !selectedPost.userID }]"
+                :title="selectedPost.userID ? '查看个人主页' : ''"
+                @click="openUserHome(selectedPost.userID)"
+              >{{ selectedPost.username || '匿名用户' }}</span>
+              <span>{{ formatDate(selectedPost.createTime) }}</span>
+              <span :class="['badge', selectedPost.status === 'Active' ? 'badge-green' : 'badge-yellow']">
+                {{ selectedPost.status }}
+              </span>
+            </div>
+            <h2>{{ selectedPost.title }}</h2>
+            <div
+              class="post-content markdown-body"
+              v-html="renderMarkdown(selectedPost.content || selectedPost.contentPreview)"
+            ></div>
+            <div v-if="selectedPost.imageUrls?.length" class="detail-images">
+              <img v-for="url in selectedPost.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
+            </div>
+            <div class="post-actions">
+              <span
+                v-for="metric in postMetricItems(selectedPost)"
+                :key="metric.key"
+                class="post-metric"
+                :title="metric.label"
+                :aria-label="`${metric.label} ${metric.value}`"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+                <span>{{ metric.value }}</span>
+              </span>
+              <button
+                :class="['post-icon-action', { liked: selectedPost.isLiked }]"
+                @click="handleLike(selectedPost)"
+                :title="selectedPost.isLiked ? '取消点赞' : '点赞'"
+                :aria-label="selectedPost.isLiked ? '取消点赞' : '点赞'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
+              </button>
+              <button
+                :class="['post-icon-action', { favorited: selectedPost.isFavorited }]"
+                @click.stop="handleFavorite(selectedPost)"
+                :disabled="!selectedPost.isFavorited && favoriteFolders.length === 0"
+                :title="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+                :aria-label="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
+              </button>
+              <button
+                v-if="canEditPost(selectedPost)"
+                class="post-icon-action"
+                @click="openEditPost(selectedPost)"
+                title="编辑"
+                aria-label="编辑"
+              >
+                <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
+              </button>
+              <button class="post-icon-action danger" @click="openReport(selectedPost)" title="举报" aria-label="举报">
+                <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+              </button>
+            </div>
+          </article>
 
-        <div v-if="commentsLoading" class="loading">加载评论中...</div>
-        <div v-else class="comment-list">
-          <div v-if="comments.length === 0" class="empty-state compact">
-            <p>暂无评论</p>
-          </div>
-          <CommentNode
-            v-for="comment in comments"
-            :key="comment.commentID"
-            :comment="comment"
-            :replying-to="replyingTo"
-            :reply-text="replyText"
-            @reply="startReply"
-            @cancel-reply="cancelReply"
-            @update-reply="replyText = $event.value"
-            @submit-reply="handleCreateComment"
-            @report="openCommentReport"
-            @delete="handleDeleteComment"
-          />
+          <section class="comment-section">
+            <div class="comment-head">
+              <h3>评论 <span class="comment-count">{{ selectedPost.commentCount || 0 }}</span></h3>
+            </div>
+
+            <form class="composer" @submit.prevent="handleCreateComment(null)">
+              <div class="composer-avatar" aria-hidden="true">{{ composerInitial }}</div>
+              <div class="composer-main">
+                <textarea
+                  v-model="commentText"
+                  placeholder="写下你的评论，支持 @用户名 提及..."
+                  required
+                  :disabled="!authStore.isAuthenticated"
+                ></textarea>
+                <div class="composer-bar">
+                  <span class="composer-hint">{{ authStore.isAuthenticated ? '友善发言，理性讨论' : '登录后可发表评论' }}</span>
+                  <button
+                    class="composer-submit"
+                    type="submit"
+                    :disabled="commentSubmitting || !authStore.isAuthenticated"
+                  >{{ commentSubmitting ? '发送中...' : '发表评论' }}</button>
+                </div>
+              </div>
+            </form>
+
+            <div v-if="commentsLoading" class="loading">加载评论中...</div>
+            <div v-else-if="comments.length === 0" class="comment-empty">
+              <span class="comment-empty-icon" aria-hidden="true">💬</span>
+              <p>还没有评论，来抢沙发吧</p>
+            </div>
+            <div v-else class="comment-list">
+              <div v-for="comment in comments" :key="comment.commentID" class="comment-item">
+                <CommentNode
+                  :comment="comment"
+                  :author-id="selectedPost.userID"
+                  :replying-to="replyingTo"
+                  :reply-text="replyText"
+                  @reply="startReply"
+                  @cancel-reply="cancelReply"
+                  @update-reply="replyText = $event.value"
+                  @submit-reply="handleCreateComment"
+                  @report="openCommentReport"
+                  @delete="handleDeleteComment"
+                />
+              </div>
+            </div>
+          </section>
+        </template>
+        <div v-else class="empty-state compact">
+          <p>帖子不存在或已被删除。</p>
         </div>
       </section>
-    </template>
-    <div v-else class="empty-state compact">
-      <p>帖子不存在或已被删除。</p>
     </div>
+
+    <aside class="forum-rail">
+      <section v-if="forumCard" class="rail-card forum-card">
+        <div class="forum-card-header">
+          <img v-if="canShowAvatar(forumCard.avatarUrl)" :src="forumCard.avatarUrl" :alt="forumCard.forumName" class="forum-card-avatar forum-card-avatar-img" @error="markAvatarFailed(forumCard.avatarUrl)" />
+          <span v-else class="forum-card-avatar">{{ forumCardInitial }}</span>
+          <div class="forum-card-title">
+            <strong
+              class="forum-card-name"
+              role="link"
+              tabindex="0"
+              :title="'进入 ' + forumCard.forumName + ' 版块'"
+              @click="goBoard(forumCard.forumID)"
+              @keydown.enter="goBoard(forumCard.forumID)"
+            >{{ forumCard.forumName }}</strong>
+            <small>{{ forumCard.postCount || 0 }} 篇帖子 · {{ forumCard.memberCount || 0 }} 名成员</small>
+          </div>
+        </div>
+        <p class="forum-card-desc">{{ forumCard.description || '这个版块还没有简介' }}</p>
+        <button
+          class="forum-join-btn"
+          type="button"
+          :class="{ joined: forumCard.isJoined }"
+          :disabled="!authStore.isAuthenticated || togglingForumJoinId === forumCard.forumID"
+          :title="!authStore.isAuthenticated ? '登录后可关注版块' : (forumCard.isJoined ? '点击取消关注' : '关注版块')"
+          @click="handleToggleForumJoin(forumCard)"
+        >{{ forumCard.isJoined ? '已关注' : '+ 关注版块' }}</button>
+
+        <div class="forum-card-section">
+          <span class="forum-card-label">版主</span>
+          <template v-if="forumCard.managers?.length">
+            <span
+              v-for="manager in forumCard.managers"
+              :key="manager.userID"
+              class="forum-card-person"
+              title="查看个人主页"
+              @click="openUserHome(manager.userID)"
+            >{{ manager.username || manager.email }}</span>
+          </template>
+          <span v-else class="forum-card-empty">暂无</span>
+        </div>
+
+        <div class="forum-card-section">
+          <span class="forum-card-label">管理员</span>
+          <span
+            v-if="forumCard.creator"
+            class="forum-card-person"
+            title="查看个人主页"
+            @click="openUserHome(forumCard.creator.userID)"
+          >{{ forumCard.creator.username || forumCard.creator.email }}</span>
+          <span v-else class="forum-card-empty">暂无</span>
+        </div>
+      </section>
+    </aside>
   </section>
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useForum } from '../../composables/useForum'
+import { getForum } from '../../api'
 import { renderMarkdown } from '../../utils/markdown'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
+import CommentNode from '../../components/forum/CommentNode.vue'
 import bookmarkIcon from '../../assets/icons/bookmark.svg'
 import commentIcon from '../../assets/icons/comment.svg'
 import editIcon from '../../assets/icons/edit.svg'
@@ -130,6 +205,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const {
+  forums,
   selectedPost,
   detailLoading,
   comments,
@@ -150,9 +226,40 @@ const {
   cancelReply,
   openCommentReport,
   handleDeleteComment,
+  togglingForumJoinId,
+  handleToggleForumJoin,
 } = useForum()
 
 const postId = computed(() => Number(route.params.postId))
+
+// ---- 右边栏：版块信息 ----
+
+const fallbackForum = ref(null)
+
+const forumCard = computed(() => {
+  if (!selectedPost.value?.forumID) return null
+  return forums.value.find(f => f.forumID === selectedPost.value.forumID) || fallbackForum.value
+})
+
+const forumCardInitial = computed(() =>
+  (forumCard.value?.forumName || '版')[0]?.toUpperCase() || '版'
+)
+
+const loadForumCard = async () => {
+  fallbackForum.value = null
+  const forumId = selectedPost.value?.forumID
+  if (!forumId || forums.value.some(f => f.forumID === forumId)) return
+  try {
+    const res = await getForum(forumId)
+    fallbackForum.value = res.data
+  } catch (e) {
+    fallbackForum.value = null
+  }
+}
+
+const goBoard = (forumId) => {
+  if (forumId) router.push(`/forums/board/${forumId}`)
+}
 
 const goBack = () => {
   if (window.history.length > 1) router.back()
@@ -189,104 +296,16 @@ const canEditPost = (post) => {
   return post?.userID && authStore.user?.userId && post.userID === authStore.user.userId
 }
 
+const composerInitial = computed(() =>
+  (authStore.user?.username || authStore.user?.email || '评')[0]?.toUpperCase() || '评'
+)
+
 const load = () => loadPostDetail(postId.value)
 
 onMounted(load)
 watch(postId, load)
+watch(selectedPost, loadForumCard)
 onBeforeUnmount(closePostDetail)
-
-const CommentNode = defineComponent({
-  name: 'CommentNode',
-  props: {
-    comment: { type: Object, required: true },
-    replyingTo: { type: Number, default: null },
-    replyText: { type: String, default: '' },
-  },
-  emits: ['reply', 'cancel-reply', 'update-reply', 'submit-reply', 'report', 'delete'],
-  setup(props, { emit }) {
-    const canDelete = () => {
-      return props.comment.userID && authStore.user?.userId && props.comment.userID === authStore.user.userId
-    }
-
-    const initial = (name) => (name || '?')[0]?.toUpperCase() || '?'
-
-    const isDeleted = props.comment.status === 'Deleted'
-
-    const canVisitUser = () => !isDeleted && !!props.comment.userID
-
-    const visitUser = () => {
-      if (canVisitUser()) {
-        router.push(`/user/${props.comment.userID}`)
-      }
-    }
-
-    const renderNode = () => h('article', { class: isDeleted ? 'comment-node deleted' : 'comment-node' }, [
-      h('div', {
-        class: ['comment-avatar', { deleted: isDeleted, clickable: canVisitUser() }],
-        title: canVisitUser() ? '查看个人主页' : '',
-        onClick: visitUser,
-      }, [
-        h('span', isDeleted ? '' : initial(props.comment.username)),
-      ]),
-      h('div', { class: 'comment-body' }, [
-        h('div', { class: 'comment-header' }, [
-          h('span', {
-            class: ['comment-author', { clickable: canVisitUser() }],
-            title: canVisitUser() ? '查看个人主页' : '',
-            onClick: visitUser,
-          }, isDeleted ? '用户已删除' : (props.comment.username || '用户')),
-          h('span', { class: 'comment-time' }, formatDate(props.comment.createTime)),
-        ]),
-        h('div', { class: 'comment-content' }, isDeleted ? '用户已删除该评论' : (props.comment.content || '')),
-        isDeleted ? null : h('div', { class: 'comment-actions' }, [
-          h('span', { class: 'comment-action-link', onClick: () => emit('reply', props.comment) }, '回复'),
-          h('span', { class: 'comment-action-link', onClick: () => emit('report', props.comment) }, '举报'),
-          canDelete()
-            ? h('span', { class: 'comment-action-link', onClick: () => emit('delete', props.comment) }, '删除')
-            : null,
-        ]),
-        props.replyingTo === props.comment.commentID
-          ? h('form', {
-              class: 'reply-form',
-              onSubmit: (event) => {
-                event.preventDefault()
-                emit('submit-reply', props.comment.commentID)
-              },
-            }, [
-              h('textarea', {
-                value: props.replyText,
-                required: true,
-                placeholder: '写下回复...',
-                onInput: (event) => emit('update-reply', { commentId: props.comment.commentID, value: event.target.value }),
-              }),
-              h('div', { class: 'reply-actions' }, [
-                h('button', { class: 'btn btn-primary btn-sm', type: 'submit' }, '发送'),
-                h('button', { class: 'btn btn-sm', type: 'button', onClick: () => emit('cancel-reply') }, '取消'),
-              ]),
-            ])
-          : null,
-      ]),
-      props.comment.replies?.length
-        ? h('div', { class: 'comment-children' }, props.comment.replies.map(reply =>
-            h(CommentNode, {
-              key: reply.commentID,
-              comment: reply,
-              replyingTo: props.replyingTo,
-              replyText: props.replyText,
-              onReply: (comment) => emit('reply', comment),
-              onCancelReply: () => emit('cancel-reply'),
-              onUpdateReply: (payload) => emit('update-reply', payload),
-              onSubmitReply: (id) => emit('submit-reply', id),
-              onReport: (comment) => emit('report', comment),
-              onDelete: (comment) => emit('delete', comment),
-            })
-          ))
-        : null,
-    ])
-
-    return renderNode
-  },
-})
 </script>
 
 <style scoped>
@@ -315,6 +334,153 @@ const CommentNode = defineComponent({
 .badge-yellow {
   background: #fef3c7;
   color: #92400e;
+}
+
+.post-detail-grid {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) 250px;
+}
+
+.detail-column {
+  min-width: 0;
+}
+
+.forum-rail {
+  display: grid;
+  gap: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.rail-card {
+  background: #fff;
+  border: 1px solid #e4e8ef;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.forum-card {
+  display: grid;
+  gap: .8rem;
+}
+
+.forum-card-header {
+  align-items: center;
+  display: flex;
+  gap: .65rem;
+}
+
+.forum-card-avatar {
+  background: linear-gradient(135deg, #4d9bf0, #2f7ee0);
+  border-radius: 8px;
+  color: #fff;
+  display: grid;
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  font-weight: 800;
+  height: 44px;
+  place-items: center;
+  width: 44px;
+}
+
+.forum-card-avatar-img {
+  object-fit: cover;
+}
+
+.forum-card-title {
+  display: grid;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.forum-card-name {
+  color: #171d2e;
+  cursor: pointer;
+  font-size: .95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forum-card-name:hover {
+  color: #2f7ee0;
+}
+
+.forum-card-title small {
+  color: #9aa3b3;
+  font-size: .68rem;
+}
+
+.forum-card-desc {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  font-size: .74rem;
+  line-height: 1.6;
+  margin: 0;
+  overflow: hidden;
+}
+
+.forum-join-btn {
+  background: #2f7ee0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 750;
+  padding: .5rem .9rem;
+}
+
+.forum-join-btn:hover:not(:disabled) {
+  background: #266bc4;
+}
+
+.forum-join-btn.joined {
+  background: #eef4ff;
+  border: 1px solid #cfe2f7;
+  color: #266bc4;
+}
+
+.forum-join-btn:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.forum-card-section {
+  border-top: 1px solid #f0f2f6;
+  display: grid;
+  gap: .3rem;
+  padding-top: .65rem;
+}
+
+.forum-card-label {
+  color: #9aa3b3;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.forum-card-person {
+  color: #45536b;
+  cursor: pointer;
+  font-size: .76rem;
+  font-weight: 650;
+  width: fit-content;
+}
+
+.forum-card-person:hover {
+  color: #2f7ee0;
+  text-decoration: underline;
+}
+
+.forum-card-empty {
+  color: #b6bcc7;
+  font-size: .74rem;
 }
 
 .post-detail-panel {
@@ -495,37 +661,155 @@ const CommentNode = defineComponent({
 }
 
 .comment-section {
-  padding: 1rem;
+  padding: 1.25rem 1.5rem 1.75rem;
 }
 
-.comment-section h3 {
-  font-size: 1rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
+.comment-head h3 {
+  align-items: center;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  font-size: 1.02rem;
+  gap: .5rem;
+  margin: 0 0 1.1rem;
+  padding-bottom: .6rem;
 }
 
-.comment-form {
+.comment-count {
+  background: #eef4ff;
+  border-radius: 999px;
+  color: #266bc4;
+  font-size: .75rem;
+  font-weight: 750;
+  padding: .15rem .6rem;
+}
+
+.composer {
+  background: #f8fafd;
+  border: 1px solid #e4e8ef;
+  border-radius: 14px;
+  display: flex;
+  gap: .7rem;
+  margin-bottom: 1.35rem;
+  padding: .85rem;
+}
+
+.composer-avatar {
+  align-items: center;
+  background: linear-gradient(135deg, #4d9bf0, #2f7ee0);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: .9rem;
+  font-weight: 700;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.composer-main {
+  display: grid;
+  flex: 1;
+  gap: .5rem;
+  min-width: 0;
+}
+
+.composer textarea {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  font: inherit;
+  font-size: .9rem;
+  min-height: 76px;
+  padding: .65rem .85rem;
+  resize: vertical;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.composer textarea:focus {
+  border-color: #266bc4;
+  box-shadow: 0 0 0 3px rgba(38, 107, 196, .12);
+  outline: none;
+}
+
+.composer textarea:disabled {
+  background: #f3f5f9;
+  color: #9aa3b3;
+}
+
+.composer-bar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.composer-hint {
+  color: #9aa3b3;
+  font-size: .74rem;
+}
+
+.composer-submit {
+  background: #266bc4;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  padding: .5rem 1.2rem;
+  transition: background .15s;
+}
+
+.composer-submit:hover:not(:disabled) {
+  background: #1f5aa7;
+}
+
+.composer-submit:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.comment-empty {
+  border: 1px dashed #d9dbe5;
+  border-radius: 14px;
+  background: #fafaff;
+  display: grid;
+  gap: .35rem;
+  justify-items: center;
+  padding: 2.2rem 1rem;
+  text-align: center;
+}
+
+.comment-empty-icon {
+  font-size: 1.6rem;
+  opacity: .55;
+}
+
+.comment-empty p {
+  color: var(--text-secondary);
+  font-size: .85rem;
+  margin: 0;
+}
+
+.comment-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
 }
 
-.comment-form textarea {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  min-height: 88px;
-  padding: 0.75rem 1rem;
-  resize: vertical;
-  transition: border-color 0.2s;
+.comment-item {
+  border-bottom: 1px solid #eef1f5;
+  padding: 1rem 0;
 }
 
-.comment-form textarea:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.comment-item:first-child {
+  padding-top: .25rem;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+  padding-bottom: .25rem;
 }
 
 .btn {
@@ -552,11 +836,6 @@ const CommentNode = defineComponent({
   cursor: not-allowed;
 }
 
-.btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-}
-
 .empty-state {
   border: 1px dashed #d9dbe5;
   border-radius: 20px;
@@ -570,163 +849,16 @@ const CommentNode = defineComponent({
   color: var(--text-secondary);
 }
 
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.comment-node {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.comment-node:last-child {
-  border-bottom: none;
-}
-
-.comment-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), #6366f1);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.comment-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.375rem;
-}
-
-.comment-author {
-  font-weight: 400;
-  font-size: 0.8125rem;
-  color: #536471;
-}
-
-.comment-time {
-  font-size: 0.75rem;
-  color: #536471;
-}
-
-.comment-node.deleted > .comment-body > .comment-header > .comment-author,
-.comment-node.deleted > .comment-body > .comment-header > .comment-time {
-  color: #b9c1c9;
-}
-
-.comment-node.deleted > .comment-body > .comment-content {
-  color: #b9c1c9;
-  font-style: italic;
-}
-
-.comment-avatar.deleted {
-  background: #b9c1c9;
-  color: white;
-}
-
-.comment-avatar.clickable {
-  cursor: pointer;
-}
-
-.comment-author.clickable {
-  cursor: pointer;
-}
-
-.comment-author.clickable:hover {
-  color: #1d9bf0;
-  text-decoration: underline;
-}
-
-.comment-content {
-  color: #0f1419;
-  line-height: 1.65;
-  font-size: 0.9375rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.comment-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.comment-action-link {
-  color: #536471;
-  cursor: pointer;
-  font-size: 0.8125rem;
-}
-
-.comment-action-link:hover {
-  color: #0f1419;
-  text-decoration: underline;
-}
-
-.comment-children {
-  width: 100%;
-  margin-left: calc(36px + 0.75rem);
-  padding-left: 1rem;
-  border-left: 2px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-
-.comment-children .comment-node {
-  padding: 0.75rem 0;
-}
-
-.comment-children .comment-avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 0.75rem;
-}
-
-.reply-form {
-  margin-top: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.reply-form textarea {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  font-size: 0.875rem;
-  min-height: 64px;
-  padding: 0.5rem 0.75rem;
-  resize: vertical;
-  transition: border-color 0.2s;
-}
-
-.reply-form textarea:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.reply-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
 @media (max-width: 900px) {
+  .post-detail-grid {
+    display: block;
+  }
+
+  .forum-rail {
+    margin-top: 1rem;
+    position: static;
+  }
+
   .post-detail-panel {
     border: none;
     border-radius: 0;

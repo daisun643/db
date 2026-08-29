@@ -8,9 +8,13 @@ public class ForumSummaryResponse
     public string ForumName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public int PostCount { get; set; }
     public bool CanManage { get; set; }
+    public int MemberCount { get; set; }
+    public bool IsJoined { get; set; }
+    public ForumCreatorResponse? Creator { get; set; }
     public List<ForumManagerResponse> Managers { get; set; } = new();
 }
 
@@ -36,6 +40,13 @@ public class AssignForumManagerRequest
 }
 
 public class ForumManagerResponse
+{
+    public int UserID { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ForumCreatorResponse
 {
     public int UserID { get; set; }
     public string Username { get; set; } = string.Empty;
@@ -110,6 +121,19 @@ public class CommentResponse
     public string Username { get; set; } = string.Empty;
     public int? ParentCommentID { get; set; }
     public List<CommentResponse> Replies { get; set; } = new();
+}
+
+public class MyCommentResponse
+{
+    public int CommentID { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? CreateTime { get; set; }
+    public int? ParentCommentID { get; set; }
+    public int? PostID { get; set; }
+    public string PostTitle { get; set; } = string.Empty;
+    public int? ForumID { get; set; }
+    public string ForumName { get; set; } = string.Empty;
 }
 
 public class CreateCommentRequest

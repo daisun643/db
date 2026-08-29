@@ -1,6 +1,8 @@
 import pytest
 from uuid import uuid4
 
+from config import TEST_USERS
+
 
 class TestForumList:
 
@@ -351,6 +353,64 @@ class TestForumManagers:
         resp = forum_client.assign_forum_manager(fid, 4)
         assert resp.status_code == 403
 
+    def test_manager_can_assign_and_remove_manager(
+            self, forum_client, admin_forum_client):
+        forum_name = f"版主互管-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "版主可互相管理")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+
+            assign_resp = forum_client.assign_forum_manager(forum_id, 3)
+            assert assign_resp.status_code == 200
+            managers = admin_forum_client.get_forum(forum_id).json()["managers"]
+            assert 3 in [m["userID"] for m in managers]
+
+            remove_resp = forum_client.remove_forum_manager(forum_id, 3)
+            assert remove_resp.status_code == 200
+            managers = admin_forum_client.get_forum(forum_id).json()["managers"]
+            assert 3 not in [m["userID"] for m in managers]
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_manager_cannot_manage_other_forum(
+            self, forum_client, admin_forum_client):
+        owned = admin_forum_client.create_forum(
+            f"自管版块-{uuid4().hex[:8]}", "当前用户管理")
+        foreign = admin_forum_client.create_forum(
+            f"他人版块-{uuid4().hex[:8]}", "当前用户不管理")
+        assert owned.status_code == 201
+        assert foreign.status_code == 201
+        owned_id = owned.json()["forumID"]
+        foreign_id = foreign.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(owned_id, 4).status_code == 200
+            assert forum_client.assign_forum_manager(foreign_id, 3).status_code == 403
+            assert forum_client.remove_forum_manager(foreign_id, 1).status_code == 403
+        finally:
+            admin_forum_client.delete_forum(owned_id)
+            admin_forum_client.delete_forum(foreign_id)
+
+    def test_manager_can_remove_self_and_loses_permission(
+            self, forum_client, admin_forum_client):
+        forum_name = f"版主自退-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "版主移除自己")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+            assert forum_client.remove_forum_manager(forum_id, 4).status_code == 200
+
+            managers = admin_forum_client.get_forum(forum_id).json()["managers"]
+            assert 4 not in [m["userID"] for m in managers]
+            assert forum_client.assign_forum_manager(forum_id, 3).status_code == 403
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
     def test_assigned_manager_can_view_inactive_forum(
             self, forum_client, admin_forum_client):
         forum_name = f"版主可见版块-{uuid4().hex[:8]}"
@@ -420,6 +480,187 @@ class TestForumManagers:
         try:
             resp = admin_forum_client.remove_forum_manager(forum_id, 4)
             assert resp.status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+
+class TestUserSearch:
+
+    def test_forum_manager_can_search_users(self, moderator_forum_client):
+        resp = moderator_forum_client.search_users(TEST_USERS["user"]["email"])
+        assert resp.status_code == 200
+        assert 4 in [u["userID"] for u in resp.json()]
+
+    def test_admin_can_search_users(self, admin_forum_client):
+        resp = admin_forum_client.search_users(TEST_USERS["user"]["username"])
+        assert resp.status_code == 200
+        assert any(
+            u["username"] == TEST_USERS["user"]["username"] for u in resp.json()
+        )
+
+    def test_plain_user_cannot_search_users(self, forum_client):
+        assert forum_client.search_users("tongji").status_code == 403
+
+    def test_unauthenticated_cannot_search_users(self, forum_client):
+        forum_client.post("/api/auth/logout")
+        assert forum_client.search_users("tongji").status_code == 401
+
+    def test_search_empty_keyword_returns_empty(self, moderator_forum_client):
+        resp = moderator_forum_client.search_users("   ")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_search_no_match_returns_empty(self, moderator_forum_client):
+        resp = moderator_forum_client.search_users(f"不存在用户-{uuid4().hex}")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+class TestForumFollow:
+
+    @staticmethod
+    def _create_forum(admin_client, description="关注接口测试"):
+        resp = admin_client.create_forum(f"关注测试-{uuid4().hex[:8]}", description)
+        assert resp.status_code == 201
+        return resp.json()["forumID"]
+
+    def test_forum_summary_includes_follow_fields(self, forum_client):
+        forum = forum_client.get_forums().json()[0]
+        assert "memberCount" in forum
+        assert "isJoined" in forum
+
+    def test_user_can_follow_forum(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.leave_forum(forum_id)
+
+            resp = forum_client.join_forum(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["joined"] is True
+            assert resp.json()["message"] == "关注版块成功"
+
+            forum = forum_client.get_forum(forum_id).json()
+            assert forum["isJoined"] is True
+            assert forum["memberCount"] == 1
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_follow_is_idempotent(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.leave_forum(forum_id)
+
+            first = forum_client.join_forum(forum_id)
+            second = forum_client.join_forum(forum_id)
+            assert first.status_code == 200
+            assert second.status_code == 200
+            assert second.json()["message"] == "你已关注该版块"
+            assert second.json()["joined"] is True
+
+            assert forum_client.get_forum(forum_id).json()["memberCount"] == 1
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_user_can_unfollow_forum(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.leave_forum(forum_id)
+            assert forum_client.join_forum(forum_id).status_code == 200
+
+            resp = forum_client.leave_forum(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["joined"] is False
+            assert resp.json()["message"] == "已取消关注"
+
+            forum = forum_client.get_forum(forum_id).json()
+            assert forum["isJoined"] is False
+            assert forum["memberCount"] == 0
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_unfollow_without_following_returns_ok(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.leave_forum(forum_id)
+            resp = forum_client.leave_forum(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["message"] == "你尚未关注该版块"
+            assert resp.json()["joined"] is False
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_follow_state_is_per_user(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.leave_forum(forum_id)
+            admin_forum_client.leave_forum(forum_id)
+
+            assert forum_client.join_forum(forum_id).status_code == 200
+
+            assert forum_client.get_forum(forum_id).json()["isJoined"] is True
+            assert admin_forum_client.get_forum(forum_id).json()["isJoined"] is False
+            assert admin_forum_client.get_forum(forum_id).json()["memberCount"] == 1
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    @pytest.mark.parametrize("action", ["join", "leave"])
+    def test_unauthenticated_cannot_follow_or_unfollow(self, forum_client, action):
+        forum_id = forum_client.get_forums().json()[0]["forumID"]
+        forum_client.post("/api/auth/logout")
+        if action == "join":
+            resp = forum_client.join_forum(forum_id)
+        else:
+            resp = forum_client.leave_forum(forum_id)
+        assert resp.status_code == 401
+
+    def test_follow_nonexistent_forum_returns_404(self, forum_client):
+        assert forum_client.join_forum(99999).status_code == 404
+
+    def test_inactive_forum_cannot_be_followed_by_regular_user(
+            self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_name = admin_forum_client.get_forum(forum_id).json()["forumName"]
+            update_resp = admin_forum_client.update_forum(
+                forum_id, forum_name, "关注接口测试", "Inactive"
+            )
+            assert update_resp.status_code == 200
+
+            resp = forum_client.join_forum(forum_id)
+            assert resp.status_code == 400
+            assert resp.json()["message"] == "该版块已停用，无法关注"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_admin_can_follow_inactive_forum(self, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_name = admin_forum_client.get_forum(forum_id).json()["forumName"]
+            assert admin_forum_client.update_forum(
+                forum_id, forum_name, "关注接口测试", "Inactive"
+            ).status_code == 200
+
+            admin_forum_client.leave_forum(forum_id)
+            resp = admin_forum_client.join_forum(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["joined"] is True
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_assigned_manager_can_follow_inactive_forum(
+            self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_name = admin_forum_client.get_forum(forum_id).json()["forumName"]
+            assert admin_forum_client.update_forum(
+                forum_id, forum_name, "关注接口测试", "Inactive"
+            ).status_code == 200
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+
+            forum_client.leave_forum(forum_id)
+            resp = forum_client.join_forum(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["joined"] is True
         finally:
             admin_forum_client.delete_forum(forum_id)
 

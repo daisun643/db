@@ -108,6 +108,87 @@ WHERE p."title" = '本周五四平路校区夜跑活动报名'
   AND m."url" = 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=80'
   AND NOT EXISTS (SELECT 1 FROM "PostMedia" pm WHERE pm."postId" = p."postId" AND (pm."mediaId" = m."mediaId" OR pm."displayOrder" = 0));
 
+-- 版块头像：外部演示图片，通过 MediaFile/ForumAvatar 关联，上传者为版块创建人。
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '校园生活'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '校园生活'
+  AND m."url" = 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '技术讨论'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '技术讨论'
+  AND m."url" = 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '二手交易'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '二手交易'
+  AND m."url" = 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '校园活动'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '校园活动'
+  AND m."url" = 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '学习交流'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '学习交流'
+  AND m."url" = 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '求职求助'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '求职求助'
+  AND m."url" = 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '校园公告'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '校园公告'
+  AND m."url" = 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
+INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
+SELECT 'external', 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80', SYSTIMESTAMP, f."creatorId"
+FROM "Forum" f WHERE f."forumName" = '失物招领'
+AND NOT EXISTS (SELECT 1 FROM "MediaFile" WHERE "url" = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80');
+INSERT INTO "ForumAvatar" ("forumId", "mediaId")
+SELECT f."forumId", m."mediaId" FROM "Forum" f, "MediaFile" m
+WHERE f."forumName" = '失物招领'
+  AND m."url" = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80'
+  AND NOT EXISTS (SELECT 1 FROM "ForumAvatar" fa WHERE fa."forumId" = f."forumId");
+
 -- 收藏夹和收藏内容
 INSERT INTO "FavoriteFolder" ("folderName", "createTime", "userId")
 SELECT '学习资料', SYSTIMESTAMP - INTERVAL '10' DAY, u."userId" FROM "User" u WHERE u."email" = '4@tongji.edu.cn'

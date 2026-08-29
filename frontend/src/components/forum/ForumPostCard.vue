@@ -9,6 +9,20 @@
     
 
     <div class="row-main">
+      <div v-if="showForum && post.forumName" class="row-forum-line">
+        <span
+          class="row-forum"
+          role="link"
+          tabindex="0"
+          :title="'进入 ' + post.forumName + ' 版块'"
+          @click.stop="openForumBoard"
+          @keydown.enter.stop="openForumBoard"
+        >
+          <img v-if="forumAvatarUrl" :src="forumAvatarUrl" :alt="post.forumName" class="row-forum-avatar" @error="markAvatarFailed(cardForum?.avatarUrl)" />
+          <span v-else class="row-forum-avatar row-forum-avatar-fallback">{{ forumAvatarInitial }}</span>
+          # {{ post.forumName }}
+        </span>
+      </div>
       <div class="row-title-line">
         <span v-if="post.status === 'Pinned'" class="status-tag pinned">置顶</span>
         <span v-if="post.status === 'Elite'" class="status-tag elite">精</span>
@@ -87,19 +101,42 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useForum } from '../../composables/useForum'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
 
 const props = defineProps({
   post: { type: Object, required: true },
   mode: { type: String, default: 'feed' },
+  showForum: { type: Boolean, default: false },
 })
 
 defineEmits(['open', 'like', 'favorite', 'report', 'edit', 'delete', 'remove-favorite'])
 
 const router = useRouter()
+const { forums } = useForum()
+
+const cardForum = computed(() =>
+  props.post.forumID ? forums.value.find(f => f.forumID === props.post.forumID) || null : null
+)
+
+const forumAvatarUrl = computed(() => {
+  const url = cardForum.value?.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
+
+const forumAvatarInitial = computed(() =>
+  (props.post.forumName || '版')[0]?.toUpperCase() || '版'
+)
 
 const openAuthorHome = () => {
   if (props.post.userID) {
     router.push(`/user/${props.post.userID}`)
+  }
+}
+
+const openForumBoard = () => {
+  if (props.post.forumID) {
+    router.push(`/forums/board/${props.post.forumID}`)
   }
 }
 
@@ -268,11 +305,50 @@ const formattedDate = computed(() => {
   white-space: nowrap;
 }
 
+.row-forum-line {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+
 .row-forum {
-  padding: .08rem .42rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  max-width: 14rem;
+  overflow: hidden;
+  padding: .12rem .5rem;
   border-radius: 3px;
   background: #f2f5f9;
   color: #7c8698;
+  font-size: .68rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.row-forum-avatar {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.row-forum-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #4d9bf0, #2f7ee0);
+  font-size: .58rem;
+  font-weight: 750;
+}
+
+.row-forum:hover {
+  background: #e6f1fc;
+  color: #2f7ee0;
 }
 
 .row-date {

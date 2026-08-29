@@ -33,6 +33,10 @@ const routes = [
         component: () => import('../views/forum/ForumHomeView.vue'),
       },
       {
+        path: 'search',
+        component: () => import('../views/forum/ForumSearchView.vue'),
+      },
+      {
         path: 'board/:forumId(\\d+)',
         component: () => import('../views/forum/ForumBoardView.vue'),
       },

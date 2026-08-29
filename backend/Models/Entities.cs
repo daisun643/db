@@ -92,6 +92,18 @@ public class UserAvatar
     public MediaFile? Media { get; set; }
 }
 
+[Table("ForumAvatar")]
+public class ForumAvatar
+{
+    [Key]
+    public int ForumID { get; set; }
+    [ForeignKey(nameof(ForumID))]
+    public Forum? Forum { get; set; }
+    public int MediaID { get; set; }
+    [ForeignKey(nameof(MediaID))]
+    public MediaFile? Media { get; set; }
+}
+
 [Table("Role")]
 public class Role
 {
@@ -195,6 +207,9 @@ public class Forum
     public int? CreatorID { get; set; }
     [ForeignKey("CreatorID")]
     public User? Creator { get; set; }
+    public ForumAvatar? AvatarMedia { get; set; }
+    [NotMapped]
+    public string? AvatarUrl => AvatarMedia?.Media?.Url;
 
     public ICollection<Post> Posts { get; set; } = new List<Post>();
     public ICollection<ForumManager> ForumManagers { get; set; } = new List<ForumManager>();
@@ -305,6 +320,20 @@ public class ForumManager
     public int UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
+}
+
+[Table("ForumMember")]
+public class ForumMember
+{
+    public int ForumID { get; set; }
+    [ForeignKey("ForumID")]
+    public Forum? Forum { get; set; }
+
+    public int UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+
+    public DateTime? JoinTime { get; set; }
 }
 
 [Table("PostLike")]

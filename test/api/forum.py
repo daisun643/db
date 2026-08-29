@@ -47,6 +47,17 @@ class ForumAPI(BaseAPIClient):
     def remove_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}/managers/{user_id}")
 
+    # ---- Users（指派版主时的用户搜索）----
+
+    def search_users(self, keyword: str) -> requests.Response:
+        return self.get(f"{self.PREFIX}/users/search", params={"keyword": keyword})
+
+    def join_forum(self, forum_id: int) -> requests.Response:
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/join")
+
+    def leave_forum(self, forum_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/forums/{forum_id}/join")
+
     # ---- Posts ----
 
     def get_posts(self, **params) -> requests.Response:

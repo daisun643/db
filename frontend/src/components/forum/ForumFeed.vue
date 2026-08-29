@@ -7,7 +7,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" />
           </svg>
-          <input v-model="searchInput" type="search" placeholder="搜索帖子标题或内容" @keyup.enter="applySearch" />
+          <input v-model="searchInput" type="search" placeholder="搜索版块或帖子" @keyup.enter="applySearch" />
         </label>
         <button class="search-submit" type="button" @click="applySearch">搜索</button>
         <button class="compose-trigger" type="button" @click="openComposer">发帖</button>
@@ -24,6 +24,7 @@
               v-for="post in displayPosts"
               :key="post.postID"
               :post="post"
+              :show-forum="!forumId"
               @open="goPostDetail"
               @like="handleLike"
               @favorite="handleFavorite"
@@ -51,22 +52,38 @@
       </div>
       <aside class="forum-rail">
         <section v-if="forum" class="rail-card forum-header">
-          <span class="forum-header-avatar">{{ forumInitial }}</span>
+          <img v-if="canShowAvatar(forum.avatarUrl)" :src="forum.avatarUrl" :alt="forum.forumName" class="forum-header-avatar forum-header-avatar-img" @error="markAvatarFailed(forum.avatarUrl)" />
+          <span v-else class="forum-header-avatar">{{ forumInitial }}</span>
           <div class="forum-header-info">
             <div class="forum-title-row"><h2>{{ forum.forumName }}</h2><span class="forum-live-dot">活跃中</span></div>
             <p>{{ forum.description || '这个版块还没有简介' }}</p>
             <div class="forum-header-stats">
               <span>帖子数量 <b>{{ forum.postCount || 0 }}</b></span>
+              <span>成员 <b>{{ forum.memberCount || 0 }}</b></span>
             </div>
+            <button
+              class="forum-join-btn"
+              :class="{ joined: forum.isJoined }"
+              type="button"
+              :disabled="!authStore.isAuthenticated || togglingForumJoinId === forum.forumID"
+              :title="!authStore.isAuthenticated ? '登录后可关注版块' : (forum.isJoined ? '点击取消关注' : '关注版块')"
+              @click="handleToggleForumJoin(forum)"
+            >{{ forum.isJoined ? '已关注' : '+ 关注版块' }}</button>
           </div>
         </section>
-        <section class="rail-card">
-          <div class="rail-heading"><span>正在热议</span><span class="rail-dot"></span></div>
-          <button v-for="(post, index) in posts.slice(0, 3)" :key="`hot-${post.postID}`" class="hot-topic" type="button" @click="goPostDetail(post)">
-            <span class="hot-rank">0{{ index + 1 }}</span><span class="hot-title">{{ post.title }}</span><small>{{ post.commentCount || 0 }} 回复</small>
-          </button>
-          <p v-if="!posts.length" class="rail-empty">暂无热议主题</p>
-        </section>
+        <template v-else>
+          <section class="rail-card forum-header">
+            <span class="forum-header-avatar">全</span>
+            <div class="forum-header-info">
+              <div class="forum-title-row"><h2>全部版块</h2><span class="forum-live-dot">活跃中</span></div>
+              <p>首页汇集所有版块的最新帖子，点击帖子左上角的版块标签即可进入对应版块。</p>
+              <div class="forum-header-stats">
+                <span>版块数量 <b>{{ forums.length }}</b></span>
+                <span>帖子总数 <b>{{ totalForumPosts }}</b></span>
+              </div>
+            </div>
+          </section>
+        </template>
       </aside>
     </div>
   </div>
@@ -77,17 +94,32 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ForumPostCard from './ForumPostCard.vue'
 import { useForum } from '../../composables/useForum'
+import { useAuthStore } from '../../stores/auth'
 import { getPosts } from '../../api'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
 
 const props = defineProps({
   forumId: { type: Number, default: null },
   forum: { type: Object, default: null },
 })
 
-const { error, openComposer, handleLike, handleFavorite, openReport, registerFeed } = useForum()
+const {
+  forums,
+  error,
+  openComposer,
+  handleLike,
+  handleFavorite,
+  openReport,
+  registerFeed,
+  togglingForumJoinId,
+  handleToggleForumJoin,
+} = useForum()
+
+const authStore = useAuthStore()
 
 const router = useRouter()
 const goPostDetail = (post) => router.push(`/forums/post/${post.postID}`)
+const goBoard = (forumId) => router.push(`/forums/board/${forumId}`)
 
 const PAGE_SIZE = 20
 
@@ -100,7 +132,6 @@ const searchInput = ref('')
 
 const filters = ref({
   forumId: props.forumId,
-  keyword: '',
 })
 
 const displayPosts = computed(() => {
@@ -112,6 +143,16 @@ const displayPosts = computed(() => {
 
 const forumInitial = computed(() =>
   (props.forum?.forumName || '版')[0]?.toUpperCase() || '版'
+)
+
+const totalForumPosts = computed(() =>
+  forums.value.reduce((sum, item) => sum + (item.postCount || 0), 0)
+)
+
+const hotForums = computed(() =>
+  [...forums.value]
+    .sort((a, b) => (b.postCount || 0) - (a.postCount || 0))
+    .slice(0, 6)
 )
 
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / PAGE_SIZE)))
@@ -141,7 +182,6 @@ const loadPosts = async () => {
     loading.value = true
     const res = await getPosts({
       forumId: filters.value.forumId || undefined,
-      keyword: filters.value.keyword.trim() || undefined,
       page: page.value,
       pageSize: PAGE_SIZE,
     })
@@ -158,11 +198,9 @@ const loadPosts = async () => {
   }
 }
 
-const applySearch = async () => {
-  if (filters.value.keyword === searchInput.value) return
-  filters.value.keyword = searchInput.value
-  page.value = 1
-  await loadPosts()
+const applySearch = () => {
+  const q = searchInput.value.trim()
+  router.push(q ? { path: '/forums/search', query: { q } } : { path: '/forums/search' })
 }
 
 const goToPage = async (target) => {
@@ -303,6 +341,10 @@ onUnmounted(() => {
   font-weight: 800;
 }
 
+.forum-header-avatar-img {
+  object-fit: cover;
+}
+
 .forum-header-info {
   display: grid;
   gap: .3rem;
@@ -324,12 +366,44 @@ onUnmounted(() => {
 
 .forum-header-stats {
   color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .9rem;
   font-size: .74rem;
 }
 
 .forum-header-stats b {
   color: var(--tieba-blue);
   font-size: .84rem;
+}
+
+.forum-join-btn {
+  justify-self: start;
+  margin-top: .35rem;
+  border: 0;
+  border-radius: 999px;
+  padding: .45rem .95rem;
+  color: #fff;
+  background: var(--tieba-blue);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.forum-join-btn:hover:not(:disabled) {
+  background: var(--tieba-blue-dark);
+}
+
+.forum-join-btn.joined {
+  color: var(--tieba-blue-dark);
+  background: #eef4ff;
+  border: 1px solid #cfe2f7;
+}
+
+.forum-join-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 .feed-toolbar {

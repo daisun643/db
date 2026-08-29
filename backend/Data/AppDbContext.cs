@@ -18,12 +18,14 @@ public class AppDbContext : DbContext
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<UserAvatar> UserAvatars => Set<UserAvatar>();
+    public DbSet<ForumAvatar> ForumAvatars => Set<ForumAvatar>();
     public DbSet<PostMedia> PostMedia => Set<PostMedia>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<FavoriteFolder> FavoriteFolders => Set<FavoriteFolder>();
     public DbSet<FolderPost> FolderPosts => Set<FolderPost>();
     public DbSet<ForumManager> ForumManagers => Set<ForumManager>();
+    public DbSet<ForumMember> ForumMembers => Set<ForumMember>();
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
@@ -93,6 +95,17 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.MediaID).IsUnique();
             e.HasOne(x => x.User).WithOne(x => x.AvatarMedia).HasForeignKey<UserAvatar>(x => x.UserID);
             e.HasOne(x => x.Media).WithOne(x => x.AvatarLink).HasForeignKey<UserAvatar>(x => x.MediaID);
+        });
+
+        modelBuilder.Entity<ForumAvatar>(e =>
+        {
+            e.ToTable("ForumAvatar");
+            e.HasKey(x => x.ForumID);
+            e.Property(x => x.ForumID).HasColumnName("forumId");
+            e.Property(x => x.MediaID).HasColumnName("mediaId");
+            e.HasIndex(x => x.MediaID).IsUnique();
+            e.HasOne(x => x.Forum).WithOne(x => x.AvatarMedia).HasForeignKey<ForumAvatar>(x => x.ForumID);
+            e.HasOne(x => x.Media).WithOne().HasForeignKey<ForumAvatar>(x => x.MediaID);
         });
 
         modelBuilder.Entity<Role>(e =>
@@ -252,6 +265,15 @@ public class AppDbContext : DbContext
             e.HasKey(x => new { x.ForumID, x.UserID });
             e.Property(x => x.ForumID).HasColumnName("forumId");
             e.Property(x => x.UserID).HasColumnName("userId");
+        });
+
+        modelBuilder.Entity<ForumMember>(e =>
+        {
+            e.ToTable("ForumMember");
+            e.HasKey(x => new { x.ForumID, x.UserID });
+            e.Property(x => x.ForumID).HasColumnName("forumId");
+            e.Property(x => x.UserID).HasColumnName("userId");
+            e.Property(x => x.JoinTime).HasColumnName("joinTime");
         });
 
         modelBuilder.Entity<AuditRecord>(e =>

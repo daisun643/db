@@ -127,6 +127,14 @@ CREATE TABLE "Forum" (
     CONSTRAINT "FK_Forum_User" FOREIGN KEY ("creatorId") REFERENCES "User"("userId")
 );
 
+CREATE TABLE "ForumAvatar" (
+    "forumId" NUMBER NOT NULL,
+    "mediaId" NUMBER NOT NULL,
+    CONSTRAINT "PK_ForumAvatar" PRIMARY KEY ("forumId"),
+    CONSTRAINT "FK_ForumAvatar_Forum" FOREIGN KEY ("forumId") REFERENCES "Forum"("forumId"),
+    CONSTRAINT "FK_ForumAvatar_Media" FOREIGN KEY ("mediaId") REFERENCES "MediaFile"("mediaId")
+);
+
 CREATE TABLE "UserRole" (
     "userId"     NUMBER NOT NULL,
     "roleId"     NUMBER NOT NULL,
@@ -259,6 +267,15 @@ CREATE TABLE "ForumManager" (
     CONSTRAINT "PK_ForumManager" PRIMARY KEY ("forumId", "userId"),
     CONSTRAINT "FK_ForumMgr_Forum" FOREIGN KEY ("forumId") REFERENCES "Forum"("forumId"),
     CONSTRAINT "FK_ForumMgr_User"  FOREIGN KEY ("userId")  REFERENCES "User"("userId")
+);
+
+CREATE TABLE "ForumMember" (
+    "forumId"  NUMBER NOT NULL,
+    "userId"   NUMBER NOT NULL,
+    "joinTime" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "PK_ForumMember" PRIMARY KEY ("forumId", "userId"),
+    CONSTRAINT "FK_ForumMember_Forum" FOREIGN KEY ("forumId") REFERENCES "Forum"("forumId") ON DELETE CASCADE,
+    CONSTRAINT "FK_ForumMember_User"  FOREIGN KEY ("userId")  REFERENCES "User"("userId")
 );
 
 -- 第四步：建依赖 Post 的表

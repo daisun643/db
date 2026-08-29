@@ -41,6 +41,34 @@ public class UsersController : ControllerBase
         return Ok(users.Select(MapAdminUser).ToList());
     }
 
+    /// <summary>
+    /// 按用户名/邮箱搜索可用用户（仅供指派版主使用：Admin 或版块版主）
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<ActionResult> Search([FromQuery] string? keyword)
+    {
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var canAssignManager = User.IsInRole("Admin") ||
+            await _db.ForumManagers.CountAsync(fm => fm.UserID == currentUserId) > 0;
+        if (!canAssignManager)
+            return Forbid();
+
+        var trimmed = keyword?.Trim() ?? "";
+        if (trimmed.Length == 0)
+            return Ok(new List<object>());
+
+        var users = await _db.Users
+            .Where(u => u.Status == "Active" &&
+                ((u.Username != null && u.Username.Contains(trimmed)) ||
+                 (u.Email != null && u.Email.Contains(trimmed))))
+            .OrderBy(u => u.UserID)
+            .Take(10)
+            .Select(u => new { u.UserID, u.Username, u.Email })
+            .ToListAsync();
+
+        return Ok(users);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<AdminUserResponse>> GetById(int id)
     {

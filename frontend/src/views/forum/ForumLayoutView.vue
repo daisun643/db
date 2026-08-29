@@ -19,11 +19,11 @@
           <button type="button" :class="['forum-section-link', { active: isMySection }]" @click="goMy"><span class="filter-icon">◉</span><span>我的</span></button>
         </div>
         <div class="section-eyebrow">CAMPUS COMMUNITY</div>
-        <button v-for="forum in forums" :key="forum.forumID" :class="['forum-filter', { active: selectedForumId === forum.forumID }]" @click="goBoard(forum.forumID)"><span class="filter-icon">#</span><span class="forum-filter-name">{{ forum.forumName }}</span><span class="forum-count">{{ forum.postCount || 0 }}</span></button>
+        <button v-for="forum in forums" :key="forum.forumID" :class="['forum-filter', { active: selectedForumId === forum.forumID }]" @click="goBoard(forum.forumID)"><img v-if="canShowAvatar(forum.avatarUrl)" :src="forum.avatarUrl" :alt="forum.forumName" class="forum-filter-avatar" @error="markAvatarFailed(forum.avatarUrl)" /><span v-else class="filter-icon">#</span><span class="forum-filter-name">{{ forum.forumName }}</span><span class="forum-count">{{ forum.postCount || 0 }}</span></button>
       </aside>
       <main class="forum-main">
         <router-view v-slot="{ Component }">
-          <keep-alive :include="['ForumHomeView', 'ForumBoardView', 'MyView']">
+          <keep-alive :include="['ForumHomeView', 'ForumBoardView', 'ForumSearchView', 'MyView']">
             <component :is="Component" />
           </keep-alive>
         </router-view>
@@ -75,6 +75,7 @@ import PostEditorModal from '../../components/forum/PostEditorModal.vue'
 import ReportModal from '../../components/forum/ReportModal.vue'
 import FolderPickerModal from '../../components/forum/FolderPickerModal.vue'
 import { useForum } from '../../composables/useForum'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
 
 const {
   forums,
@@ -159,6 +160,7 @@ onMounted(() => {
 .forum-filter:hover, .forum-filter.active { background: #f2f7fd; }
 .forum-filter.active { color: var(--tieba-blue-dark); font-weight: 700; }
 .filter-icon { width: 1.25rem; color: #9aa4b4; text-align: center; }
+.forum-filter-avatar { width: 24px; height: 24px; flex: 0 0 auto; border-radius: 6px; object-fit: cover; background: #eef1f6; }
 .forum-filter.active .filter-icon { color: var(--tieba-blue); }
 .forum-filter-name { min-width: 0; overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
 .forum-count { color: #a1aabd; font-size: .7rem; }
@@ -172,6 +174,7 @@ onMounted(() => {
 @media (max-width: 640px) {
   .forum-sidebar { position: static; overflow-x: auto; display: flex; align-items: center; gap: .35rem; padding: .55rem; }
   .forum-filter { width: auto; min-width: max-content; min-height: 36px; margin: 0; padding: .45rem .65rem; }
+  .forum-filter-avatar { width: 20px; height: 20px; }
   .forum-count { display: none; }
 }
 </style>

@@ -12,6 +12,8 @@ import {
   getForums,
   getPost,
   getPostComments,
+  joinForum,
+  leaveForum,
   likePost,
   unfavoritePost,
   unlikePost,
@@ -118,6 +120,33 @@ const handleCreateForum = async (router) => {
     error.value = '创建版块失败: ' + (e.response?.data?.message || e.message)
   } finally {
     creatingForum.value = false
+  }
+}
+
+// ---- 关注 / 取消关注版块 ----
+// 版块对象来自共享的 forums 列表，乐观更新后各页面状态自动同步。
+const togglingForumJoinId = ref(null)
+
+const handleToggleForumJoin = async (forum) => {
+  if (!forum?.forumID || togglingForumJoinId.value) return
+  try {
+    togglingForumJoinId.value = forum.forumID
+    error.value = null
+    if (forum.isJoined) {
+      const res = await leaveForum(forum.forumID)
+      forum.isJoined = false
+      forum.memberCount = Math.max(0, (forum.memberCount || 0) - 1)
+      notice.value = res.data?.message || '已取消关注。'
+    } else {
+      const res = await joinForum(forum.forumID)
+      forum.isJoined = true
+      forum.memberCount = (forum.memberCount || 0) + 1
+      notice.value = res.data?.message || '已关注版块。'
+    }
+  } catch (e) {
+    error.value = (forum.isJoined ? '取消关注' : '关注') + '版块失败: ' + (e.response?.data?.message || e.message)
+  } finally {
+    togglingForumJoinId.value = null
   }
 }
 
@@ -384,6 +413,10 @@ export function useForum() {
     openForumCreator,
     closeForumCreator,
     createForumSubmit: () => handleCreateForum(router),
+
+    // 关注 / 取消关注版块
+    togglingForumJoinId,
+    handleToggleForumJoin,
 
     // 发帖
     composerOpen,

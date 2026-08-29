@@ -196,6 +196,8 @@ public class AuthController : ControllerBase
 
         var user = await _context.Users
             .AsNoTracking()
+            .Include(u => u.AvatarMedia)
+            .ThenInclude(ua => ua!.Media)
             .FirstOrDefaultAsync(u => u.UserID == parsedUserId);
 
         if (user == null)
