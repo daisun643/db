@@ -125,6 +125,7 @@ public class CommentResponse
     public DateTime? CreateTime { get; set; }
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public int? ParentCommentID { get; set; }
     public List<CommentResponse> Replies { get; set; } = new();
 }

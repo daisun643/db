@@ -70,7 +70,13 @@
       <div class="user-section">
         <div class="user-profile" title="个人资料" @click="$router.push('/profile')">
           <div class="user-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <img
+              v-if="userAvatarUrl"
+              :src="userAvatarUrl"
+              :alt="authStore.user?.username || '用户'"
+              @error="markAvatarFailed(authStore.user?.avatarUrl)"
+            />
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
@@ -94,10 +100,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAccess'
+import { canShowAvatar, markAvatarFailed } from '../utils/avatarFallback'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -107,6 +114,11 @@ const routeAccess = ref({})
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
+
+const userAvatarUrl = computed(() => {
+  const url = authStore.user?.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
 
 const canAccess = (path) => {
   const requiredPermissions = getRequiredPermissions(path)
@@ -300,6 +312,14 @@ watch(
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .user-avatar svg {

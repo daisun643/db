@@ -13,6 +13,13 @@
         <template v-else-if="selectedPost">
           <article class="post-detail">
             <div class="post-meta">
+              <img
+                v-if="postAuthorAvatarUrl"
+                :src="postAuthorAvatarUrl"
+                :alt="selectedPost.username || '匿名用户'"
+                class="post-meta-avatar"
+                @error="markAvatarFailed(selectedPost.avatarUrl)"
+              />
               <span
                 :class="['author-link', { plain: !selectedPost.userID }]"
                 :title="selectedPost.userID ? '查看个人主页' : ''"
@@ -80,7 +87,15 @@
             </div>
 
             <form class="composer" @submit.prevent="handleCreateComment(null)">
-              <div class="composer-avatar" aria-hidden="true">{{ composerInitial }}</div>
+              <div class="composer-avatar" aria-hidden="true">
+                <img
+                  v-if="composerAvatarUrl"
+                  :src="composerAvatarUrl"
+                  :alt="authStore.user?.username || '我的头像'"
+                  @error="markAvatarFailed(authStore.user?.avatarUrl)"
+                />
+                <template v-else>{{ composerInitial }}</template>
+              </div>
               <div class="composer-main">
                 <textarea
                   v-model="commentText"
@@ -299,6 +314,16 @@ const canEditPost = (post) => {
 const composerInitial = computed(() =>
   (authStore.user?.username || authStore.user?.email || '评')[0]?.toUpperCase() || '评'
 )
+
+const composerAvatarUrl = computed(() => {
+  const url = authStore.user?.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
+
+const postAuthorAvatarUrl = computed(() => {
+  const url = selectedPost.value?.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
 
 const load = () => loadPostDetail(postId.value)
 
@@ -543,6 +568,14 @@ onBeforeUnmount(closePostDetail)
   font-size: 0.875rem;
 }
 
+.post-meta-avatar {
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 24px;
+  object-fit: cover;
+  width: 24px;
+}
+
 .post-meta .author-link {
   color: #5d4fd5;
   cursor: pointer;
@@ -704,7 +737,15 @@ onBeforeUnmount(closePostDetail)
   font-weight: 700;
   height: 38px;
   justify-content: center;
+  overflow: hidden;
   width: 38px;
+}
+
+.composer-avatar img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .composer-main {

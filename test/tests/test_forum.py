@@ -1,7 +1,32 @@
 import pytest
 from uuid import uuid4
 
+from api.forum import ForumAPI
 from config import TEST_USERS
+
+# 1x1 合法 PNG，用于版块头像上传测试
+TINY_PNG = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR"
+    b"\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde"
+    b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
+    b"\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+CREATOR_FORUM_NAME = "接口测试创建者版块"
+
+
+def _get_or_create_creator_forum(forum_client):
+    """复用固定名称的创建者版块：含帖子的版块无法通过 API 删除，
+    复用可避免每次运行套件都残留新版块（创建者权限测试专用）。"""
+    for forum in forum_client.get_forums().json():
+        if forum["forumName"] == CREATOR_FORUM_NAME:
+            return forum["forumID"]
+    resp = forum_client.create_forum(CREATOR_FORUM_NAME, "创建者权限测试专用版块")
+    assert resp.status_code == 201
+    return resp.json()["forumID"]
 
 
 class TestForumList:
@@ -22,6 +47,10 @@ class TestForumList:
         assert "status" in forum
         assert "postCount" in forum
         assert "canManage" in forum
+        assert "canAssignManagers" in forum
+        assert "avatarUrl" in forum
+        assert "memberCount" in forum
+        assert "isJoined" in forum
         assert "managers" in forum
 
     def test_get_forum_by_id(self, forum_client):
@@ -348,9 +377,13 @@ class TestForumManagers:
         resp = admin_forum_client.assign_forum_manager(fid, 4)
         assert resp.status_code == 200
 
-        forum = admin_forum_client.get_forum(fid).json()
-        manager_ids = [m["userID"] for m in forum["managers"]]
-        assert 4 in manager_ids
+        try:
+            forum = admin_forum_client.get_forum(fid).json()
+            manager_ids = [m["userID"] for m in forum["managers"]]
+            assert 4 in manager_ids
+        finally:
+            # 种子版块上的指派必须清理，否则污染后续普通用户权限用例
+            admin_forum_client.remove_forum_manager(fid, 4)
 
     def test_admin_can_remove_manager(self, admin_forum_client):
         forums = admin_forum_client.get_forums().json()
@@ -446,6 +479,32 @@ class TestForumManagers:
 
             assert admin_forum_client.remove_forum_manager(forum_id, 4).status_code == 200
             assert forum_client.get_forum(forum_id).status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_creator_can_view_own_inactive_forum(
+            self, forum_client, moderator_forum_client, admin_forum_client):
+        forum_name = f"创建者停用-{uuid4().hex[:8]}"
+        create_resp = forum_client.create_forum(forum_name, "创建者可见自己停用的版块")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            update_resp = forum_client.update_forum(
+                forum_id, forum_name, "创建者可见自己停用的版块", "Inactive"
+            )
+            assert update_resp.status_code == 200
+            assert update_resp.json()["status"] == "Inactive"
+
+            # 创建者仍可见，其他非站点管理员用户不可见
+            assert forum_client.get_forum(forum_id).status_code == 200
+            assert forum_id in {
+                forum["forumID"] for forum in forum_client.get_forums().json()
+            }
+            assert moderator_forum_client.get_forum(forum_id).status_code == 404
+            assert forum_id not in {
+                forum["forumID"] for forum in moderator_forum_client.get_forums().json()
+            }
         finally:
             admin_forum_client.delete_forum(forum_id)
 
@@ -570,6 +629,24 @@ class TestForumManagers:
 
 class TestUserSearch:
 
+    @staticmethod
+    def _fresh_plain_client():
+        """注册全新普通用户：测试中 user4 会创建版块成为版主，
+        而用户搜索权限按“是否管理任意版块”全局判断，必须用无版块的新用户验证拒绝。"""
+        client = ForumAPI()
+        email = f"search_plain_{uuid4().hex[:10]}@tongji.edu.cn"
+        code = client.post("/api/auth/send-code", json={"email": email}).json().get("debugCode")
+        assert code, "当前环境未返回开发调试验证码"
+        register_resp = client.post("/api/auth/register", json={
+            "email": email,
+            "username": f"search_plain_{uuid4().hex[:8]}",
+            "password": "Password123",
+            "code": code,
+        })
+        assert register_resp.status_code == 200
+        assert client.login(email, "Password123").status_code == 200
+        return client
+
     def test_forum_manager_can_search_users(self, moderator_forum_client):
         resp = moderator_forum_client.search_users(TEST_USERS["user"]["email"])
         assert resp.status_code == 200
@@ -582,8 +659,12 @@ class TestUserSearch:
             u["username"] == TEST_USERS["user"]["username"] for u in resp.json()
         )
 
-    def test_plain_user_cannot_search_users(self, forum_client):
-        assert forum_client.search_users("tongji").status_code == 403
+    def test_plain_user_cannot_search_users(self):
+        client = self._fresh_plain_client()
+        try:
+            assert client.search_users("tongji").status_code == 403
+        finally:
+            client.close()
 
     def test_unauthenticated_cannot_search_users(self, forum_client):
         forum_client.post("/api/auth/logout")
@@ -763,7 +844,7 @@ class TestPostList:
         post = resp.json()[0]
         for field in ["postID", "title", "contentPreview", "likeCount",
                        "viewCount", "commentCount", "status", "createTime",
-                       "userID", "username", "forumID", "forumName",
+                       "userID", "username", "avatarUrl", "forumID", "forumName",
                        "imageUrls", "isLiked", "isFavorited"]:
             assert field in post, f"Missing field: {field}"
 
@@ -797,11 +878,37 @@ class TestPostList:
 
     @pytest.mark.parametrize("params", [
         {"sort": "unknown"},
+        # 热度排序已移除，不再是合法排序参数
+        {"sort": "hot"},
         {"from": "2026-07-29T00:00:00", "to": "2026-07-28T00:00:00"},
     ])
     def test_invalid_post_filters_are_rejected(self, forum_client, params):
         resp = forum_client.get_posts(**params)
         assert resp.status_code == 400
+
+    def test_regular_user_cannot_filter_moderation_status(
+            self, forum_client, admin_forum_client):
+        # 待审核/已封禁等审核状态仅管理人员可按版块筛选，普通用户应被拒绝（即使指定版块）
+        assert forum_client.get_posts(status="PendingReview").status_code == 403
+        fid = admin_forum_client.get_forums().json()[0]["forumID"]
+        assert forum_client.get_posts(
+            forumId=fid, status="PendingReview").status_code == 403
+
+    def test_forum_creator_can_filter_pending_posts_in_own_forum(self, forum_client):
+        forum_id = _get_or_create_creator_forum(forum_client)
+
+        post_resp = forum_client.create_post(
+            forum_id, f"待审核帖子-{uuid4().hex[:8]}", "这里包含敏感词内容")
+        assert post_resp.status_code == 201
+        assert post_resp.json()["status"] == "PendingReview"
+        post_id = post_resp.json()["postID"]
+
+        try:
+            resp = forum_client.get_posts(forumId=forum_id, status="PendingReview")
+            assert resp.status_code == 200
+            assert post_id in [p["postID"] for p in resp.json()]
+        finally:
+            forum_client.delete_post(post_id)
 
     def test_status_filter_is_case_insensitive(self, forum_client):
         resp = forum_client.get_posts(status="aCtIvE")
@@ -954,6 +1061,53 @@ class TestPostModeration:
         assert resp.status_code == 201
         assert resp.json()["status"] == "PendingReview"
 
+    def test_forum_creator_can_pin_others_post_in_own_forum(
+            self, forum_client, admin_forum_client):
+        forum_id = _get_or_create_creator_forum(forum_client)
+
+        post_resp = admin_forum_client.create_post(
+            forum_id, f"他人帖子-{uuid4().hex[:8]}", "管理员发布的帖子")
+        assert post_resp.status_code == 201
+        post_id = post_resp.json()["postID"]
+
+        try:
+            resp = forum_client.change_post_status(post_id, "pin")
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "Pinned"
+        finally:
+            forum_client.delete_post(post_id)
+
+    def test_forum_creator_can_delete_others_post_in_own_forum(
+            self, forum_client, admin_forum_client):
+        forum_id = _get_or_create_creator_forum(forum_client)
+
+        post_resp = admin_forum_client.create_post(
+            forum_id, f"待删除他人帖子-{uuid4().hex[:8]}", "内容")
+        assert post_resp.status_code == 201
+        post_id = post_resp.json()["postID"]
+
+        resp = forum_client.delete_post(post_id)
+        assert resp.status_code == 200
+        assert forum_client.get_post(post_id).status_code == 404
+
+    def test_regular_user_cannot_moderate_foreign_forum_posts(
+            self, forum_client, admin_forum_client):
+        forum_name = f"他人版块-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "普通用户无权管理")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        post_resp = admin_forum_client.create_post(forum_id, "受保护帖子", "内容")
+        assert post_resp.status_code == 201
+        post_id = post_resp.json()["postID"]
+
+        try:
+            assert forum_client.change_post_status(post_id, "pin").status_code == 403
+            assert forum_client.delete_post(post_id).status_code == 403
+        finally:
+            admin_forum_client.delete_post(post_id)
+            admin_forum_client.delete_forum(forum_id)
+
 
 class TestPostLike:
 
@@ -992,6 +1146,14 @@ class TestPostLike:
 
 
 class TestFavoriteFolders:
+
+    @pytest.fixture(autouse=True)
+    def _clean_folders(self, forum_client, admin_forum_client):
+        # 收藏夹使用固定名称，唯一约束下需清理残留（含上次失败遗留），保证可重复运行
+        for client in (forum_client, admin_forum_client):
+            for folder in client.get_favorite_folders().json():
+                client.delete_favorite_folder(folder["folderID"])
+        yield
 
     def _create_folder(self, client, name="测试收藏夹"):
         resp = client.create_favorite_folder(name)
@@ -1160,3 +1322,127 @@ class TestComments:
     def test_get_comments_nonexistent_post(self, forum_client):
         resp = forum_client.get_comments(99999)
         assert resp.status_code == 404
+
+
+class TestForumAvatar:
+
+    @staticmethod
+    def _create_forum(client, description="版块头像测试"):
+        resp = client.create_forum(f"头像测试-{uuid4().hex[:8]}", description)
+        assert resp.status_code == 201
+        return resp.json()["forumID"]
+
+    def test_creator_can_upload_forum_avatar(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            resp = forum_client.upload_forum_avatar(forum_id, "forum-avatar.png", TINY_PNG)
+            assert resp.status_code == 200
+            avatar_url = resp.json()["avatarUrl"]
+            assert avatar_url
+
+            # 头像应在版块详情与列表中可见
+            assert forum_client.get_forum(forum_id).json()["avatarUrl"] == avatar_url
+            listed = next(
+                f for f in forum_client.get_forums().json() if f["forumID"] == forum_id
+            )
+            assert listed["avatarUrl"] == avatar_url
+        finally:
+            forum_client.delete_forum_avatar(forum_id)
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_creator_can_delete_forum_avatar(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            assert forum_client.upload_forum_avatar(
+                forum_id, "forum-avatar.png", TINY_PNG).status_code == 200
+
+            resp = forum_client.delete_forum_avatar(forum_id)
+            assert resp.status_code == 200
+            assert resp.json()["avatarUrl"] == ""
+            assert forum_client.get_forum(forum_id).json()["avatarUrl"] == ""
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_non_manager_cannot_upload_forum_avatar(
+            self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            resp = forum_client.upload_forum_avatar(forum_id, "avatar.png", TINY_PNG)
+            assert resp.status_code == 403
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_unauthenticated_cannot_upload_forum_avatar(
+            self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(admin_forum_client)
+        try:
+            forum_client.post("/api/auth/logout")
+            assert forum_client.upload_forum_avatar(
+                forum_id, "avatar.png", TINY_PNG).status_code == 401
+            assert forum_client.delete_forum_avatar(forum_id).status_code == 401
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_upload_avatar_missing_file_rejected(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            resp = forum_client.post(f"/api/forums/{forum_id}/avatar")
+            assert resp.status_code == 400
+            assert resp.json()["message"] == "请选择头像文件"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_upload_avatar_rejects_non_image(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            resp = forum_client.upload_forum_avatar(
+                forum_id, "avatar.txt", b"not image", "text/plain")
+            assert resp.status_code == 400
+            assert resp.json()["message"] == "仅支持 JPG、PNG、GIF、WebP 图片"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_upload_avatar_nonexistent_forum_returns_404(self, forum_client):
+        resp = forum_client.upload_forum_avatar(99999, "avatar.png", TINY_PNG)
+        assert resp.status_code == 404
+
+
+class TestMyComments:
+
+    def _get_seed_post_id(self, client):
+        return client.get_posts().json()[0]["postID"]
+
+    def test_my_comments_returns_own_comments(self, forum_client):
+        pid = self._get_seed_post_id(forum_client)
+        content = f"我的评论-{uuid4().hex[:8]}"
+        forum_client.create_comment(pid, content)
+
+        resp = forum_client.get_my_comments()
+        assert resp.status_code == 200
+        mine = next(c for c in resp.json() if c["content"] == content)
+        assert mine["postID"] == pid
+        assert mine["postTitle"]
+        assert mine["forumName"]
+        assert "createTime" in mine
+
+    def test_my_comments_excludes_others_comments(
+            self, forum_client, admin_forum_client):
+        pid = self._get_seed_post_id(forum_client)
+        others_content = f"管理员评论-{uuid4().hex[:8]}"
+        admin_forum_client.create_comment(pid, others_content)
+
+        contents = [c["content"] for c in forum_client.get_my_comments().json()]
+        assert others_content not in contents
+
+    def test_deleted_comment_is_hidden_from_my_comments(self, forum_client):
+        pid = self._get_seed_post_id(forum_client)
+        content = f"待删除评论-{uuid4().hex[:8]}"
+        comment = forum_client.create_comment(pid, content).json()
+        assert forum_client.delete_comment(comment["commentID"]).status_code == 200
+
+        contents = [c["content"] for c in forum_client.get_my_comments().json()]
+        assert content not in contents
+
+    def test_my_comments_requires_login(self, forum_client):
+        forum_client.post("/api/auth/logout")
+        assert forum_client.get_my_comments().status_code == 401

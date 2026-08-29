@@ -4,7 +4,15 @@
       :class="['cn-avatar', { deleted: isDeleted, clickable: canVisitUser }]"
       :title="canVisitUser ? '查看个人主页' : ''"
       @click="visitUser"
-    >{{ isDeleted ? '' : initial }}</div>
+    >
+      <img
+        v-if="!isDeleted && avatarUrl"
+        :src="avatarUrl"
+        :alt="comment.username || '用户'"
+        @error="markAvatarFailed(comment.avatarUrl)"
+      />
+      <template v-else>{{ isDeleted ? '' : initial }}</template>
+    </div>
 
     <div class="cn-main">
       <div class="cn-head">
@@ -66,6 +74,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
 
 const props = defineProps({
   comment: { type: Object, required: true },
@@ -88,6 +97,10 @@ const isAuthor = computed(() =>
   props.authorId && props.comment.userID && props.comment.userID === props.authorId
 )
 const initial = computed(() => (props.comment.username || '?')[0]?.toUpperCase() || '?')
+const avatarUrl = computed(() => {
+  const url = props.comment.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
 
 const visitUser = () => {
   if (canVisitUser.value) {
@@ -123,7 +136,15 @@ const formatDate = (value) => {
   font-weight: 700;
   height: 36px;
   justify-content: center;
+  overflow: hidden;
   width: 36px;
+}
+
+.cn-avatar img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .cn-avatar.clickable {

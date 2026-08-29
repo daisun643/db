@@ -471,7 +471,10 @@ public class PostsController : ControllerBase
             .OrderBy(c => c.CreateTime)
             .ToListAsync();
 
-        return Ok(BuildCommentTree(comments, canViewRestrictedComments, userId));
+        return Ok(BuildCommentTree(comments, canViewRestrictedComments, userId,
+            await GetUserAvatarUrlsAsync(comments
+                .Where(c => c.UserID.HasValue)
+                .Select(c => c.UserID!.Value))));
     }
 
     [HttpPost("{postId}/comments")]
@@ -572,6 +575,7 @@ public class PostsController : ControllerBase
         await _db.SaveChangesAsync();
 
         var user = await _db.Users.FindAsync(userId);
+        var commenterAvatar = await GetUserAvatarUrlsAsync(new[] { userId });
         return Ok(new CommentResponse
         {
             CommentID = comment.CommentID,
@@ -580,6 +584,7 @@ public class PostsController : ControllerBase
             CreateTime = comment.CreateTime,
             UserID = comment.UserID,
             Username = user?.Username ?? "",
+            AvatarUrl = commenterAvatar.TryGetValue(userId, out var avatar) ? avatar : "",
             ParentCommentID = comment.ParentCommentID
         });
     }
@@ -693,19 +698,9 @@ public class PostsController : ControllerBase
                 g => g.Key,
                 g => g.Select(x => x.Media?.Url).Where(HasUrl).Select(url => url!).ToList());
 
-        var authorIds = postList
+        var avatarByUser = await GetUserAvatarUrlsAsync(postList
             .Where(p => p.UserID.HasValue)
-            .Select(p => p.UserID!.Value)
-            .Distinct()
-            .ToList();
-        var avatarByUser = new Dictionary<int, string>();
-        if (authorIds.Count > 0)
-        {
-            avatarByUser = await _db.UserAvatars
-                .Include(x => x.Media)
-                .Where(x => authorIds.Contains(x.UserID) && x.Media != null && x.Media.Url != null && x.Media.Url != "")
-                .ToDictionaryAsync(x => x.UserID, x => x.Media!.Url!);
-        }
+            .Select(p => p.UserID!.Value));
 
         return postList.Select(p => new PostListItemResponse
         {
@@ -919,7 +914,22 @@ public class PostsController : ControllerBase
             .Select(value => value!.Trim().ToLowerInvariant())
             .Any(lowerTokens.Contains);
     }
-    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId)
+    /// <summary>
+    /// 批量查询用户头像：一次 IN 查询，返回 userId → 头像 URL 映射，避免 N+1。
+    /// </summary>
+    private async Task<Dictionary<int, string>> GetUserAvatarUrlsAsync(IEnumerable<int> userIds)
+    {
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+            return new Dictionary<int, string>();
+
+        return await _db.UserAvatars
+            .Include(x => x.Media)
+            .Where(x => idList.Contains(x.UserID) && x.Media != null && x.Media.Url != null && x.Media.Url != "")
+            .ToDictionaryAsync(x => x.UserID, x => x.Media!.Url!);
+    }
+
+    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId, Dictionary<int, string> avatarByUser)
     {
         var nodes = comments.ToDictionary(c => c.CommentID, c => new CommentResponse
         {
@@ -929,6 +939,7 @@ public class PostsController : ControllerBase
             CreateTime = c.CreateTime,
             UserID = c.UserID,
             Username = c.User?.Username ?? "",
+            AvatarUrl = c.UserID.HasValue && avatarByUser.TryGetValue(c.UserID.Value, out var commenterAvatar) ? commenterAvatar : "",
             ParentCommentID = c.ParentCommentID
         });
 

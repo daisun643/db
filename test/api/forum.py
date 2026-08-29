@@ -48,6 +48,15 @@ class ForumAPI(BaseAPIClient):
     def remove_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}/managers/{user_id}")
 
+    def upload_forum_avatar(self, forum_id: int, filename: str, content: bytes,
+                            content_type: str = "image/png") -> requests.Response:
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/avatar", files={
+            "file": (filename, content, content_type),
+        })
+
+    def delete_forum_avatar(self, forum_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/forums/{forum_id}/avatar")
+
     # ---- Users（指派版主时的用户搜索）----
 
     def search_users(self, keyword: str) -> requests.Response:
@@ -100,6 +109,9 @@ class ForumAPI(BaseAPIClient):
 
     def get_my_posts(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/posts/me")
+
+    def get_my_comments(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/posts/me/comments")
 
     # ---- Favorite folders ----
 

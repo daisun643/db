@@ -193,6 +193,26 @@ class TestStage2Profile:
         assert profile["email"] == created["email"]
         assert profile["username"] == new_username
 
+    def test_profile_update_username_with_whitespace_rejected(self, client):
+        created = _register_unique_user(client, "profile_space")
+        before = client.get("/api/user/profile").json()
+
+        resp = client.put("/api/user/profile", json={
+            "username": "bad username",
+        })
+
+        # DTO 正则校验与控制器内校验均返回 400，响应体可能为 {message} 或 ModelState {errors}
+        assert resp.status_code == 400
+        data = resp.json()
+        if "message" in data:
+            assert data["message"] == "用户名不能包含空格"
+        else:
+            assert "errors" in data
+
+        # 用户名未被修改
+        profile = client.get("/api/user/profile").json()
+        assert profile["username"] == before["username"] == created["user"]["username"]
+
     def test_profile_update_ignores_user_id_and_sensitive_fields(self, client):
         created = _register_unique_user(client, "guard")
         before = client.get("/api/user/profile").json()
