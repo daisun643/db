@@ -52,8 +52,8 @@
           :key="post.postID"
           :post="post"
           mode="favorite"
-          @open="$emit('open-post', $event)"
-          @like="$emit('like', $event)"
+          @open="goPostDetail"
+          @like="handleLike"
           @remove-favorite="handleRemoveFavorite"
         />
         <div v-if="favoritePosts.length === 0" class="empty-state">
@@ -65,8 +65,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import ForumPostCard from '../../components/forum/ForumPostCard.vue'
+import { useForum } from '../../composables/useForum'
 import {
   createFavoriteFolder,
   deleteFavoriteFolder,
@@ -75,11 +77,10 @@ import {
   updateFavoriteFolder,
 } from '../../api'
 
-defineProps({
-  favoriteFolders: { type: Array, default: () => [] },
-})
+const { error, favoriteFolders, loadFavoriteFolders, handleLike, registerFeed } = useForum()
 
-const emit = defineEmits(['open-post', 'like', 'folders-changed', 'error'])
+const router = useRouter()
+const goPostDetail = (post) => router.push(`/forums/post/${post.postID}`)
 
 const favoritePosts = ref([])
 const loadingFavorites = ref(false)
@@ -99,7 +100,7 @@ const loadFavoritePosts = async () => {
     const res = await getFavoriteFolderPosts(selectedFolderId.value)
     favoritePosts.value = res.data
   } catch (e) {
-    emit('error', '无法加载收藏: ' + (e.response?.data?.message || e.message))
+    error.value = '无法加载收藏: ' + (e.response?.data?.message || e.message)
   } finally {
     loadingFavorites.value = false
   }
@@ -113,7 +114,7 @@ const selectFolder = async (folderId) => {
 const handleCreateFolder = async () => {
   const res = await createFavoriteFolder({ folderName: folderName.value })
   folderName.value = ''
-  emit('folders-changed')
+  await loadFavoriteFolders()
   selectedFolderId.value = res.data.folderID
   await loadFavoritePosts()
 }
@@ -133,7 +134,7 @@ const handleRenameFolderInline = async (folderId) => {
   await updateFavoriteFolder(folderId, { folderName: renameText.value.trim() })
   renamingFolderId.value = null
   renameText.value = ''
-  emit('folders-changed')
+  await loadFavoriteFolders()
 }
 
 const handleDeleteFolderById = async (folderId) => {
@@ -142,13 +143,13 @@ const handleDeleteFolderById = async (folderId) => {
     selectedFolderId.value = ''
     favoritePosts.value = []
   }
-  emit('folders-changed')
+  await loadFavoriteFolders()
 }
 
 const handleRemoveFavorite = async (post) => {
   if (!selectedFolderId.value) return
   await removePostFromFavoriteFolder(selectedFolderId.value, post.postID)
-  emit('folders-changed')
+  await loadFavoriteFolders()
   await loadFavoritePosts()
 }
 
@@ -159,10 +160,15 @@ const applyPostPatch = (postId, patch) => {
   }
 }
 
-defineExpose({ reloadPosts: loadFavoritePosts, applyPostPatch })
+let unregisterFeed = null
 
 onMounted(() => {
+  unregisterFeed = registerFeed({ reload: loadFavoritePosts, applyPostPatch })
   loadFavoritePosts()
+})
+
+onUnmounted(() => {
+  unregisterFeed?.()
 })
 </script>
 

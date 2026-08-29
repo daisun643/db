@@ -1,16 +1,16 @@
 <template>
   <div class="tab-content">
     <div v-if="loadingMyPosts" class="loading">加载中...</div>
-    <div v-else class="post-list tieba-panel personal-feed">
+    <div v-else class="post-list personal-feed">
       <ForumPostCard
         v-for="post in myPosts"
         :key="post.postID"
         :post="post"
         mode="mine"
-        @open="$emit('open-post', $event)"
-        @like="$emit('like', $event)"
-        @edit="$emit('edit-post', $event)"
-        @delete="$emit('delete-post', $event)"
+        @open="goPostDetail"
+        @like="handleLike"
+        @edit="openEditPost"
+        @delete="handleDeletePost"
       />
       <div v-if="myPosts.length === 0" class="empty-state">
         <p>暂无帖子</p>
@@ -20,11 +20,16 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import ForumPostCard from '../../components/forum/ForumPostCard.vue'
+import { useForum } from '../../composables/useForum'
 import { getMyPosts } from '../../api'
 
-const emit = defineEmits(['open-post', 'like', 'edit-post', 'delete-post', 'error'])
+const { error, handleLike, openEditPost, handleDeletePost, registerFeed } = useForum()
+
+const router = useRouter()
+const goPostDetail = (post) => router.push(`/forums/post/${post.postID}`)
 
 const myPosts = ref([])
 const loadingMyPosts = ref(false)
@@ -35,7 +40,7 @@ const loadMyPosts = async () => {
     const res = await getMyPosts()
     myPosts.value = res.data
   } catch (e) {
-    emit('error', '无法加载我的帖子: ' + (e.response?.data?.message || e.message))
+    error.value = '无法加载我的帖子: ' + (e.response?.data?.message || e.message)
   } finally {
     loadingMyPosts.value = false
   }
@@ -48,10 +53,15 @@ const applyPostPatch = (postId, patch) => {
   }
 }
 
-defineExpose({ reload: loadMyPosts, applyPostPatch })
+let unregisterFeed = null
 
 onMounted(() => {
+  unregisterFeed = registerFeed({ reload: loadMyPosts, applyPostPatch })
   loadMyPosts()
+})
+
+onUnmounted(() => {
+  unregisterFeed?.()
 })
 </script>
 

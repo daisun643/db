@@ -32,7 +32,7 @@
           placeholder="新收藏夹名称"
           required
         />
-        <button class="btn" type="submit">创建并收藏</button>
+        <button class="btn btn-primary" type="submit">创建并收藏</button>
       </form>
     </div>
   </div>
@@ -66,7 +66,7 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
 .post-detail-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
   max-height: calc(100vh - 6rem);
   max-width: 680px;
@@ -88,8 +88,9 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
   top: 0;
   z-index: 1;
   border-bottom: 1px solid var(--border);
-  padding: 1rem;
-  background: var(--surface);
+  border-radius: 14px 14px 0 0;
+  padding: .8rem 1.1rem;
+  background: #f8fbff;
 }
 
 .icon-button {
@@ -101,7 +102,7 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   height: 36px;
   justify-content: center;
   line-height: 1;
@@ -172,9 +173,9 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
 }
 
 .folder-picker-form input:focus {
-  border-color: #1d9bf0;
+  border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .btn {
@@ -188,6 +189,12 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
   color: var(--text);
   font: inherit;
   cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 @media (max-width: 900px) {

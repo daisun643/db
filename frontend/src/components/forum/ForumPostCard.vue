@@ -6,10 +6,7 @@
     @click="$emit('open', post)"
     @keydown.enter="$emit('open', post)"
   >
-    <div class="row-stats">
-      <span class="stat-replies">{{ post.commentCount || 0 }}</span>
-      <span class="stat-views">{{ post.viewCount || 0 }}</span>
-    </div>
+    
 
     <div class="row-main">
       <div class="row-title-line">
@@ -29,6 +26,8 @@
         />
       </div>
 
+      <p v-if="post.contentPreview" class="row-excerpt">{{ post.contentPreview }}</p>
+
       <div class="row-meta">
         <div
           class="row-author"
@@ -42,47 +41,45 @@
           <span class="author-avatar">{{ authorInitial }}</span>
           <span class="author-name">{{ post.username || '校园用户' }}</span>
         </div>
-        <span class="row-forum" @click.stop>{{ post.forumName || '未分区' }}</span>
+        <div class="row-actions">
+          <template v-if="mode === 'mine'">
+            <button type="button" @click.stop="$emit('edit', post)">编辑</button>
+            <button type="button" class="danger" @click.stop="$emit('delete', post)">删除</button>
+          </template>
+          <template v-else-if="mode === 'favorite'">
+            <button
+              :class="{ active: post.isLiked }"
+              type="button"
+              @click.stop="$emit('like', post)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" /></svg>
+              {{ post.likeCount || 0 }}
+            </button>
+            <button type="button" class="danger" @click.stop="$emit('remove-favorite', post)">移出收藏</button>
+          </template>
+          <template v-else>
+            <button
+              :class="{ active: post.isLiked }"
+              type="button"
+              :aria-label="post.isLiked ? '取消点赞' : '点赞'"
+              @click.stop="$emit('like', post)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" /></svg>
+              {{ post.likeCount || 0 }}
+            </button>
+            <button
+              :class="{ active: post.isFavorited }"
+              type="button"
+              @click.stop="$emit('favorite', post)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" /></svg>
+              {{ post.isFavorited ? '已收藏' : '收藏' }}
+            </button>
+            <button type="button" @click.stop="$emit('report', post)">举报</button>
+          </template>
+        </div>
         <span class="row-date">{{ formattedDate }}</span>
       </div>
-    </div>
-
-    <div class="row-actions">
-      <template v-if="mode === 'mine'">
-        <button type="button" @click.stop="$emit('edit', post)">编辑</button>
-        <button type="button" class="danger" @click.stop="$emit('delete', post)">删除</button>
-      </template>
-      <template v-else-if="mode === 'favorite'">
-        <button
-          :class="{ active: post.isLiked }"
-          type="button"
-          @click.stop="$emit('like', post)"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" /></svg>
-          {{ post.likeCount || 0 }}
-        </button>
-        <button type="button" class="danger" @click.stop="$emit('remove-favorite', post)">移出收藏</button>
-      </template>
-      <template v-else>
-        <button
-          :class="{ active: post.isLiked }"
-          type="button"
-          :aria-label="post.isLiked ? '取消点赞' : '点赞'"
-          @click.stop="$emit('like', post)"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" /></svg>
-          {{ post.likeCount || 0 }}
-        </button>
-        <button
-          :class="{ active: post.isFavorited }"
-          type="button"
-          @click.stop="$emit('favorite', post)"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" /></svg>
-          {{ post.isFavorited ? '已收藏' : '收藏' }}
-        </button>
-        <button type="button" @click.stop="$emit('report', post)">举报</button>
-      </template>
     </div>
   </article>
 </template>
@@ -232,6 +229,8 @@ const formattedDate = computed(() => {
   font-size: .72rem;
 }
 
+.row-excerpt { display: -webkit-box; overflow: hidden; margin: .45rem 0 0; color: #7c8798; font-size: .76rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
 .row-author {
   display: inline-flex;
   align-items: center;
@@ -285,7 +284,6 @@ const formattedDate = computed(() => {
   display: flex;
   align-items: center;
   gap: .8rem;
-  padding-top: .15rem;
 }
 
 .row-actions button {

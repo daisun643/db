@@ -1,124 +1,125 @@
 <template>
-  <div v-if="open" class="detail-backdrop" @click.self="$emit('close')">
-    <section class="post-detail-panel">
-      <div class="modal-header">
-        <button class="icon-button" @click="$emit('close')" aria-label="关闭帖子详情">
-          <span>×</span>
-        </button>
-        <span v-if="post" class="muted">{{ post.forumName || '未分区' }}</span>
-      </div>
+  <section class="post-detail-panel">
+    <div class="detail-header">
+      <button class="icon-button" @click="goBack" aria-label="返回">
+        <span>←</span>
+      </button>
+      <span v-if="selectedPost" class="muted">{{ selectedPost.forumName || '未分区' }}</span>
+    </div>
 
-      <div v-if="detailLoading" class="loading">加载中...</div>
-      <template v-else-if="post">
-        <article class="post-detail">
-          <div class="post-meta">
-            <span
-              :class="['author-link', { plain: !post.userID }]"
-              :title="post.userID ? '查看个人主页' : ''"
-              @click="openUserHome(post.userID)"
-            >{{ post.username || '匿名用户' }}</span>
-            <span>{{ formatDate(post.createTime) }}</span>
-            <span :class="['badge', post.status === 'Active' ? 'badge-green' : 'badge-yellow']">
-              {{ post.status }}
-            </span>
-          </div>
-          <h2>{{ post.title }}</h2>
-          <div
-            class="post-content markdown-body"
-            v-html="renderMarkdown(post.content || post.contentPreview)"
-          ></div>
-          <div v-if="post.imageUrls?.length" class="detail-images">
-            <img v-for="url in post.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
-          </div>
-          <div class="tag-row">
-            <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
-          </div>
-          <div class="post-actions">
-            <span
-              v-for="metric in postMetricItems(post)"
-              :key="metric.key"
-              class="post-metric"
-              :title="metric.label"
-              :aria-label="`${metric.label} ${metric.value}`"
-            >
-              <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
-              <span>{{ metric.value }}</span>
-            </span>
-            <button
-              :class="['post-icon-action', { liked: post.isLiked }]"
-              @click="$emit('like', post)"
-              :title="post.isLiked ? '取消点赞' : '点赞'"
-              :aria-label="post.isLiked ? '取消点赞' : '点赞'"
-            >
-              <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
-            </button>
-            <button
-              :class="['post-icon-action', { favorited: post.isFavorited }]"
-              @click.stop="$emit('favorite', post)"
-              :disabled="!post.isFavorited && favoriteFolders.length === 0"
-              :title="post.isFavorited ? '取消收藏' : '收藏'"
-              :aria-label="post.isFavorited ? '取消收藏' : '收藏'"
-            >
-              <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
-            </button>
-            <button
-              v-if="canEditPost(post)"
-              class="post-icon-action"
-              @click="$emit('edit', post)"
-              title="编辑"
-              aria-label="编辑"
-            >
-              <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
-            </button>
-            <button class="post-icon-action danger" @click="$emit('report', post)" title="举报" aria-label="举报">
-              <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
-            </button>
-          </div>
-        </article>
+    <div v-if="detailLoading" class="loading">加载中...</div>
+    <template v-else-if="selectedPost">
+      <article class="post-detail">
+        <div class="post-meta">
+          <span
+            :class="['author-link', { plain: !selectedPost.userID }]"
+            :title="selectedPost.userID ? '查看个人主页' : ''"
+            @click="openUserHome(selectedPost.userID)"
+          >{{ selectedPost.username || '匿名用户' }}</span>
+          <span>{{ formatDate(selectedPost.createTime) }}</span>
+          <span :class="['badge', selectedPost.status === 'Active' ? 'badge-green' : 'badge-yellow']">
+            {{ selectedPost.status }}
+          </span>
+        </div>
+        <h2>{{ selectedPost.title }}</h2>
+        <div
+          class="post-content markdown-body"
+          v-html="renderMarkdown(selectedPost.content || selectedPost.contentPreview)"
+        ></div>
+        <div v-if="selectedPost.imageUrls?.length" class="detail-images">
+          <img v-for="url in selectedPost.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
+        </div>
+        <div class="tag-row">
+          <span v-for="tag in selectedPost.tags" :key="tag" class="tag">#{{ tag }}</span>
+        </div>
+        <div class="post-actions">
+          <span
+            v-for="metric in postMetricItems(selectedPost)"
+            :key="metric.key"
+            class="post-metric"
+            :title="metric.label"
+            :aria-label="`${metric.label} ${metric.value}`"
+          >
+            <span class="post-action-svg" :style="iconMaskStyle(metric.icon)" aria-hidden="true"></span>
+            <span>{{ metric.value }}</span>
+          </span>
+          <button
+            :class="['post-icon-action', { liked: selectedPost.isLiked }]"
+            @click="handleLike(selectedPost)"
+            :title="selectedPost.isLiked ? '取消点赞' : '点赞'"
+            :aria-label="selectedPost.isLiked ? '取消点赞' : '点赞'"
+          >
+            <span class="post-action-svg" :style="iconMaskStyle(heartIcon)" aria-hidden="true"></span>
+          </button>
+          <button
+            :class="['post-icon-action', { favorited: selectedPost.isFavorited }]"
+            @click.stop="handleFavorite(selectedPost)"
+            :disabled="!selectedPost.isFavorited && favoriteFolders.length === 0"
+            :title="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+            :aria-label="selectedPost.isFavorited ? '取消收藏' : '收藏'"
+          >
+            <span class="post-action-svg" :style="iconMaskStyle(bookmarkIcon)" aria-hidden="true"></span>
+          </button>
+          <button
+            v-if="canEditPost(selectedPost)"
+            class="post-icon-action"
+            @click="openEditPost(selectedPost)"
+            title="编辑"
+            aria-label="编辑"
+          >
+            <span class="post-action-svg" :style="iconMaskStyle(editIcon)" aria-hidden="true"></span>
+          </button>
+          <button class="post-icon-action danger" @click="openReport(selectedPost)" title="举报" aria-label="举报">
+            <span class="post-action-svg" :style="iconMaskStyle(flagIcon)" aria-hidden="true"></span>
+          </button>
+        </div>
+      </article>
 
-        <section class="comment-section">
-          <h3>评论</h3>
-          <form class="comment-form" @submit.prevent="$emit('submit-comment', null)">
-            <textarea
-              :value="commentText"
-              @input="$emit('update:commentText', $event.target.value)"
-              placeholder="写下评论，支持 @用户名 提及"
-              required
-            ></textarea>
-            <button class="btn btn-primary" type="submit" :disabled="commentSubmitting">
-              {{ commentSubmitting ? '发送中...' : '发表评论' }}
-            </button>
-          </form>
+      <section class="comment-section">
+        <h3>评论</h3>
+        <form class="comment-form" @submit.prevent="handleCreateComment(null)">
+          <textarea
+            v-model="commentText"
+            placeholder="写下评论，支持 @用户名 提及"
+            required
+          ></textarea>
+          <button class="btn btn-primary" type="submit" :disabled="commentSubmitting">
+            {{ commentSubmitting ? '发送中...' : '发表评论' }}
+          </button>
+        </form>
 
-          <div v-if="commentsLoading" class="loading">加载评论中...</div>
-          <div v-else class="comment-list">
-            <div v-if="comments.length === 0" class="empty-state compact">
-              <p>暂无评论</p>
-            </div>
-            <CommentNode
-              v-for="comment in comments"
-              :key="comment.commentID"
-              :comment="comment"
-              :replying-to="replyingTo"
-              :reply-text="replyText"
-              @reply="$emit('reply', $event)"
-              @cancel-reply="$emit('cancel-reply')"
-              @update-reply="$emit('update-reply', $event)"
-              @submit-reply="$emit('submit-comment', $event)"
-              @report="$emit('report-comment', $event)"
-              @delete="$emit('delete-comment', $event)"
-            />
+        <div v-if="commentsLoading" class="loading">加载评论中...</div>
+        <div v-else class="comment-list">
+          <div v-if="comments.length === 0" class="empty-state compact">
+            <p>暂无评论</p>
           </div>
-        </section>
-      </template>
-    </section>
-  </div>
+          <CommentNode
+            v-for="comment in comments"
+            :key="comment.commentID"
+            :comment="comment"
+            :replying-to="replyingTo"
+            :reply-text="replyText"
+            @reply="startReply"
+            @cancel-reply="cancelReply"
+            @update-reply="replyText = $event.value"
+            @submit-reply="handleCreateComment"
+            @report="openCommentReport"
+            @delete="handleDeleteComment"
+          />
+        </div>
+      </section>
+    </template>
+    <div v-else class="empty-state compact">
+      <p>帖子不存在或已被删除。</p>
+    </div>
+  </section>
 </template>
 
 <script setup>
-import { computed, defineComponent, h } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useForum } from '../../composables/useForum'
 import { renderMarkdown } from '../../utils/markdown'
 import bookmarkIcon from '../../assets/icons/bookmark.svg'
 import commentIcon from '../../assets/icons/comment.svg'
@@ -127,36 +128,39 @@ import eyeIcon from '../../assets/icons/eye.svg'
 import flagIcon from '../../assets/icons/flag.svg'
 import heartIcon from '../../assets/icons/heart.svg'
 
-const props = defineProps({
-  open: { type: Boolean, required: true },
-  post: { type: Object, default: null },
-  detailLoading: { type: Boolean, default: false },
-  comments: { type: Array, default: () => [] },
-  commentsLoading: { type: Boolean, default: false },
-  favoriteFolders: { type: Array, default: () => [] },
-  commentText: { type: String, default: '' },
-  commentSubmitting: { type: Boolean, default: false },
-  replyingTo: { type: Number, default: null },
-  replyText: { type: String, default: '' },
-})
-
-const emit = defineEmits([
-  'close',
-  'like',
-  'favorite',
-  'edit',
-  'report',
-  'submit-comment',
-  'reply',
-  'cancel-reply',
-  'update-reply',
-  'delete-comment',
-  'report-comment',
-  'update:commentText',
-])
-
-const authStore = useAuthStore()
+const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+
+const {
+  selectedPost,
+  detailLoading,
+  comments,
+  commentsLoading,
+  favoriteFolders,
+  commentText,
+  commentSubmitting,
+  replyingTo,
+  replyText,
+  loadPostDetail,
+  closePostDetail,
+  handleLike,
+  handleFavorite,
+  openEditPost,
+  openReport,
+  handleCreateComment,
+  startReply,
+  cancelReply,
+  openCommentReport,
+  handleDeleteComment,
+} = useForum()
+
+const postId = computed(() => Number(route.params.postId))
+
+const goBack = () => {
+  if (window.history.length > 1) router.back()
+  else router.push('/forums')
+}
 
 const openUserHome = (userId) => {
   if (userId) {
@@ -187,6 +191,12 @@ const iconMaskStyle = (icon) => ({
 const canEditPost = (post) => {
   return post?.userID && authStore.user?.userId && post.userID === authStore.user.userId
 }
+
+const load = () => loadPostDetail(postId.value)
+
+onMounted(load)
+watch(postId, load)
+onBeforeUnmount(closePostDetail)
 
 const CommentNode = defineComponent({
   name: 'CommentNode',
@@ -310,43 +320,23 @@ const CommentNode = defineComponent({
   color: #92400e;
 }
 
-.detail-backdrop {
-  align-items: flex-start;
-  background: rgba(91, 112, 131, 0.4);
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  left: 0;
-  padding: 3rem 1rem;
-  position: fixed;
-  right: 0;
-  top: 0;
-  z-index: 1200;
-}
-
 .post-detail-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
-  max-height: calc(100vh - 6rem);
-  max-width: 680px;
-  overflow-y: auto;
-  padding: 0;
-  width: min(680px, 100vw);
+  border-radius: 14px;
+  margin: 0 auto;
+  width: min(900px, 100%);
 }
 
-.modal-header {
+.detail-header {
   align-items: center;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  position: sticky;
-  top: 0;
-  z-index: 1;
   border-bottom: 1px solid var(--border);
-  padding: 1rem;
-  background: var(--surface);
+  padding: .8rem 1.1rem;
+  background: #f8fbff;
+  border-radius: 14px 14px 0 0;
 }
 
 .icon-button {
@@ -358,7 +348,7 @@ const CommentNode = defineComponent({
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   height: 36px;
   justify-content: center;
   line-height: 1;
@@ -371,12 +361,14 @@ const CommentNode = defineComponent({
 
 .post-detail {
   border-bottom: 1px solid var(--border);
-  padding: 1rem;
+  padding: 1.5rem 2rem;
 }
 
 .post-detail h2 {
-  font-size: 1.5rem;
-  margin: 0.75rem 0;
+  color: #17233d;
+  font-size: clamp(1.35rem, 2.5vw, 1.9rem);
+  letter-spacing: -.035em;
+  margin: .85rem 0 1rem;
 }
 
 .post-meta {
@@ -754,20 +746,10 @@ const CommentNode = defineComponent({
 }
 
 @media (max-width: 900px) {
-  .detail-backdrop {
-    display: block;
-    padding: 0;
-  }
-
   .post-detail-panel {
     border: none;
     border-radius: 0;
-    max-height: 100vh;
-    width: 100vw;
-  }
-
-  .modal-header {
-    align-items: flex-start;
+    width: 100%;
   }
 }
 </style>

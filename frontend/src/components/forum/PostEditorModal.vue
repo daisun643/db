@@ -205,7 +205,7 @@ const handleUpdatePost = async () => {
 .post-detail-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
   max-height: calc(100vh - 6rem);
   max-width: 680px;
@@ -227,8 +227,9 @@ const handleUpdatePost = async () => {
   top: 0;
   z-index: 1;
   border-bottom: 1px solid var(--border);
-  padding: 1rem;
-  background: var(--surface);
+  border-radius: 14px 14px 0 0;
+  padding: .8rem 1.1rem;
+  background: #f8fbff;
 }
 
 .icon-button {
@@ -240,7 +241,7 @@ const handleUpdatePost = async () => {
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   height: 36px;
   justify-content: center;
   line-height: 1;
@@ -259,7 +260,7 @@ const handleUpdatePost = async () => {
 
 .composer-avatar {
   align-items: center;
-  background: #1d9bf0;
+  background: linear-gradient(135deg, var(--primary), #6366f1);
   border-radius: 50%;
   color: white;
   display: flex;
@@ -290,6 +291,13 @@ const handleUpdatePost = async () => {
 .composer-fields textarea {
   min-height: 160px;
   resize: vertical;
+}
+
+.composer-fields input:focus,
+.composer-fields textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .composer-row {
@@ -341,9 +349,9 @@ const handleUpdatePost = async () => {
 
 .compose-submit {
   align-items: center;
-  background: #0f1419;
+  background: var(--primary);
   border: none;
-  border-radius: 9999px;
+  border-radius: var(--radius);
   color: white;
   cursor: pointer;
   display: inline-flex;
@@ -351,8 +359,12 @@ const handleUpdatePost = async () => {
   font-weight: 700;
   justify-content: center;
   min-height: 38px;
-  padding: 0.625rem 1.25rem;
+  padding: 0.5rem 1.25rem;
   white-space: nowrap;
+}
+
+.compose-submit:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 .compose-submit:disabled {

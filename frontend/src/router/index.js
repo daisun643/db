@@ -23,10 +23,35 @@ const routes = [
     component: () => import('../views/ForgotPasswordView.vue'),
     meta: { guest: true }
   },
-  { 
-    path: '/forums', 
-    component: () => import('../views/ForumsView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/forums') }
+  {
+    path: '/forums',
+    component: () => import('../views/forum/ForumLayoutView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/forums'), accessPath: '/forums' },
+    children: [
+      {
+        path: '',
+        component: () => import('../views/forum/ForumHomeView.vue'),
+      },
+      {
+        path: 'board/:forumId(\\d+)',
+        component: () => import('../views/forum/ForumBoardView.vue'),
+      },
+      {
+        path: 'post/:postId(\\d+)',
+        component: () => import('../views/forum/PostDetailView.vue'),
+      },
+      {
+        path: 'my',
+        component: () => import('../views/forum/MyView.vue'),
+        children: [
+          { path: '', redirect: '/forums/my/posts' },
+          { path: 'posts', component: () => import('../views/forum/MyPostsView.vue') },
+          { path: 'comments', component: () => import('../views/forum/MyCommentsView.vue') },
+          { path: 'forums', component: () => import('../views/forum/MyForumsView.vue') },
+          { path: 'favorites', component: () => import('../views/forum/FavoritesView.vue') },
+        ],
+      },
+    ],
   },
   { 
     path: '/products', 
@@ -63,6 +88,11 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  // 前进/后退时恢复滚动位置，新导航回到顶部（配合论坛列表页 keep-alive）
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    return { top: 0 }
+  },
 })
 
 router.beforeEach(async (to, from, next) => {
@@ -82,7 +112,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
 
-    const hasAccess = await authStore.checkRouteAccess(to.path, to.meta.requiredPermissions || [])
+    const hasAccess = await authStore.checkRouteAccess(to.meta.accessPath || to.path, to.meta.requiredPermissions || [])
     if (hasAccess) {
       next()
     } else {

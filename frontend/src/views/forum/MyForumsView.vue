@@ -1,5 +1,8 @@
 <template>
   <div class="tab-content managed-forums">
+    <div class="managed-forums-toolbar">
+      <button class="create-forum-trigger" type="button" @click="openForumCreator">＋ 创建版块</button>
+    </div>
     <div v-if="loadingMyForums" class="loading">加载中...</div>
     <div v-else-if="myForums.length" class="managed-forum-list">
       <form
@@ -49,9 +52,10 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useForum } from '../../composables/useForum'
 import { getMyForums, updateForum } from '../../api'
 
-const emit = defineEmits(['forums-changed', 'notice', 'error'])
+const { error, notice, loadForums, openForumCreator } = useForum()
 
 const myForums = ref([])
 const loadingMyForums = ref(false)
@@ -69,7 +73,7 @@ const loadMyForums = async () => {
     myForums.value = Array.isArray(res.data) ? res.data : []
   } catch (e) {
     myForums.value = []
-    emit('error', '无法加载我的版块: ' + (e.response?.data?.message || e.message))
+    error.value = '无法加载我的版块: ' + (e.response?.data?.message || e.message)
   } finally {
     loadingMyForums.value = false
   }
@@ -84,16 +88,14 @@ const handleUpdateForum = async (forum) => {
       status: forum.status,
     })
     Object.assign(forum, res.data)
-    emit('notice', '版块设置已保存。')
-    emit('forums-changed')
+    notice.value = '版块设置已保存。'
+    await loadForums()
   } catch (e) {
-    emit('error', '保存版块失败: ' + (e.response?.data?.message || e.message))
+    error.value = '保存版块失败: ' + (e.response?.data?.message || e.message)
   } finally {
     savingForumId.value = null
   }
 }
-
-defineExpose({ reload: loadMyForums })
 
 onMounted(() => {
   loadMyForums()
@@ -109,6 +111,29 @@ onMounted(() => {
 .managed-forums {
   width: min(920px, 100%);
   margin: 0 auto;
+}
+
+.managed-forums-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: .85rem;
+}
+
+.create-forum-trigger {
+  background: #2f7ee0;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  padding: .55rem .9rem;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.create-forum-trigger:hover {
+  background: #266bc4;
 }
 
 .managed-forum-list {
@@ -184,6 +209,9 @@ onMounted(() => {
 }
 
 .empty-state {
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  text-align: center;
   border: 1px dashed #d9dbe5;
   border-radius: 20px;
   background: #fafaff;
