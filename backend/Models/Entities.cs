@@ -167,18 +167,6 @@ public class EmailCode
     public string? IsUsed { get; set; }
 }
 
-[Table("PostTag")]
-public class PostTag
-{
-    [Key]
-    public int TagID { get; set; }
-    [MaxLength(50)]
-    public string? TagName { get; set; }
-    public DateTime? CreateTime { get; set; }
-
-    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
-}
-
 [Table("Wallet")]
 public class Wallet
 {
@@ -235,7 +223,6 @@ public class Post
 
     public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
     public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
-    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
     public ICollection<FolderPost> FolderPosts { get; set; } = new List<FolderPost>();
     public ICollection<PostMedia> Media { get; set; } = new List<PostMedia>();
 }
@@ -332,18 +319,6 @@ public class PostLike
     [ForeignKey("UserID")]
     public User? User { get; set; }
     public DateTime? CreateTime { get; set; }
-}
-
-[Table("TagPost")]
-public class TagPost
-{
-    public int PostID { get; set; }
-    [ForeignKey("PostID")]
-    public Post? Post { get; set; }
-
-    public int TagID { get; set; }
-    [ForeignKey("TagID")]
-    public PostTag? Tag { get; set; }
 }
 
 [Table("FolderPost")]

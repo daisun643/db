@@ -47,11 +47,6 @@ SELECT '校园二手交易安全提醒', '请优先选择校内当面验货，�
 FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '校园公告'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '校园二手交易安全提醒');
 
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '本周五四平路校区夜跑活动报名' AND t."tagName" = '日常';
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '高等数学期末复习资料索引' AND t."tagName" = '分享';
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '暑期实习简历互助修改' AND t."tagName" = '经验';
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '校园二手交易安全提醒' AND t."tagName" = '推荐';
-
 -- 帖子图片：使用外部演示图片，并通过 MediaFile/PostMedia 维护顺序与归属。
 INSERT INTO "MediaFile" ("storageProvider", "url", "uploadTime", "uploadedByUserId")
 SELECT 'external', 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1200&q=80', SYSTIMESTAMP, p."userId"

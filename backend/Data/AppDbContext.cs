@@ -13,7 +13,6 @@ public class AppDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<EmailCode> EmailCodes => Set<EmailCode>();
-    public DbSet<PostTag> PostTags => Set<PostTag>();
     public DbSet<Wallet> Wallets => Set<Wallet>();
     public DbSet<Forum> Forums => Set<Forum>();
     public DbSet<Post> Posts => Set<Post>();
@@ -22,7 +21,6 @@ public class AppDbContext : DbContext
     public DbSet<PostMedia> PostMedia => Set<PostMedia>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
-    public DbSet<TagPost> TagPosts => Set<TagPost>();
     public DbSet<FavoriteFolder> FavoriteFolders => Set<FavoriteFolder>();
     public DbSet<FolderPost> FolderPosts => Set<FolderPost>();
     public DbSet<ForumManager> ForumManagers => Set<ForumManager>();
@@ -148,15 +146,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.IsUsed).HasColumnName("isUsed");
         });
 
-        modelBuilder.Entity<PostTag>(e =>
-        {
-            e.ToTable("PostTag");
-            e.HasKey(x => x.TagID);
-            e.Property(x => x.TagID).HasColumnName("tagId").ValueGeneratedOnAdd();
-            e.Property(x => x.TagName).HasColumnName("tagName");
-            e.Property(x => x.CreateTime).HasColumnName("createTime");
-        });
-
         modelBuilder.Entity<PostSensitiveWord>(e =>
         {
             e.ToTable("PostSensitiveWord");
@@ -237,14 +226,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserID).HasColumnName("userId");
             e.Property(x => x.CreateTime).HasColumnName("createTime");
             e.HasIndex(x => new { x.PostID, x.UserID }).IsUnique();
-        });
-
-        modelBuilder.Entity<TagPost>(e =>
-        {
-            e.ToTable("TagPost");
-            e.HasKey(x => new { x.PostID, x.TagID });
-            e.Property(x => x.PostID).HasColumnName("postId");
-            e.Property(x => x.TagID).HasColumnName("tagId");
         });
 
         modelBuilder.Entity<FavoriteFolder>(e =>

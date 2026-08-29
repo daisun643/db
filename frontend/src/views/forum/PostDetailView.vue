@@ -29,9 +29,6 @@
         <div v-if="selectedPost.imageUrls?.length" class="detail-images">
           <img v-for="url in selectedPost.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
         </div>
-        <div class="tag-row">
-          <span v-for="tag in selectedPost.tags" :key="tag" class="tag">#{{ tag }}</span>
-        </div>
         <div class="post-actions">
           <span
             v-for="metric in postMetricItems(selectedPost)"
@@ -416,22 +413,6 @@ const CommentNode = defineComponent({
   border-radius: var(--radius);
   object-fit: cover;
   width: 100%;
-}
-
-.tag-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.tag {
-  color: #1d9bf0;
-  background: #eff6ff;
-  border-radius: 9999px;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
 }
 
 .post-actions {

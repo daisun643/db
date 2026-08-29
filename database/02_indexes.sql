@@ -18,7 +18,6 @@ CREATE UNIQUE INDEX "idx_permission_name" ON "Permission"("permissionName");
 CREATE UNIQUE INDEX "idx_postlike_post_user" ON "PostLike"("postId", "userId");
 CREATE UNIQUE INDEX "idx_wallet_user" ON "Wallet"("userId");
 CREATE UNIQUE INDEX "idx_forum_name" ON "Forum"("forumName");
-CREATE UNIQUE INDEX "idx_posttag_name" ON "PostTag"("tagName");
 CREATE UNIQUE INDEX "idx_favoritefolder_user_name" ON "FavoriteFolder"("userId", "folderName");
 
 -- 普通索引

@@ -68,20 +68,7 @@ FROM "User" WHERE "email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '失物招领');
 
 -- ============================================================
--- 2. 帖子标签
--- ============================================================
-
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '日常', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '日常');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '求助', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '求助');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '分享', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '分享');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '经验', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '经验');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '推荐', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '推荐');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '吐槽', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '吐槽');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '讨论', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '讨论');
-INSERT INTO "PostTag" ("tagName", "createTime") SELECT '教程', SYSTIMESTAMP FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "PostTag" WHERE "tagName" = '教程');
-
--- ============================================================
--- 3. 帖子 — 校园生活板块
+-- 2. 帖子 — 校园生活板块
 -- ============================================================
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
@@ -97,7 +84,7 @@ SELECT '社团招新季到了，大家推荐几个社团', '大一新生马上�
 FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 -- ============================================================
--- 4. 帖子 — 技术讨论板块
+-- 3. 帖子 — 技术讨论板块
 -- ============================================================
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
@@ -113,7 +100,7 @@ SELECT 'Vue 3 + TypeScript 项目搭建教程', '分享一个从零搭建 Vue 3 
 FROM "User" WHERE "email" = '3@tongji.edu.cn';
 
 -- ============================================================
--- 5. 帖子 — 二手交易板块
+-- 4. 帖子 — 二手交易板块
 -- ============================================================
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
@@ -125,25 +112,7 @@ SELECT '求购：二手显示器，24寸以上', '最近写代码需要一个外
 FROM "User" WHERE "email" = '4@tongji.edu.cn';
 
 -- ============================================================
--- 6. 标签关联
--- ============================================================
-
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？' AND t."tagName" = '分享' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '图书馆自习攻略：哪个楼层人最少？' AND t."tagName" = '日常' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '食堂新出的菜品测评来了！' AND t."tagName" = '分享' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '食堂新出的菜品测评来了！' AND t."tagName" = '推荐' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '社团招新季到了，大家推荐几个社团' AND t."tagName" = '讨论' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '社团招新季到了，大家推荐几个社团' AND t."tagName" = '推荐' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = 'C# 异步编程踩坑记录' AND t."tagName" = '经验' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = 'C# 异步编程踩坑记录' AND t."tagName" = '分享' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '求助：Oracle 数据库连接超时问题' AND t."tagName" = '求助' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = 'Vue 3 + TypeScript 项目搭建教程' AND t."tagName" = '教程' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = 'Vue 3 + TypeScript 项目搭建教程' AND t."tagName" = '分享' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '毕业清仓：教材、考研资料、电子设备' AND t."tagName" = '分享' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-INSERT INTO "TagPost" ("postId", "tagId") SELECT p."postId", t."tagId" FROM "Post" p, "PostTag" t WHERE p."title" = '求购：二手显示器，24寸以上' AND t."tagName" = '求助' AND NOT EXISTS (SELECT 1 FROM "TagPost" WHERE "postId" = p."postId" AND "tagId" = t."tagId");
-
--- ============================================================
--- 7. 评论
+-- 5. 评论
 -- ============================================================
 
 INSERT INTO "PostComment" ("content", "status", "createTime", "postId", "userId", "parentCommentId")
@@ -171,7 +140,7 @@ SELECT '数据结构还在吗？我想要一本，可以面交。', 'Active', SY
 FROM "Post" p, "User" u WHERE p."title" = '毕业清仓：教材、考研资料、电子设备' AND u."email" = '4@tongji.edu.cn';
 
 -- ============================================================
--- 8. 点赞
+-- 6. 点赞
 -- ============================================================
 
 INSERT INTO "PostLike" ("postId", "userId", "createTime") SELECT p."postId", u."userId", SYSTIMESTAMP - INTERVAL '5' DAY FROM "Post" p, "User" u WHERE p."title" = 'Vue 3 + TypeScript 项目搭建教程' AND u."email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "PostLike" WHERE "postId" = p."postId" AND "userId" = u."userId");
@@ -182,7 +151,7 @@ INSERT INTO "PostLike" ("postId", "userId", "createTime") SELECT p."postId", u."
 INSERT INTO "PostLike" ("postId", "userId", "createTime") SELECT p."postId", u."userId", SYSTIMESTAMP - INTERVAL '2' DAY FROM "Post" p, "User" u WHERE p."title" = '食堂新出的菜品测评来了！' AND u."email" = '4@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "PostLike" WHERE "postId" = p."postId" AND "userId" = u."userId");
 
 -- ============================================================
--- 9. 商品
+-- 7. 商品
 -- ============================================================
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
@@ -210,7 +179,7 @@ SELECT '罗技 G502 鼠标', '罗技 G502 Hero 游戏鼠标，有线版。使用
 FROM "User" WHERE "email" = '3@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '罗技 G502 鼠标');
 
 -- ============================================================
--- 10. 论坛管理员
+-- 8. 论坛管理员
 -- ============================================================
 
 INSERT INTO "ForumManager" ("forumId", "userId")
@@ -229,7 +198,7 @@ WHERE f."forumName" = '二手交易' AND u."email" = '2@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
 
 -- ============================================================
--- 11. 演示用通知关联数据
+-- 9. 演示用通知关联数据
 -- 说明：这些数据不是测试垃圾数据，而是为了让通知中心重建后有正式、可讲解的业务上下文。
 -- ============================================================
 
@@ -290,7 +259,7 @@ AND NOT EXISTS (
 );
 
 -- ============================================================
--- 12. 通知中心演示数据
+-- 10. 通知中心演示数据
 -- 说明：这些通知覆盖 System、Mention、Reply、Audit、Report、Transaction、Dispute、Forum、Friend、Message。
 -- 每条通知都尽量指向真实的业务对象，方便给组长演示 type / targetType / targetId / link / eventKey。
 -- ============================================================

@@ -22,10 +22,6 @@
                 </option>
               </select>
             </label>
-            <label>
-              <span>标签</span>
-              <input v-model="tagText" type="text" placeholder="用逗号分隔" />
-            </label>
           </div>
           <label class="composer-field">
             <span>标题</span>
@@ -54,7 +50,6 @@
                 />
                 <span>添加图片</span>
               </label>
-              <button class="tag-suggest-button" type="button" @click="handleSuggestTags">推荐标签</button>
             </div>
             <button class="compose-submit" type="submit" :disabled="submitting">
               {{ submitting ? '发布中…' : '发布帖子' }}
@@ -69,7 +64,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import { createPost, suggestTags, uploadImages } from '../../api'
+import { createPost, uploadImages } from '../../api'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -87,7 +82,6 @@ const postForm = ref({
   title: '',
   content: '',
 })
-const tagText = ref('')
 const createImageFiles = ref([])
 const createImagePreviewUrls = ref([])
 
@@ -125,7 +119,6 @@ const resetForm = () => {
     title: '',
     content: '',
   }
-  tagText.value = ''
   clearCreateImageState()
 }
 
@@ -173,22 +166,9 @@ const removeCreateImage = (index) => {
   createImageFiles.value.splice(index, 1)
 }
 
-const handleSuggestTags = async () => {
-  try {
-    const res = await suggestTags({
-      title: postForm.value.title,
-      content: postForm.value.content,
-    })
-    tagText.value = res.data.join(', ')
-  } catch (e) {
-    emit('error', '标签推荐失败: ' + (e.response?.data?.message || e.message))
-  }
-}
-
 const handleCreatePost = async () => {
   try {
     submitting.value = true
-    const tagNames = tagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
     const uploaded = createImageFiles.value.length > 0
       ? await uploadImages(createImageFiles.value, 'posts')
       : null
@@ -196,7 +176,6 @@ const handleCreatePost = async () => {
 
     const res = await createPost({
       ...postForm.value,
-      tagNames,
       imageUrls,
     })
     const result = res.data
@@ -406,7 +385,7 @@ const handleCreatePost = async () => {
 
 .composer-meta-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.8rem;
 }
 
@@ -435,8 +414,7 @@ const handleCreatePost = async () => {
   gap: 0.55rem;
 }
 
-.upload-button,
-.tag-suggest-button {
+.upload-button {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -455,8 +433,7 @@ const handleCreatePost = async () => {
   display: none;
 }
 
-.upload-button:hover,
-.tag-suggest-button:hover {
+.upload-button:hover {
   color: var(--primary);
   border-color: #c8c4ee;
   background: #f7f6ff;
@@ -518,12 +495,10 @@ const handleCreatePost = async () => {
   }
 
   .composer-tools {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
   }
 
   .upload-button,
-  .tag-suggest-button,
   .compose-submit {
     justify-content: center;
     width: 100%;

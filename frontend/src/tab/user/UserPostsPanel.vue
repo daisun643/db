@@ -17,7 +17,6 @@
             <p class="post-preview">{{ post.contentPreview || '暂无内容' }}</p>
             <div class="post-meta">
               <span>{{ post.forumName || '未分区' }}</span>
-              <span v-for="tag in (post.tags || []).slice(0, 3)" :key="tag" class="post-tag">#{{ tag }}</span>
               <span>{{ formatDate(post.createTime) }}</span>
             </div>
           </div>
@@ -109,7 +108,6 @@ defineExpose({ reload: loadPosts })
 .post-row-title h3 { margin: 0; font-size: .98rem; color: #1d2438; }
 .post-preview { margin: .45rem 0 0; color: var(--text-secondary); font-size: .82rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .post-meta { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .55rem; color: #8a90a1; font-size: .72rem; }
-.post-tag { color: #6e5ec6; }
 .post-row-stats { display: flex; flex-direction: column; justify-content: center; gap: .3rem; flex: 0 0 auto; color: #8a90a1; font-size: .74rem; white-space: nowrap; }
 .panel-pagination { display: flex; align-items: center; justify-content: center; gap: .9rem; }
 .muted { color: var(--text-secondary); font-size: .8rem; }

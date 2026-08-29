@@ -56,7 +56,7 @@
             <div class="forum-title-row"><h2>{{ forum.forumName }}</h2><span class="forum-live-dot">活跃中</span></div>
             <p>{{ forum.description || '这个版块还没有简介' }}</p>
             <div class="forum-header-stats">
-              <span>主题 <b>{{ forum.postCount || 0 }}</b></span>
+              <span>帖子数量 <b>{{ forum.postCount || 0 }}</b></span>
             </div>
           </div>
         </section>

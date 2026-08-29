@@ -172,7 +172,7 @@ public class ForumsController : ControllerBase
         if (forum is null)
             return NotFound();
 
-        // 不在有内容时直接物理删除，避免帖子、标签、审核记录成为孤儿数据。
+        // 不在有内容时直接物理删除，避免帖子、审核记录成为孤儿数据。
         if ((await _db.Posts.CountAsync(p => p.ForumID == id)) > 0)
             return BadRequest(new { message = "该版块仍有帖子，不能删除；请先将版块设为 Inactive 或清理帖子" });
 

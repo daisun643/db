@@ -438,7 +438,7 @@ class TestPostList:
         post = resp.json()[0]
         for field in ["postID", "title", "contentPreview", "likeCount",
                        "viewCount", "commentCount", "status", "createTime",
-                       "userID", "username", "forumID", "forumName", "tags",
+                       "userID", "username", "forumID", "forumName",
                        "imageUrls", "isLiked", "isFavorited"]:
             assert field in post, f"Missing field: {field}"
 
@@ -456,40 +456,6 @@ class TestPostList:
         for post in resp.json():
             assert "图书馆" in post["title"] or "图书馆" in post["contentPreview"]
 
-    def test_filter_posts_by_tag(self, forum_client):
-        resp = forum_client.get_posts(tag="教程")
-        assert resp.status_code == 200
-        for post in resp.json():
-            assert "教程" in post["tags"]
-
-    def test_filter_posts_by_multiple_tags(self, forum_client):
-        forum_id = forum_client.get_forums().json()[0]["forumID"]
-        create_resp = forum_client.create_post(
-            forum_id, "标签筛选帖子", "验证多标签筛选", tag_names=["标签A", "标签B"]
-        )
-        assert create_resp.status_code == 201
-
-        resp = forum_client.get_posts(tags="标签A, 标签B", tagOp="and")
-        assert resp.status_code == 200
-        post_ids = [post["postID"] for post in resp.json()]
-        assert create_resp.json()["postID"] in post_ids
-
-    def test_filter_posts_by_multiple_tags_with_or(self, forum_client):
-        forum_id = forum_client.get_forums().json()[0]["forumID"]
-        first = forum_client.create_post(
-            forum_id, "OR 标签筛选帖子甲", "验证 OR 标签筛选", tag_names=["OR标签甲"]
-        )
-        second = forum_client.create_post(
-            forum_id, "OR 标签筛选帖子乙", "验证 OR 标签筛选", tag_names=["OR标签乙"]
-        )
-        assert first.status_code == 201
-        assert second.status_code == 201
-
-        resp = forum_client.get_posts(tags="OR标签甲,OR标签乙", tagOp="or")
-        assert resp.status_code == 200
-        post_ids = {post["postID"] for post in resp.json()}
-        assert {first.json()["postID"], second.json()["postID"]} <= post_ids
-
     def test_sort_by_latest(self, forum_client):
         resp = forum_client.get_posts(sort="latest")
         assert resp.status_code == 200
@@ -506,7 +472,6 @@ class TestPostList:
 
     @pytest.mark.parametrize("params", [
         {"sort": "unknown"},
-        {"tagOp": "xor"},
         {"from": "2026-07-29T00:00:00", "to": "2026-07-28T00:00:00"},
     ])
     def test_invalid_post_filters_are_rejected(self, forum_client, params):
@@ -572,18 +537,11 @@ class TestPostCRUD:
         finally:
             forum_client.delete_post(post_id)
 
-    def test_create_post_with_tags(self, forum_client):
-        fid = self._get_first_forum_id(forum_client)
-        resp = forum_client.create_post(fid, "带标签的帖子", "内容", tag_names=["分享", "经验"])
-        assert resp.status_code == 201
-        assert "分享" in resp.json()["tags"]
-        assert "经验" in resp.json()["tags"]
-
     def test_create_post_missing_title_rejected(self, forum_client):
         fid = self._get_first_forum_id(forum_client)
         resp = forum_client.post("/api/posts", json={
             "forumID": fid, "title": "", "content": "内容",
-            "tagNames": [], "imageUrls": [],
+            "imageUrls": [],
         })
         assert resp.status_code == 400
 
@@ -877,34 +835,3 @@ class TestComments:
     def test_get_comments_nonexistent_post(self, forum_client):
         resp = forum_client.get_comments(99999)
         assert resp.status_code == 404
-
-
-class TestTags:
-
-    def test_get_tags_returns_list(self, forum_client):
-        resp = forum_client.get_tags()
-        assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
-
-    def test_search_tags_by_keyword(self, forum_client):
-        resp = forum_client.get_tags(keyword="分享")
-        assert resp.status_code == 200
-        tags = resp.json()
-        assert isinstance(tags, list)
-        for tag in tags:
-            assert "分享" in tag
-
-    def test_get_tag_stats(self, forum_client):
-        resp = forum_client.get_tag_stats(top=5)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, list)
-        assert len(data) <= 5
-        if data:
-            sample = data[0]
-            assert "tagID" in sample
-            assert "tagName" in sample
-            assert "postCount" in sample
-            assert sample["postCount"] > 0
-        counts = [item["postCount"] for item in data]
-        assert counts == sorted(counts, reverse=True)

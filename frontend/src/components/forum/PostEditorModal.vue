@@ -16,7 +16,6 @@
           <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
           <p class="field-hint">支持 Markdown：标题、列表、引用、链接、代码块等。</p>
           <div class="composer-row">
-            <input v-model="editTagText" type="text" placeholder="标签，用逗号分隔" />
             <input
               type="file"
               multiple
@@ -54,7 +53,6 @@ const authStore = useAuthStore()
 const userInitial = computed(() => (authStore.user?.username || '用')[0]?.toUpperCase() || '用')
 
 const editForm = ref({ title: '', content: '' })
-const editTagText = ref('')
 const editImageUrls = ref([])
 const editImageNewUrls = ref([])
 const editImageFiles = ref([])
@@ -84,7 +82,6 @@ watch(() => props.post, (post) => {
       title: post.title || '',
       content: post.content || '',
     }
-    editTagText.value = (post.tags || []).join(', ')
     editImageUrls.value = [...(post.imageUrls || [])]
   }
 }, { immediate: true })
@@ -162,7 +159,6 @@ const handleUpdatePost = async () => {
 
   try {
     editingSaving.value = true
-    const tagNames = editTagText.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
     const uploaded = editImageFiles.value.length > 0
       ? await uploadImages(editImageFiles.value, 'posts')
       : null
@@ -173,7 +169,6 @@ const handleUpdatePost = async () => {
 
     const res = await updatePost(props.post.postID, {
       ...editForm.value,
-      tagNames,
       imageUrls,
     })
     emit('saved', res.data)

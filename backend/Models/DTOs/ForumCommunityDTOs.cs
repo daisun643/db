@@ -57,7 +57,6 @@ public class PostListItemResponse
     public string Username { get; set; } = string.Empty;
     public int? ForumID { get; set; }
     public string ForumName { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = new();
     public List<string> ImageUrls { get; set; } = new();
     public bool IsLiked { get; set; }
     public bool IsFavorited { get; set; }
@@ -81,7 +80,6 @@ public class CreatePostRequest
     public string Content { get; set; } = string.Empty;
 
     public List<string> ImageUrls { get; set; } = new();
-    public List<string> TagNames { get; set; } = new();
 }
 
 public class UpdatePostRequest
@@ -94,7 +92,6 @@ public class UpdatePostRequest
     public string Content { get; set; } = string.Empty;
 
     public List<string> ImageUrls { get; set; } = new();
-    public List<string> TagNames { get; set; } = new();
 }
 
 public class ChangePostStatusRequest
@@ -137,19 +134,6 @@ public class CreateFavoriteFolderRequest
     [Required]
     [StringLength(100, MinimumLength = 1)]
     public string FolderName { get; set; } = string.Empty;
-}
-
-public class TagSuggestRequest
-{
-    public string Title { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
-}
-
-public class TagStatsResponse
-{
-    public int TagID { get; set; }
-    public string TagName { get; set; } = string.Empty;
-    public int PostCount { get; set; }
 }
 
 public class AuditRecordResponse

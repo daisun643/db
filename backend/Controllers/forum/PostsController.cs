@@ -37,9 +37,6 @@ public class PostsController : ControllerBase
         [FromQuery] int? forumId,
         [FromQuery] int? authorId,
         [FromQuery] string? keyword,
-        [FromQuery] string? tag,
-        [FromQuery] string? tags,
-        [FromQuery] string? tagOp,
         [FromQuery] string? status,
         [FromQuery] string? sort = "latest",
         [FromQuery] int page = 1,
@@ -50,13 +47,9 @@ public class PostsController : ControllerBase
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 50);
         var normalizedSort = (sort ?? "latest").Trim().ToLowerInvariant();
-        var normalizedTagOp = (tagOp ?? "and").Trim().ToLowerInvariant();
 
         if (normalizedSort != "latest")
             return BadRequest(new { message = "排序参数不合法" });
-
-        if (normalizedTagOp is not "and" and not "or")
-            return BadRequest(new { message = "标签组合方式不合法" });
 
         if (from.HasValue && to.HasValue && from.Value > to.Value)
             return BadRequest(new { message = "时间范围不合法" });
@@ -101,31 +94,6 @@ public class PostsController : ControllerBase
 
         if (to.HasValue)
             query = query.Where(p => p.CreateTime <= to);
-
-        var normalizedTags = ParseTags(tag, tags);
-        if (normalizedTags.Count > 0)
-        {
-            var tagSet = normalizedTags;
-            if (normalizedTagOp == "or")
-            {
-                query = query.Where(p => _db.TagPosts.Any(tp =>
-                    tp.PostID == p.PostID &&
-                    tp.Tag != null &&
-                    tp.Tag.TagName != null &&
-                    tagSet.Contains(tp.Tag.TagName.ToLower())));
-            }
-            else
-            {
-                query = query.Where(p => _db.TagPosts
-                    .Where(tp => tp.PostID == p.PostID &&
-                                 tp.Tag != null &&
-                                 tp.Tag.TagName != null &&
-                                 tagSet.Contains(tp.Tag.TagName.ToLower()))
-                    .Select(tp => tp.TagID)
-                    .Distinct()
-                    .Count() == tagSet.Count);
-            }
-        }
 
         var totalCount = await query.CountAsync();
         var posts = await query
@@ -194,7 +162,6 @@ public class PostsController : ControllerBase
         await _db.SaveChangesAsync();
         await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
-        await ReplacePostTagsAsync(post.PostID, request.TagNames);
         await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
         await _db.SaveChangesAsync();
 
@@ -240,7 +207,6 @@ public class PostsController : ControllerBase
         await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
         await _db.SaveChangesAsync();
-        await ReplacePostTagsAsync(post.PostID, request.TagNames);
         await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
         await _db.SaveChangesAsync();
 
@@ -382,28 +348,6 @@ public class PostsController : ControllerBase
             "deleted" => "Deleted",
             _ => null
         };
-    }
-
-    private static List<string> ParseTags(string? tag, string? tags)
-    {
-        var candidates = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(tag))
-            candidates.Add(tag.Trim());
-
-        if (!string.IsNullOrWhiteSpace(tags))
-        {
-            candidates.AddRange(tags
-                .Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(t => t.Trim())
-                .Where(t => t.Length > 0));
-        }
-
-        return candidates
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(t => t.ToLowerInvariant())
-            .Take(8)
-            .ToList();
     }
 
     [HttpPost("{id}/like")]
@@ -652,10 +596,6 @@ public class PostsController : ControllerBase
     {
         var postList = posts.ToList();
         var postIds = postList.Select(p => p.PostID).ToList();
-        var tagRows = await _db.TagPosts
-            .Include(tp => tp.Tag)
-            .Where(tp => postIds.Contains(tp.PostID))
-            .ToListAsync();
         var mediaRows = await _db.PostMedia
             .Include(x => x.Media)
             .Where(x => postIds.Contains(x.PostID))
@@ -707,10 +647,6 @@ public class PostsController : ControllerBase
             Username = p.User?.Username ?? "",
             ForumID = p.ForumID,
             ForumName = p.Forum?.ForumName ?? "",
-            Tags = tagRows
-                .Where(t => t.PostID == p.PostID && t.Tag?.TagName != null)
-                .Select(t => t.Tag!.TagName!)
-                .ToList(),
             ImageUrls = ResolveImageUrls(mediaByPost, p),
             IsLiked = likedPostIds.Contains(p.PostID),
             IsFavorited = favoritedPostIds.Contains(p.PostID)
@@ -754,39 +690,10 @@ public class PostsController : ControllerBase
             Username = listItem.Username,
             ForumID = listItem.ForumID,
             ForumName = listItem.ForumName,
-            Tags = listItem.Tags,
             ImageUrls = listItem.ImageUrls,
             IsLiked = listItem.IsLiked,
             IsFavorited = listItem.IsFavorited
         };
-    }
-
-    private async Task ReplacePostTagsAsync(int postId, IEnumerable<string> tagNames)
-    {
-        var normalized = tagNames
-            .Select(t => t.Trim())
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(8)
-            .ToList();
-
-        var oldTags = await _db.TagPosts.Where(tp => tp.PostID == postId).ToListAsync();
-        _db.TagPosts.RemoveRange(oldTags);
-
-        foreach (var name in normalized)
-        {
-            var tag = await _db.PostTags.FirstOrDefaultAsync(t => t.TagName == name);
-            if (tag == null)
-            {
-                tag = new PostTag { TagName = name, CreateTime = DateTime.Now };
-                _db.PostTags.Add(tag);
-                await _db.SaveChangesAsync();
-            }
-
-            _db.TagPosts.Add(new TagPost { PostID = postId, TagID = tag.TagID });
-        }
-
-        await _db.SaveChangesAsync();
     }
 
     private int? TryGetCurrentUserId()

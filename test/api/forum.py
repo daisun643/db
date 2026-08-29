@@ -56,23 +56,19 @@ class ForumAPI(BaseAPIClient):
         return self.get(f"{self.PREFIX}/posts/{post_id}")
 
     def create_post(self, forum_id: int, title: str, content: str,
-                    tag_names: list[str] | None = None,
                     image_urls: list[str] | None = None) -> requests.Response:
         return self.post(f"{self.PREFIX}/posts", json={
             "forumID": forum_id,
             "title": title,
             "content": content,
-            "tagNames": tag_names or [],
             "imageUrls": image_urls or [],
         })
 
     def update_post(self, post_id: int, title: str, content: str,
-                    tag_names: list[str] | None = None,
                     image_urls: list[str] | None = None) -> requests.Response:
         return self.put(f"{self.PREFIX}/posts/{post_id}", json={
             "title": title,
             "content": content,
-            "tagNames": tag_names or [],
             "imageUrls": image_urls or [],
         })
 
@@ -154,11 +150,3 @@ class ForumAPI(BaseAPIClient):
             "action": action,
             "result": result,
         })
-
-    # ---- Tags ----
-
-    def get_tags(self, keyword: str = "") -> requests.Response:
-        return self.get(f"{self.PREFIX}/tags", params={"keyword": keyword})
-
-    def get_tag_stats(self, top: int = 10) -> requests.Response:
-        return self.get(f"{self.PREFIX}/tags/stats", params={"top": top})
