@@ -25,13 +25,25 @@
     </aside>
 
     <main class="forum-main">
-      <div class="feed-toolbar">
+      <section v-if="currentForum" class="forum-header">
+        <span class="forum-header-avatar">{{ forumInitial }}</span>
+        <div class="forum-header-info">
+          <h2>{{ currentForum.forumName }}</h2>
+          <p>{{ currentForum.description || '这个版块还没有简介' }}</p>
+          <div class="forum-header-stats">
+            <span>主题 <b>{{ currentForum.postCount || 0 }}</b></span>
+          </div>
+        </div>
+        <button class="compose-trigger" @click="$emit('open-composer')">发帖</button>
+      </section>
+
+      <div v-else class="feed-toolbar">
         <div class="feed-heading">
           <div>
             <h2>全部帖子</h2>
             <p>共 {{ totalPosts }} 条帖子</p>
           </div>
-          <button class="compose-trigger" @click="$emit('open-composer')"><span aria-hidden="true">＋</span> 发布帖子</button>
+          <button class="compose-trigger" @click="$emit('open-composer')">发帖</button>
         </div>
         <div class="toolbar">
           <label class="search-field">
@@ -87,19 +99,39 @@
         </section>
       </div>
 
-      <div v-if="loading" class="loading">加载中...</div>
-      <div v-else class="post-list masonry-feed">
-        <ForumPostCard
-          v-for="post in posts"
-          :key="post.postID"
-          :post="post"
-          @open="$emit('open-post', $event)"
-          @like="$emit('like', $event)"
-          @favorite="$emit('favorite', $event)"
-          @report="$emit('report', $event)"
-        />
-        <div v-if="posts.length === 0" class="empty-state">
-          <p>暂无帖子</p>
+      <div class="tieba-panel">
+        <div class="sort-tabs">
+          <button type="button" class="active">最新</button>
+        </div>
+
+        <div v-if="loading" class="loading">加载中...</div>
+        <div v-else class="tieba-list">
+          <ForumPostCard
+            v-for="post in posts"
+            :key="post.postID"
+            :post="post"
+            @open="$emit('open-post', $event)"
+            @like="$emit('like', $event)"
+            @favorite="$emit('favorite', $event)"
+            @report="$emit('report', $event)"
+          />
+          <div v-if="posts.length === 0" class="empty-state">
+            <p>暂无帖子</p>
+          </div>
+        </div>
+
+        <div v-if="totalPages > 1" class="tieba-pagination">
+          <button type="button" :disabled="page <= 1" @click="goToPage(page - 1)">上一页</button>
+          <template v-for="item in pageItems" :key="item.key">
+            <span v-if="item.type === 'gap'" class="page-gap">…</span>
+            <button
+              v-else
+              type="button"
+              :class="{ current: item.value === page }"
+              @click="goToPage(item.value)"
+            >{{ item.value }}</button>
+          </template>
+          <button type="button" :disabled="page >= totalPages" @click="goToPage(page + 1)">下一页</button>
         </div>
       </div>
     </main>
@@ -107,21 +139,24 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import ForumPostCard from '../../components/forum/ForumPostCard.vue'
 import { getPosts, getTagStats } from '../../api'
 
-defineProps({
+const props = defineProps({
   forums: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['open-forum-creator', 'open-composer', 'open-post', 'like', 'favorite', 'report', 'error'])
+
+const PAGE_SIZE = 20
 
 const posts = ref([])
 const totalPosts = ref(0)
 const loading = ref(true)
 const tagStats = ref([])
 const filterDialogOpen = ref(false)
+const page = ref(1)
 
 const filters = ref({
   forumId: null,
@@ -129,6 +164,36 @@ const filters = ref({
   tags: [],
   from: '',
   to: '',
+})
+
+const currentForum = computed(() =>
+  props.forums.find(f => f.forumID === filters.value.forumId) || null
+)
+
+const forumInitial = computed(() =>
+  (currentForum.value?.forumName || '版')[0]?.toUpperCase() || '版'
+)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / PAGE_SIZE)))
+
+const pageItems = computed(() => {
+  const total = totalPages.value
+  const current = page.value
+  const wanted = new Set([1, 2, total - 1, total, current - 1, current, current + 1])
+  const visible = [...wanted]
+    .filter(n => n >= 1 && n <= total)
+    .sort((a, b) => a - b)
+
+  const items = []
+  let previous = 0
+  for (const value of visible) {
+    if (previous && value - previous > 1) {
+      items.push({ type: 'gap', key: `gap-${previous}-${value}` })
+    }
+    items.push({ type: 'page', value, key: `page-${value}` })
+    previous = value
+  }
+  return items
 })
 
 const loadPosts = async () => {
@@ -141,8 +206,8 @@ const loadPosts = async () => {
       tagOp: filters.value.tags.length ? 'or' : undefined,
       from: filters.value.from || undefined,
       to: filters.value.to || undefined,
-      page: 1,
-      pageSize: 50,
+      page: page.value,
+      pageSize: PAGE_SIZE,
     })
     posts.value = Array.isArray(res.data) ? res.data : []
     const totalFromHeader = Number(res.headers?.['x-total-count'])
@@ -168,15 +233,17 @@ const loadTagStats = async () => {
 
 const selectForum = async (forumId) => {
   filters.value.forumId = forumId
+  page.value = 1
   await loadPosts()
 }
 
 const applyFilters = async () => {
+  page.value = 1
   await loadPosts()
 }
 
 const applyFiltersAndClose = async () => {
-  await loadPosts()
+  await applyFilters()
   filterDialogOpen.value = false
 }
 
@@ -188,6 +255,13 @@ const resetFilters = async () => {
     from: '',
     to: '',
   }
+  page.value = 1
+  await loadPosts()
+}
+
+const goToPage = async (target) => {
+  if (target < 1 || target > totalPages.value || target === page.value) return
+  page.value = target
   await loadPosts()
 }
 
@@ -208,17 +282,20 @@ onMounted(() => {
 
 <style scoped>
 .forum-layout {
+  --tieba-blue: #2f7ee0;
+  --tieba-blue-dark: #266bc4;
+  --tieba-blue-light: #e6f1fc;
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: 1rem;
   align-items: start;
   justify-content: stretch;
 }
 
 .forum-sidebar {
   background: var(--surface);
-  border: 1px solid rgba(25, 34, 59, .08);
-  border-radius: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
   padding: .75rem;
   position: sticky;
   top: 1rem;
@@ -248,9 +325,9 @@ onMounted(() => {
 
 .create-forum-trigger {
   align-items: center;
-  background: linear-gradient(135deg, #5f50dc, #7967f3);
+  background: var(--tieba-blue);
   border: 0;
-  border-radius: 8px;
+  border-radius: 4px;
   color: #fff;
   cursor: pointer;
   display: inline-flex;
@@ -263,6 +340,10 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.create-forum-trigger:hover {
+  background: var(--tieba-blue-dark);
+}
+
 .forum-filter {
   width: 100%;
   min-height: 40px;
@@ -272,7 +353,7 @@ onMounted(() => {
   justify-content: space-between;
   border: none;
   background: transparent;
-  border-radius: 9px;
+  border-radius: 4px;
   padding: .6rem .7rem;
   color: var(--text);
   font-size: .82rem;
@@ -281,12 +362,12 @@ onMounted(() => {
 }
 
 .forum-filter:hover {
-  background: #f4f2ff;
+  background: #f2f7fd;
 }
 
 .forum-filter.active {
-  color: #5d4dd7;
-  background: #efedff;
+  color: var(--tieba-blue);
+  background: var(--tieba-blue-light);
   font-weight: 700;
 }
 
@@ -302,7 +383,7 @@ onMounted(() => {
   min-width: 25px;
   padding: .2rem .38rem;
   border-radius: 999px;
-  background: rgba(105, 87, 245, .08);
+  background: rgba(47, 126, 224, .08);
   color: var(--text-secondary);
   font-size: 0.75rem;
   text-align: center;
@@ -312,11 +393,64 @@ onMounted(() => {
   min-width: 0;
 }
 
+.forum-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.forum-header-avatar {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: #fff;
+  background: linear-gradient(135deg, #4d9bf0, #2f7ee0);
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.forum-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.forum-header-info h2 {
+  color: #171d2e;
+  font-size: 1.15rem;
+}
+
+.forum-header-info p {
+  margin-top: .25rem;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forum-header-stats {
+  margin-top: .4rem;
+  color: var(--text-secondary);
+  font-size: .74rem;
+}
+
+.forum-header-stats b {
+  color: var(--tieba-blue);
+  font-size: .84rem;
+}
+
 .feed-toolbar {
   display: block;
   padding: 1.15rem;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
   background: #fff;
 }
 
@@ -341,9 +475,9 @@ onMounted(() => {
 
 .compose-trigger {
   align-items: center;
-  background: var(--primary);
+  background: var(--tieba-blue);
   border: none;
-  border-radius: 9px;
+  border-radius: 4px;
   color: white;
   cursor: pointer;
   display: inline-flex;
@@ -352,18 +486,12 @@ onMounted(() => {
   font-weight: 700;
   gap: .35rem;
   justify-content: center;
-  padding: .62rem .9rem;
+  padding: .55rem 1.15rem;
   white-space: nowrap;
 }
 
 .compose-trigger:hover {
-  background: linear-gradient(135deg, #5142ca, #6956e7);
-}
-
-.compose-trigger span {
-  font-size: 1rem;
-  font-weight: 500;
-  line-height: 1;
+  background: var(--tieba-blue-dark);
 }
 
 .toolbar {
@@ -380,14 +508,14 @@ onMounted(() => {
   gap: .55rem;
   padding: 0 .75rem;
   border: 1px solid #dfe2e8;
-  border-radius: 9px;
+  border-radius: 4px;
   background: #f8f9fb;
 }
 
 .search-field:focus-within {
-  border-color: #7463ee;
+  border-color: var(--tieba-blue);
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(105, 87, 245, .09);
+  box-shadow: 0 0 0 3px rgba(47, 126, 224, .09);
 }
 
 .search-field svg {
@@ -410,9 +538,9 @@ onMounted(() => {
 .search-submit {
   padding: .68rem 1rem;
   border: 0;
-  border-radius: 9px;
+  border-radius: 4px;
   color: #fff;
-  background: #2c3344;
+  background: var(--tieba-blue);
   font: inherit;
   font-size: .82rem;
   font-weight: 650;
@@ -420,7 +548,7 @@ onMounted(() => {
 }
 
 .search-submit:hover {
-  background: #171d2e;
+  background: var(--tieba-blue-dark);
 }
 
 .filter-trigger {
@@ -430,7 +558,7 @@ onMounted(() => {
   gap: .4rem;
   padding: .68rem .8rem;
   border: 1px solid #dfe2e8;
-  border-radius: 9px;
+  border-radius: 4px;
   color: #4c5567;
   background: #fff;
   font: inherit;
@@ -440,9 +568,9 @@ onMounted(() => {
 }
 
 .filter-trigger:hover {
-  color: var(--primary);
-  border-color: #c8c4ee;
-  background: #f7f6ff;
+  color: var(--tieba-blue);
+  border-color: #b9d5f3;
+  background: #f4f9fe;
 }
 
 .filter-count {
@@ -450,7 +578,7 @@ onMounted(() => {
   padding: .08rem .3rem;
   border-radius: 999px;
   color: #fff;
-  background: var(--primary);
+  background: var(--tieba-blue);
   font-size: .66rem;
   text-align: center;
 }
@@ -482,7 +610,7 @@ onMounted(() => {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(18, 16, 42, .58);
+  background: rgba(18, 24, 42, .58);
   backdrop-filter: blur(6px);
 }
 
@@ -491,9 +619,9 @@ onMounted(() => {
   max-height: calc(100vh - 2rem);
   overflow: auto;
   border: 1px solid rgba(255, 255, 255, .15);
-  border-radius: 18px;
+  border-radius: 8px;
   background: #fff;
-  box-shadow: 0 28px 80px rgba(13, 10, 40, .3);
+  box-shadow: 0 28px 80px rgba(13, 22, 40, .3);
 }
 
 .filter-dialog-header {
@@ -547,16 +675,16 @@ onMounted(() => {
   gap: .4rem;
   padding: .5rem .65rem;
   border: 1px solid #e2e4ed;
-  border-radius: 9px;
+  border-radius: 4px;
   color: #566074;
   background: #fff;
   cursor: pointer;
 }
 
 .tag-checkbox:has(input:checked) {
-  color: #5145bf;
-  border-color: #c8c4ee;
-  background: #f0effc;
+  color: var(--tieba-blue);
+  border-color: #b9d5f3;
+  background: var(--tieba-blue-light);
 }
 
 .tag-checkbox input[type="checkbox"] {
@@ -564,7 +692,7 @@ onMounted(() => {
   height: 1rem;
   margin: 0;
   padding: 0;
-  accent-color: var(--primary);
+  accent-color: var(--tieba-blue);
   box-shadow: none;
 }
 
@@ -597,7 +725,7 @@ onMounted(() => {
   min-width: 0;
   padding: .65rem .7rem;
   border: 1px solid #dfe2e8;
-  border-radius: 9px;
+  border-radius: 4px;
   background: #fff;
   font: inherit;
 }
@@ -610,27 +738,101 @@ onMounted(() => {
   border-top: 1px solid var(--border);
 }
 
-.post-list {
+.tieba-panel {
+  margin-top: .9rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.sort-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid #eceef2;
+}
+
+.sort-tabs button {
+  position: relative;
+  border: 0;
+  background: transparent;
+  padding: .72rem .1rem;
+  color: #5f6b7c;
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sort-tabs button.active {
+  color: var(--tieba-blue);
+}
+
+.sort-tabs button.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--tieba-blue);
+}
+
+.tieba-list {
   display: flex;
   flex-direction: column;
-  gap: .65rem;
-  margin-top: .9rem;
-}
-
-.masonry-feed {
-  display: block;
-  column-width: 230px;
-  column-gap: 1rem;
-}
-
-.masonry-feed > .empty-state {
-  column-span: all;
 }
 
 .empty-state {
-  border: 1px dashed #d9dbe5;
-  border-radius: 20px;
-  background: #fafaff;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.tieba-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .9rem 1rem 1.05rem;
+  border-top: 1px solid #eceef2;
+}
+
+.tieba-pagination button {
+  min-width: 34px;
+  padding: .42rem .55rem;
+  border: 1px solid #d9dee6;
+  border-radius: 4px;
+  color: #4c5567;
+  background: #fff;
+  font: inherit;
+  font-size: .78rem;
+  cursor: pointer;
+}
+
+.tieba-pagination button:hover:not(:disabled):not(.current) {
+  color: var(--tieba-blue);
+  border-color: var(--tieba-blue);
+}
+
+.tieba-pagination button.current {
+  color: #fff;
+  border-color: var(--tieba-blue);
+  background: var(--tieba-blue);
+  font-weight: 700;
+}
+
+.tieba-pagination button:disabled {
+  color: #b6bcc7;
+  cursor: not-allowed;
+}
+
+.page-gap {
+  color: #9aa2b0;
+  padding: 0 .15rem;
 }
 
 @media (max-width: 1000px) {
@@ -689,6 +891,16 @@ onMounted(() => {
     max-width: 9rem;
   }
 
+  .forum-header {
+    padding: .9rem;
+  }
+
+  .forum-header-avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 1.15rem;
+  }
+
   .feed-toolbar,
   .toolbar {
     align-items: stretch;
@@ -710,11 +922,6 @@ onMounted(() => {
 
   .filter-dialog-actions .btn {
     flex: 1;
-  }
-
-  .masonry-feed {
-    column-width: 128px;
-    column-gap: .65rem;
   }
 }
 </style>

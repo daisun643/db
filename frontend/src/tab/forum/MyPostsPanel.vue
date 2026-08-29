@@ -1,7 +1,7 @@
 <template>
   <div class="tab-content">
     <div v-if="loadingMyPosts" class="loading">加载中...</div>
-    <div v-else class="post-list masonry-feed personal-feed">
+    <div v-else class="post-list tieba-panel personal-feed">
       <ForumPostCard
         v-for="post in myPosts"
         :key="post.postID"
@@ -62,32 +62,16 @@ onMounted(() => {
 }
 
 .post-list {
-  display: flex;
-  flex-direction: column;
-  gap: .65rem;
   margin-top: .9rem;
-}
-
-.masonry-feed {
-  display: block;
-  column-width: 230px;
-  column-gap: 1rem;
-}
-
-.masonry-feed > .empty-state {
-  column-span: all;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
 }
 
 .empty-state {
-  border: 1px dashed #d9dbe5;
-  border-radius: 20px;
-  background: #fafaff;
-}
-
-@media (max-width: 640px) {
-  .masonry-feed {
-    column-width: 128px;
-    column-gap: .65rem;
-  }
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  text-align: center;
 }
 </style>
