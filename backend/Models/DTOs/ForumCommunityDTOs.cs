@@ -47,7 +47,6 @@ public class PostListItemResponse
     public int PostID { get; set; }
     public string Title { get; set; } = string.Empty;
     public string ContentPreview { get; set; } = string.Empty;
-    public int HeatScore { get; set; }
     public int LikeCount { get; set; }
     public int ViewCount { get; set; }
     public int CommentCount { get; set; }

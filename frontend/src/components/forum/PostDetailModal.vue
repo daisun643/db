@@ -12,7 +12,11 @@
       <template v-else-if="post">
         <article class="post-detail">
           <div class="post-meta">
-            <span>{{ post.username || '匿名用户' }}</span>
+            <span
+              :class="['author-link', { plain: !post.userID }]"
+              :title="post.userID ? '查看个人主页' : ''"
+              @click="openUserHome(post.userID)"
+            >{{ post.username || '匿名用户' }}</span>
             <span>{{ formatDate(post.createTime) }}</span>
             <span :class="['badge', post.status === 'Active' ? 'badge-green' : 'badge-yellow']">
               {{ post.status }}
@@ -113,6 +117,7 @@
 
 <script setup>
 import { computed, defineComponent, h } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { renderMarkdown } from '../../utils/markdown'
 import bookmarkIcon from '../../assets/icons/bookmark.svg'
@@ -120,7 +125,6 @@ import commentIcon from '../../assets/icons/comment.svg'
 import editIcon from '../../assets/icons/edit.svg'
 import eyeIcon from '../../assets/icons/eye.svg'
 import flagIcon from '../../assets/icons/flag.svg'
-import flameIcon from '../../assets/icons/flame.svg'
 import heartIcon from '../../assets/icons/heart.svg'
 
 const props = defineProps({
@@ -152,6 +156,13 @@ const emit = defineEmits([
 ])
 
 const authStore = useAuthStore()
+const router = useRouter()
+
+const openUserHome = (userId) => {
+  if (userId) {
+    router.push(`/user/${userId}`)
+  }
+}
 
 const formatDate = (value) => {
   if (!value) return ''
@@ -164,7 +175,6 @@ const formatDate = (value) => {
 }
 
 const postMetricItems = (post) => [
-  { key: 'heat', label: '热度', value: post?.heatScore || 0, icon: flameIcon },
   { key: 'views', label: '浏览', value: post?.viewCount || 0, icon: eyeIcon },
   { key: 'likes', label: '点赞', value: post?.likeCount || 0, icon: heartIcon },
   { key: 'comments', label: '评论', value: post?.commentCount || 0, icon: commentIcon },
@@ -195,13 +205,29 @@ const CommentNode = defineComponent({
 
     const isDeleted = props.comment.status === 'Deleted'
 
+    const canVisitUser = () => !isDeleted && !!props.comment.userID
+
+    const visitUser = () => {
+      if (canVisitUser()) {
+        router.push(`/user/${props.comment.userID}`)
+      }
+    }
+
     const renderNode = () => h('article', { class: isDeleted ? 'comment-node deleted' : 'comment-node' }, [
-      h('div', { class: isDeleted ? 'comment-avatar deleted' : 'comment-avatar' }, [
+      h('div', {
+        class: ['comment-avatar', { deleted: isDeleted, clickable: canVisitUser() }],
+        title: canVisitUser() ? '查看个人主页' : '',
+        onClick: visitUser,
+      }, [
         h('span', isDeleted ? '' : initial(props.comment.username)),
       ]),
       h('div', { class: 'comment-body' }, [
         h('div', { class: 'comment-header' }, [
-          h('span', { class: 'comment-author' }, isDeleted ? '用户已删除' : (props.comment.username || '用户')),
+          h('span', {
+            class: ['comment-author', { clickable: canVisitUser() }],
+            title: canVisitUser() ? '查看个人主页' : '',
+            onClick: visitUser,
+          }, isDeleted ? '用户已删除' : (props.comment.username || '用户')),
           h('span', { class: 'comment-time' }, formatDate(props.comment.createTime)),
         ]),
         h('div', { class: 'comment-content' }, isDeleted ? '用户已删除该评论' : (props.comment.content || '')),
@@ -360,6 +386,22 @@ const CommentNode = defineComponent({
   gap: 0.5rem;
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.post-meta .author-link {
+  color: #5d4fd5;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.post-meta .author-link:hover {
+  text-decoration: underline;
+}
+
+.post-meta .author-link.plain {
+  color: inherit;
+  cursor: default;
+  font-weight: inherit;
 }
 
 .post-content {
@@ -623,6 +665,19 @@ const CommentNode = defineComponent({
 .comment-avatar.deleted {
   background: #b9c1c9;
   color: white;
+}
+
+.comment-avatar.clickable {
+  cursor: pointer;
+}
+
+.comment-author.clickable {
+  cursor: pointer;
+}
+
+.comment-author.clickable:hover {
+  color: #1d9bf0;
+  text-decoration: underline;
 }
 
 .comment-content {

@@ -436,7 +436,7 @@ class TestPostList:
     def test_post_has_expected_fields(self, forum_client):
         resp = forum_client.get_posts()
         post = resp.json()[0]
-        for field in ["postID", "title", "contentPreview", "heatScore", "likeCount",
+        for field in ["postID", "title", "contentPreview", "likeCount",
                        "viewCount", "commentCount", "status", "createTime",
                        "userID", "username", "forumID", "forumName", "tags",
                        "imageUrls", "isLiked", "isFavorited"]:
@@ -490,23 +490,12 @@ class TestPostList:
         post_ids = {post["postID"] for post in resp.json()}
         assert {first.json()["postID"], second.json()["postID"]} <= post_ids
 
-    def test_filter_posts_by_heat_range(self, forum_client):
-        resp = forum_client.get_posts(minHeat=0, maxHeat=999999)
-        assert resp.status_code == 200
-        posts = resp.json()
-        if posts:
-            assert all(isinstance(post["heatScore"], int) for post in posts)
-
     def test_sort_by_latest(self, forum_client):
         resp = forum_client.get_posts(sort="latest")
         assert resp.status_code == 200
         posts = resp.json()
         if len(posts) >= 2:
             assert posts[0]["createTime"] >= posts[1]["createTime"]
-
-    def test_sort_by_hot(self, forum_client):
-        resp = forum_client.get_posts(sort="hot")
-        assert resp.status_code == 200
 
     def test_get_posts_returns_total_count(self, forum_client):
         resp = forum_client.get_posts(page=1, pageSize=1)
@@ -519,9 +508,6 @@ class TestPostList:
         {"sort": "unknown"},
         {"tagOp": "xor"},
         {"from": "2026-07-29T00:00:00", "to": "2026-07-28T00:00:00"},
-        {"minHeat": 10, "maxHeat": 9},
-        {"minHeat": -1},
-        {"maxHeat": -1},
     ])
     def test_invalid_post_filters_are_rejected(self, forum_client, params):
         resp = forum_client.get_posts(**params)

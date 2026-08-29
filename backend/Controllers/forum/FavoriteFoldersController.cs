@@ -158,7 +158,6 @@ public class FavoriteFoldersController : ControllerBase
             ContentPreview = string.IsNullOrWhiteSpace(p.Content)
                 ? ""
                 : p.Content.Length <= 120 ? p.Content : p.Content[..120] + "...",
-            HeatScore = p.HeatScore ?? 0,
             LikeCount = p.LikeCount ?? 0,
             ViewCount = p.ViewCount ?? 0,
             Status = p.Status ?? "",

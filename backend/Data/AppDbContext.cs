@@ -197,7 +197,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.PostID).HasColumnName("postId").ValueGeneratedOnAdd();
             e.Property(x => x.Title).HasColumnName("title");
             e.Property(x => x.Content).HasColumnName("content");
-            e.Property(x => x.HeatScore).HasColumnName("heatScore");
             e.Property(x => x.LikeCount).HasColumnName("likeCount");
             e.Property(x => x.ViewCount).HasColumnName("viewCount");
             e.Property(x => x.CreateTime).HasColumnName("createTime");

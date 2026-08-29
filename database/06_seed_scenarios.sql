@@ -27,23 +27,23 @@ SELECT 92.50, NULL, "userId" FROM "User" u WHERE u."email" = '4@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
 
 -- 更多帖子，覆盖活动、学习、求职和公告板块
-INSERT INTO "Post" ("title", "content", "heatScore", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
-SELECT '本周五四平路校区夜跑活动报名', '周五晚七点在一二九操场集合，按五公里和十公里分组，欢迎第一次参加夜跑的同学。请自备饮用水。', 36, 0, 96, SYSTIMESTAMP - INTERVAL '18' HOUR, SYSTIMESTAMP - INTERVAL '18' HOUR, 'Active', u."userId", f."forumId"
+INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
+SELECT '本周五四平路校区夜跑活动报名', '周五晚七点在一二九操场集合，按五公里和十公里分组，欢迎第一次参加夜跑的同学。请自备饮用水。', 0, 96, SYSTIMESTAMP - INTERVAL '18' HOUR, SYSTIMESTAMP - INTERVAL '18' HOUR, 'Active', u."userId", f."forumId"
 FROM "User" u, "Forum" f WHERE u."email" = '3@tongji.edu.cn' AND f."forumName" = '校园活动'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '本周五四平路校区夜跑活动报名');
 
-INSERT INTO "Post" ("title", "content", "heatScore", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
-SELECT '高等数学期末复习资料索引', '整理了历年题、知识点清单和常见易错题。建议先按章节查漏补缺，再用两套模拟卷控制答题时间。资料链接请在评论区按需交流。', 58, 0, 183, SYSTIMESTAMP - INTERVAL '2' DAY, SYSTIMESTAMP - INTERVAL '1' DAY, 'Active', u."userId", f."forumId"
+INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
+SELECT '高等数学期末复习资料索引', '整理了历年题、知识点清单和常见易错题。建议先按章节查漏补缺，再用两套模拟卷控制答题时间。资料链接请在评论区按需交流。', 0, 183, SYSTIMESTAMP - INTERVAL '2' DAY, SYSTIMESTAMP - INTERVAL '1' DAY, 'Active', u."userId", f."forumId"
 FROM "User" u, "Forum" f WHERE u."email" = '4@tongji.edu.cn' AND f."forumName" = '学习交流'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '高等数学期末复习资料索引');
 
-INSERT INTO "Post" ("title", "content", "heatScore", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
-SELECT '暑期实习简历互助修改', '准备互联网和制造业暑期实习的同学可以在楼内说明目标岗位，大家互相检查项目描述、量化结果和排版。请勿公开手机号等敏感信息。', 44, 0, 127, SYSTIMESTAMP - INTERVAL '3' DAY, SYSTIMESTAMP - INTERVAL '2' DAY, 'Active', u."userId", f."forumId"
+INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
+SELECT '暑期实习简历互助修改', '准备互联网和制造业暑期实习的同学可以在楼内说明目标岗位，大家互相检查项目描述、量化结果和排版。请勿公开手机号等敏感信息。', 0, 127, SYSTIMESTAMP - INTERVAL '3' DAY, SYSTIMESTAMP - INTERVAL '2' DAY, 'Active', u."userId", f."forumId"
 FROM "User" u, "Forum" f WHERE u."email" = '2@tongji.edu.cn' AND f."forumName" = '求职求助'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '暑期实习简历互助修改');
 
-INSERT INTO "Post" ("title", "content", "heatScore", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
-SELECT '校园二手交易安全提醒', '请优先选择校内当面验货，不要脱离平台沟通付款；贵重物品应核对序列号和购买凭证，发现异常及时发起举报或纠纷。', 72, 0, 268, SYSTIMESTAMP - INTERVAL '7' DAY, SYSTIMESTAMP - INTERVAL '7' DAY, 'Active', u."userId", f."forumId"
+INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
+SELECT '校园二手交易安全提醒', '请优先选择校内当面验货，不要脱离平台沟通付款；贵重物品应核对序列号和购买凭证，发现异常及时发起举报或纠纷。', 0, 268, SYSTIMESTAMP - INTERVAL '7' DAY, SYSTIMESTAMP - INTERVAL '7' DAY, 'Active', u."userId", f."forumId"
 FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '校园公告'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '校园二手交易安全提醒');
 

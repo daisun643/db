@@ -45,16 +45,14 @@ public class PostsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null,
-        [FromQuery] int? minHeat = null,
-        [FromQuery] int? maxHeat = null)
+        [FromQuery] DateTime? to = null)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 50);
         var normalizedSort = (sort ?? "latest").Trim().ToLowerInvariant();
         var normalizedTagOp = (tagOp ?? "and").Trim().ToLowerInvariant();
 
-        if (normalizedSort is not "latest" and not "hot")
+        if (normalizedSort != "latest")
             return BadRequest(new { message = "排序参数不合法" });
 
         if (normalizedTagOp is not "and" and not "or")
@@ -62,10 +60,6 @@ public class PostsController : ControllerBase
 
         if (from.HasValue && to.HasValue && from.Value > to.Value)
             return BadRequest(new { message = "时间范围不合法" });
-
-        if (minHeat < 0 || maxHeat < 0 ||
-            (minHeat.HasValue && maxHeat.HasValue && minHeat.Value > maxHeat.Value))
-            return BadRequest(new { message = "热度范围不合法" });
 
         var query = _db.Posts
             .Include(p => p.User)
@@ -133,35 +127,13 @@ public class PostsController : ControllerBase
             }
         }
 
-        var requiresHeatFilter = normalizedSort == "hot" || minHeat.HasValue || maxHeat.HasValue;
-        List<Post> posts;
-        int totalCount;
-
-        if (requiresHeatFilter)
-        {
-            var candidates = await query.ToListAsync();
-            await RefreshHeatScoresAsync(candidates);
-            totalCount = candidates.Count(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat));
-
-            posts = candidates
-                .Where(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat))
-                .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
-                .ThenByDescending(p => p.HeatScore)
-                .ThenByDescending(p => p.CreateTime)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-        }
-        else
-        {
-            totalCount = await query.CountAsync();
-            posts = await query
-                .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
-                .ThenByDescending(p => p.CreateTime)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-        }
+        var totalCount = await query.CountAsync();
+        var posts = await query
+            .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
+            .ThenByDescending(p => p.CreateTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
         Response.Headers["X-Total-Count"] = totalCount.ToString();
         return Ok(await MapPostListAsync(posts));
@@ -215,8 +187,7 @@ public class PostsController : ControllerBase
             UpdateTime = DateTime.Now,
             Status = hitWord == null ? "Active" : "PendingReview",
             LikeCount = 0,
-            ViewCount = 0,
-            HeatScore = 0
+            ViewCount = 0
         };
 
         _db.Posts.Add(post);
@@ -435,17 +406,6 @@ public class PostsController : ControllerBase
             .ToList();
     }
 
-    private static bool IsInHeatRange(int heatScore, int? minHeat, int? maxHeat)
-    {
-        if (minHeat.HasValue && heatScore < minHeat.Value)
-            return false;
-
-        if (maxHeat.HasValue && heatScore > maxHeat.Value)
-            return false;
-
-        return true;
-    }
-
     [HttpPost("{id}/like")]
     [Authorize]
     public async Task<ActionResult> Like(int id)
@@ -462,7 +422,6 @@ public class PostsController : ControllerBase
         {
             _db.PostLikes.Add(new PostLike { PostID = id, UserID = userId, CreateTime = DateTime.Now });
             post.LikeCount = (post.LikeCount ?? 0) + 1;
-            post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == id && c.Status != "Deleted"));
             await _db.SaveChangesAsync();
         }
 
@@ -483,7 +442,6 @@ public class PostsController : ControllerBase
         {
             _db.PostLikes.Remove(like);
             post.LikeCount = Math.Max(0, (post.LikeCount ?? 0) - 1);
-            post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == id && c.Status != "Deleted"));
             await _db.SaveChangesAsync();
         }
 
@@ -576,7 +534,6 @@ public class PostsController : ControllerBase
         };
 
         _db.PostComments.Add(comment);
-        post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == postId && c.Status != "Deleted") + 1);
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -672,15 +629,6 @@ public class PostsController : ControllerBase
             return Forbid();
 
         comment.Status = "Deleted";
-        if (comment.Post != null)
-        {
-            var commentCount = await _db.PostComments.CountAsync(c =>
-                c.PostID == comment.PostID &&
-                c.Status != "Deleted" &&
-                c.CommentID != commentId);
-            comment.Post.HeatScore = CalculateHeatScore(comment.Post, commentCount);
-        }
-
         await _db.SaveChangesAsync();
         return Ok(new { message = "评论已删除" });
     }
@@ -749,7 +697,6 @@ public class PostsController : ControllerBase
             PostID = p.PostID,
             Title = p.Title ?? "",
             ContentPreview = BuildPreview(p.Content),
-            HeatScore = p.HeatScore ?? 0,
             LikeCount = p.LikeCount ?? 0,
             ViewCount = p.ViewCount ?? 0,
             CommentCount = commentCounts.TryGetValue(p.PostID, out var count) ? count : 0,
@@ -787,9 +734,6 @@ public class PostsController : ControllerBase
         if (incrementView)
         {
             post.ViewCount = (post.ViewCount ?? 0) + 1;
-            post.HeatScore = CalculateHeatScore(
-                post,
-                await _db.PostComments.CountAsync(c => c.PostID == post.PostID && c.Status != "Deleted"));
             await _db.SaveChangesAsync();
         }
 
@@ -800,7 +744,6 @@ public class PostsController : ControllerBase
             Title = listItem.Title,
             ContentPreview = listItem.ContentPreview,
             Content = post.Content ?? "",
-            HeatScore = listItem.HeatScore,
             LikeCount = listItem.LikeCount,
             ViewCount = listItem.ViewCount,
             CommentCount = listItem.CommentCount,
@@ -816,35 +759,6 @@ public class PostsController : ControllerBase
             IsLiked = listItem.IsLiked,
             IsFavorited = listItem.IsFavorited
         };
-    }
-
-    private async Task RefreshHeatScoresAsync(List<Post> posts)
-    {
-        if (posts.Count == 0)
-            return;
-
-        var postIds = posts.Select(p => p.PostID).ToList();
-        var commentCounts = await _db.PostComments
-            .Where(c => c.PostID.HasValue && postIds.Contains(c.PostID.Value) && c.Status != "Deleted")
-            .GroupBy(c => c.PostID!.Value)
-            .Select(g => new { PostID = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.PostID, x => x.Count);
-
-        var changed = false;
-        foreach (var post in posts)
-        {
-            var nextScore = CalculateHeatScore(
-                post,
-                commentCounts.TryGetValue(post.PostID, out var count) ? count : 0);
-            if (post.HeatScore != nextScore)
-            {
-                post.HeatScore = nextScore;
-                changed = true;
-            }
-        }
-
-        if (changed)
-            await _db.SaveChangesAsync();
     }
 
     private async Task ReplacePostTagsAsync(int postId, IEnumerable<string> tagNames)
@@ -1021,20 +935,6 @@ public class PostsController : ControllerBase
             .Select(value => value!.Trim().ToLowerInvariant())
             .Any(lowerTokens.Contains);
     }
-    private static int CalculateHeatScore(Post post, int commentCount)
-    {
-        var ageHours = Math.Max(0, (DateTime.Now - (post.CreateTime ?? DateTime.Now)).TotalHours);
-        var decay = (int)Math.Floor(ageHours / 24);
-        var bonus = post.Status switch
-        {
-            "Pinned" => 1000,
-            "Elite" => 200,
-            _ => 0
-        };
-
-        return Math.Max(0, (post.ViewCount ?? 0) + (post.LikeCount ?? 0) * 5 + commentCount * 8 + bonus - decay);
-    }
-
     private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId)
     {
         var nodes = comments.ToDictionary(c => c.CommentID, c => new CommentResponse

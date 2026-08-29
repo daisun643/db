@@ -222,7 +222,6 @@ public class Post
     [MaxLength(200)]
     public string? Title { get; set; }
     public string? Content { get; set; }
-    public int? HeatScore { get; set; }
     public int? LikeCount { get; set; }
     public int? ViewCount { get; set; }
     public DateTime? CreateTime { get; set; }
