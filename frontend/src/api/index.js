@@ -69,7 +69,7 @@ export const uploadForumAvatar = (forumId, file) => {
   })
 }
 export const removeForumAvatar = (forumId) => api.delete(`/forums/${forumId}/avatar`)
-export const assignForumManager = (forumId, userID) => api.post(`/forums/${forumId}/managers`, { userID })
+export const assignForumManager = (forumId, userID, role = 'Moderator') => api.post(`/forums/${forumId}/managers`, { userID, role })
 export const removeForumManager = (forumId, userId) => api.delete(`/forums/${forumId}/managers/${userId}`)
 export const joinForum = (forumId) => api.post(`/forums/${forumId}/join`)
 export const leaveForum = (forumId) => api.delete(`/forums/${forumId}/join`)

@@ -186,8 +186,15 @@ const updatePostFavoriteState = (postId, isFavorited) => {
 }
 
 const handleLike = async (post) => {
-  const res = post.isLiked ? await unlikePost(post.postID) : await likePost(post.postID)
-  updatePostLikeState(post.postID, res.data.liked, res.data.likeCount)
+  try {
+    error.value = null
+    const wasLiked = post.isLiked
+    const res = wasLiked ? await unlikePost(post.postID) : await likePost(post.postID)
+    updatePostLikeState(post.postID, res.data.liked, res.data.likeCount)
+    notice.value = wasLiked ? '已取消点赞。' : '点赞成功。'
+  } catch (e) {
+    error.value = (post.isLiked ? '取消点赞' : '点赞') + '失败: ' + (e.response?.data?.message || e.message)
+  }
 }
 
 const handleFavorite = async (post) => {
@@ -196,23 +203,35 @@ const handleFavorite = async (post) => {
     updatePostFavoriteState(post.postID, false)
     await loadFavoriteFolders()
     reloadMountedFeeds()
+    notice.value = '已取消收藏。'
     return
   }
 
   if (favoriteFolders.value.length === 0) {
     await createFavoriteFolder({ folderName: '默认收藏夹' })
     await loadFavoriteFolders()
+    notice.value = '收藏夹创建成功。'
   }
   folderPickerTarget.value = post
   folderPickerOpen.value = true
 }
 
-const selectFolderForFavorite = async (folderId) => {
-  if (!folderPickerTarget.value) return
-  await addPostToFavoriteFolder(folderId, folderPickerTarget.value.postID)
-  updatePostFavoriteState(folderPickerTarget.value.postID, true)
+const handlePickerSaveFolders = async (folderIds) => {
+  if (!folderPickerTarget.value || !folderIds?.length) return
+  const postId = folderPickerTarget.value.postID
+  const results = await Promise.allSettled(
+    folderIds.map(folderId => addPostToFavoriteFolder(folderId, postId)),
+  )
+  const okCount = results.filter(r => r.status === 'fulfilled').length
+  if (okCount === 0) {
+    const firstError = results[0]?.reason
+    error.value = '收藏失败: ' + (firstError?.response?.data?.message || firstError?.message || '未知错误')
+    return
+  }
+  updatePostFavoriteState(postId, true)
   await loadFavoriteFolders()
   closeFolderPicker()
+  notice.value = okCount === 1 ? '收藏成功。' : `已收藏到 ${okCount} 个收藏夹。`
 }
 
 const handlePickerCreateFolder = async () => {
@@ -220,10 +239,12 @@ const handlePickerCreateFolder = async () => {
   const res = await createFavoriteFolder({ folderName: pickerFolderName.value.trim() })
   pickerFolderName.value = ''
   await loadFavoriteFolders()
+  notice.value = '收藏夹创建成功。'
   if (folderPickerTarget.value) {
     await addPostToFavoriteFolder(res.data.folderID, folderPickerTarget.value.postID)
     updatePostFavoriteState(folderPickerTarget.value.postID, true)
     await loadFavoriteFolders()
+    notice.value = '收藏夹创建成功，帖子已收藏。'
   }
   closeFolderPicker()
 }
@@ -297,6 +318,7 @@ const handleCreateReport = async () => {
     })
     reportTarget.value = null
     reportReason.value = ''
+    notice.value = '举报已提交，我们会尽快核实处理。'
   } catch (e) {
     error.value = '举报失败: ' + (e.response?.data?.message || e.message)
   }
@@ -429,7 +451,7 @@ export function useForum() {
     handleFavorite,
     folderPickerOpen,
     pickerFolderName,
-    selectFolderForFavorite,
+    handlePickerSaveFolders,
     handlePickerCreateFolder,
     closeFolderPicker,
 

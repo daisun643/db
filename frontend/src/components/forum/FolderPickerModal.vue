@@ -5,19 +5,28 @@
         <button class="icon-button" @click="$emit('close')" aria-label="关闭收藏夹选择">
           <span>×</span>
         </button>
-        <span class="muted">选择收藏夹</span>
+        <span class="muted">选择收藏夹（可多选）</span>
       </div>
       <ul class="folder-pick-list">
         <li
           v-for="folder in folders"
           :key="folder.folderID"
           class="folder-pick-item"
+          :class="{ checked: selectedIds.includes(folder.folderID) }"
           role="button"
           tabindex="0"
-          @click="$emit('select', folder.folderID)"
-          @keydown.enter="$emit('select', folder.folderID)"
+          @click="toggle(folder.folderID)"
+          @keydown.enter="toggle(folder.folderID)"
         >
-          <span>{{ folder.folderName }}</span>
+          <input
+            type="checkbox"
+            class="folder-pick-checkbox"
+            :checked="selectedIds.includes(folder.folderID)"
+            tabindex="-1"
+            @click.stop
+            @change="toggle(folder.folderID)"
+          />
+          <span class="folder-pick-name">{{ folder.folderName }}</span>
           <span class="folder-post-count">{{ folder.postCount || 0 }}</span>
         </li>
         <li v-if="folders.length === 0" class="folder-pick-empty">
@@ -34,18 +43,41 @@
         />
         <button class="btn btn-primary" type="submit">创建并收藏</button>
       </form>
+      <div class="folder-picker-footer">
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="selectedIds.length === 0"
+          @click="$emit('save', selectedIds)"
+        >保存（已选 {{ selectedIds.length }} 个）</button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { ref, watch } from 'vue'
+
+const props = defineProps({
   open: { type: Boolean, required: true },
   folders: { type: Array, default: () => [] },
   pickerFolderName: { type: String, default: '' },
 })
 
-defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
+defineEmits(['close', 'save', 'create', 'update:pickerFolderName'])
+
+const selectedIds = ref([])
+
+const toggle = (folderId) => {
+  selectedIds.value = selectedIds.value.includes(folderId)
+    ? selectedIds.value.filter(id => id !== folderId)
+    : [...selectedIds.value, folderId]
+}
+
+// 每次打开时重置勾选状态，避免残留上一次的选择
+watch(() => props.open, (opened) => {
+  if (opened) selectedIds.value = []
+})
 </script>
 
 <style scoped>
@@ -130,9 +162,28 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
+  gap: 0.625rem;
   padding: 0.875rem 1rem;
   transition: background 0.15s;
+}
+
+.folder-pick-item.checked {
+  background: rgba(29, 155, 240, 0.06);
+}
+
+.folder-pick-checkbox {
+  cursor: pointer;
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+
+.folder-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folder-pick-item:last-child {
@@ -176,6 +227,18 @@ defineEmits(['close', 'select', 'create', 'update:pickerFolderName'])
   border-color: var(--primary);
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.folder-picker-footer {
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+}
+
+.folder-picker-footer .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .btn {

@@ -52,7 +52,14 @@
           @click.stop="openAuthorHome"
           @keydown.enter.stop="openAuthorHome"
         >
-          <span class="author-avatar">{{ authorInitial }}</span>
+          <img
+            v-if="authorAvatarUrl"
+            :src="authorAvatarUrl"
+            :alt="post.username || '校园用户'"
+            class="author-avatar author-avatar-img"
+            @error="markAvatarFailed(post.avatarUrl)"
+          />
+          <span v-else class="author-avatar">{{ authorInitial }}</span>
           <span class="author-name">{{ post.username || '校园用户' }}</span>
         </div>
         <div class="row-actions">
@@ -127,6 +134,11 @@ const forumAvatarUrl = computed(() => {
 const forumAvatarInitial = computed(() =>
   (props.post.forumName || '版')[0]?.toUpperCase() || '版'
 )
+
+const authorAvatarUrl = computed(() => {
+  const url = props.post.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
 
 const openAuthorHome = () => {
   if (props.post.userID) {
@@ -294,6 +306,12 @@ const formattedDate = computed(() => {
   background: #2f7ee0;
   font-size: .66rem;
   font-weight: 750;
+}
+
+.author-avatar-img {
+  border-radius: 50%;
+  background: #f2f3f5;
+  object-fit: cover;
 }
 
 .author-name {

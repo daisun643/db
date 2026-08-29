@@ -39,10 +39,11 @@ class ForumAPI(BaseAPIClient):
     def delete_forum(self, forum_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}")
 
-    def assign_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
-        return self.post(f"{self.PREFIX}/forums/{forum_id}/managers", json={
-            "userID": user_id,
-        })
+    def assign_forum_manager(self, forum_id: int, user_id: int, role: str | None = None) -> requests.Response:
+        payload: dict = {"userID": user_id}
+        if role is not None:
+            payload["role"] = role
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/managers", json=payload)
 
     def remove_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}/managers/{user_id}")

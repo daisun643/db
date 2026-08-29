@@ -77,7 +77,7 @@ import {
   updateFavoriteFolder,
 } from '../../api'
 
-const { error, favoriteFolders, loadFavoriteFolders, handleLike, registerFeed } = useForum()
+const { error, notice, favoriteFolders, loadFavoriteFolders, handleLike, registerFeed } = useForum()
 
 const router = useRouter()
 const goPostDetail = (post) => router.push(`/forums/post/${post.postID}`)
@@ -117,6 +117,7 @@ const handleCreateFolder = async () => {
   await loadFavoriteFolders()
   selectedFolderId.value = res.data.folderID
   await loadFavoritePosts()
+  notice.value = '收藏夹创建成功。'
 }
 
 const startRename = (folder) => {

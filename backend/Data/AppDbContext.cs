@@ -265,6 +265,7 @@ public class AppDbContext : DbContext
             e.HasKey(x => new { x.ForumID, x.UserID });
             e.Property(x => x.ForumID).HasColumnName("forumId");
             e.Property(x => x.UserID).HasColumnName("userId");
+            e.Property(x => x.Role).HasColumnName("role");
         });
 
         modelBuilder.Entity<ForumMember>(e =>

@@ -12,6 +12,7 @@ public class ForumSummaryResponse
     public DateTime? CreateTime { get; set; }
     public int PostCount { get; set; }
     public bool CanManage { get; set; }
+    public bool CanAssignManagers { get; set; }
     public int MemberCount { get; set; }
     public bool IsJoined { get; set; }
     public ForumCreatorResponse? Creator { get; set; }
@@ -37,6 +38,9 @@ public class AssignForumManagerRequest
 {
     [Required]
     public int UserID { get; set; }
+
+    // Moderator=版主，Admin=管理员；缺省为版主（兼容旧调用）
+    public string Role { get; set; } = "Moderator";
 }
 
 public class ForumManagerResponse
@@ -44,6 +48,7 @@ public class ForumManagerResponse
     public int UserID { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = "Moderator";
 }
 
 public class ForumCreatorResponse
@@ -66,6 +71,7 @@ public class PostListItemResponse
     public DateTime? UpdateTime { get; set; }
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public int? ForumID { get; set; }
     public string ForumName { get; set; } = string.Empty;
     public List<string> ImageUrls { get; set; } = new();

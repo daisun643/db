@@ -79,7 +79,9 @@ public class PostsController : ControllerBase
             if (normalizedStatus == null)
                 return BadRequest(new { message = "帖子状态不合法" });
 
-            if (!IsPublicPostStatus(normalizedStatus) && !CanViewModerationStatus())
+            // 版块管理人员（版主/管理员/创建者）可在自己版块内按审核状态筛选帖子
+            if (!IsPublicPostStatus(normalizedStatus) && !CanViewModerationStatus() &&
+                !await CanModerateForumPostsAsync(forumId))
                 return Forbid();
 
             query = query.Where(p => p.Status == normalizedStatus);
@@ -238,7 +240,8 @@ public class PostsController : ControllerBase
         var canDelete = User.IsInRole("Admin") ||
             User.IsInRole("Moderator") ||
             HasPermission("posts.delete") ||
-            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0;
+            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId);
 
         if (post.UserID != userId && !canDelete)
             return Forbid();
@@ -265,6 +268,7 @@ public class PostsController : ControllerBase
         var canModerate = User.IsInRole("Admin") ||
             User.IsInRole("Moderator") ||
             await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId) ||
             CanRunPostStatusAction(action);
 
         var ownerAction = post.UserID == userId && action is "delete" or "restore";
@@ -319,6 +323,36 @@ public class PostsController : ControllerBase
              HasPermission("posts.edit"));
     }
 
+    /// <summary>
+    /// 版块创建者是默认版主，对该版块帖子拥有与版主一致的管理权限。
+    /// </summary>
+    private async Task<bool> IsForumCreatorAsync(int? forumId, int userId)
+    {
+        if (!forumId.HasValue)
+            return false;
+
+        return await _db.Forums.CountAsync(f =>
+            f.ForumID == forumId.Value && f.CreatorID == userId) > 0;
+    }
+
+    /// <summary>
+    /// 当前用户是否是指定版块的管理人员（版主/管理员/创建者），
+    /// 用于允许版块管理人员按待审核、已封禁等状态筛选本版块帖子。
+    /// </summary>
+    private async Task<bool> CanModerateForumPostsAsync(int? forumId)
+    {
+        if (!forumId.HasValue)
+            return false;
+
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+            return false;
+
+        return await _db.ForumManagers.CountAsync(fm =>
+                fm.ForumID == forumId.Value && fm.UserID == userId.Value) > 0 ||
+            await IsForumCreatorAsync(forumId.Value, userId.Value);
+    }
+
     private async Task<bool> CanViewRestrictedPostAsync(Post post)
     {
         var userId = TryGetCurrentUserId();
@@ -327,7 +361,8 @@ public class PostsController : ControllerBase
 
         return post.UserID == userId.Value ||
             CanViewModerationStatus() ||
-            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId.Value) > 0;
+            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId.Value) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId.Value);
     }
 
     private static bool IsPublicPostStatus(string? status)
@@ -658,6 +693,20 @@ public class PostsController : ControllerBase
                 g => g.Key,
                 g => g.Select(x => x.Media?.Url).Where(HasUrl).Select(url => url!).ToList());
 
+        var authorIds = postList
+            .Where(p => p.UserID.HasValue)
+            .Select(p => p.UserID!.Value)
+            .Distinct()
+            .ToList();
+        var avatarByUser = new Dictionary<int, string>();
+        if (authorIds.Count > 0)
+        {
+            avatarByUser = await _db.UserAvatars
+                .Include(x => x.Media)
+                .Where(x => authorIds.Contains(x.UserID) && x.Media != null && x.Media.Url != null && x.Media.Url != "")
+                .ToDictionaryAsync(x => x.UserID, x => x.Media!.Url!);
+        }
+
         return postList.Select(p => new PostListItemResponse
         {
             PostID = p.PostID,
@@ -671,6 +720,7 @@ public class PostsController : ControllerBase
             UpdateTime = p.UpdateTime,
             UserID = p.UserID,
             Username = p.User?.Username ?? "",
+            AvatarUrl = p.UserID.HasValue && avatarByUser.TryGetValue(p.UserID.Value, out var authorAvatar) ? authorAvatar : "",
             ForumID = p.ForumID,
             ForumName = p.Forum?.ForumName ?? "",
             ImageUrls = ResolveImageUrls(mediaByPost, p),
@@ -714,6 +764,7 @@ public class PostsController : ControllerBase
             UpdateTime = listItem.UpdateTime,
             UserID = listItem.UserID,
             Username = listItem.Username,
+            AvatarUrl = listItem.AvatarUrl,
             ForumID = listItem.ForumID,
             ForumName = listItem.ForumName,
             ImageUrls = listItem.ImageUrls,

@@ -179,23 +179,29 @@ SELECT '罗技 G502 鼠标', '罗技 G502 Hero 游戏鼠标，有线版。使用
 FROM "User" WHERE "email" = '3@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '罗技 G502 鼠标');
 
 -- ============================================================
--- 8. 论坛管理员
+-- 8. 论坛管理员（role：Moderator=版主，Admin=管理员）
 -- ============================================================
 
-INSERT INTO "ForumManager" ("forumId", "userId")
-SELECT f."forumId", u."userId" FROM "Forum" f, "User" u
+INSERT INTO "ForumManager" ("forumId", "userId", "role")
+SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
 WHERE f."forumName" = '校园生活' AND u."email" = '3@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
 
-INSERT INTO "ForumManager" ("forumId", "userId")
-SELECT f."forumId", u."userId" FROM "Forum" f, "User" u
+INSERT INTO "ForumManager" ("forumId", "userId", "role")
+SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
 WHERE f."forumName" = '技术讨论' AND u."email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
 
-INSERT INTO "ForumManager" ("forumId", "userId")
-SELECT f."forumId", u."userId" FROM "Forum" f, "User" u
+INSERT INTO "ForumManager" ("forumId", "userId", "role")
+SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
 WHERE f."forumName" = '二手交易' AND u."email" = '2@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
+
+-- 版块必须有版主：创建者默认成为版主（与后端创建版块逻辑保持一致）
+INSERT INTO "ForumManager" ("forumId", "userId", "role")
+SELECT f."forumId", f."creatorId", 'Moderator' FROM "Forum" f
+WHERE f."creatorId" IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = f."creatorId");
 
 -- ============================================================
 -- 9. 演示用通知关联数据

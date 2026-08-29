@@ -54,4 +54,22 @@ if [[ "$WAIT" == true ]]; then
   up_args+=(--wait)
 fi
 docker compose "${up_args[@]}"
+
+# 重置数据后，数据库种子脚本会由 Oracle 容器自动执行（含 07_seed_user_avatars.sql），
+# 但 MinIO 中的头像图片随数据卷被删除，需重新导入，否则 /uploads/avatars/* 返回 404。
+if [[ "$RESET_DATA" == true ]]; then
+  echo "==> 等待 MinIO 和 Oracle 就绪后重新导入用户头像..."
+  for i in $(seq 1 120); do
+    minio_ok=false
+    oracle_ok=false
+    docker exec minio sh -c 'MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 mc ready local --quiet' >/dev/null 2>&1 && minio_ok=true
+    [[ "$(docker inspect -f '{{.State.Health.Status}}' oracle-db 2>/dev/null)" == "healthy" ]] && oracle_ok=true
+    if [[ "$minio_ok" == true && "$oracle_ok" == true ]]; then
+      break
+    fi
+    sleep 3
+  done
+  "$PROJECT_ROOT/scripts/import_user_avatars.sh"
+fi
+
 docker compose ps

@@ -23,6 +23,12 @@ for i in 1 2 3 4; do
     fi
     docker cp "$file" "$MINIO_CONTAINER:/tmp/user-avatar-$i.png"
 done
+
+# 重置数据卷后 MinIO 是全新实例，后端建桶可能尚未完成，这里幂等地确保桶存在
+echo "==> 确保 forum-media 存储桶存在"
+docker exec "$MINIO_CONTAINER" sh -c "
+    MC_HOST_local=$MINIO_ENDPOINT mc mb --ignore-existing local/forum-media"
+
 docker exec "$MINIO_CONTAINER" sh -c "
     MC_HOST_local=$MINIO_ENDPOINT mc cp /tmp/user-avatar-1.png /tmp/user-avatar-2.png /tmp/user-avatar-3.png /tmp/user-avatar-4.png $MINIO_BUCKET/ \
     && rm /tmp/user-avatar-*.png"

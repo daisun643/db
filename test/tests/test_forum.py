@@ -101,14 +101,26 @@ class TestForumCRUD:
             assert resp.json()["postCount"] == 0
             assert resp.headers["Location"].endswith(f"/api/Forums/{forum_id}")
 
+            # 创建版块时创建者自动成为版主，且版块一定有版主
+            creator = resp.json()["creator"]
+            creator_manager = next(
+                m for m in resp.json()["managers"] if m["userID"] == creator["userID"]
+            )
+            assert creator_manager["role"] == "Moderator"
+            assert resp.json()["canManage"] is True
+            assert resp.json()["canAssignManagers"] is True
+
             detail = forum_client.get_forum(forum_id)
             assert detail.status_code == 200
             assert detail.json()["forumName"] == forum_name
             assert forum_id in {forum["forumID"] for forum in forum_client.get_forums().json()}
+            assert forum_id in {forum["forumID"] for forum in forum_client.get_my_forums().json()}
 
-            assert forum_client.update_forum(forum_id, "不允许修改", "越权").status_code == 403
+            # 创建者即默认版主：可以维护自己的版块，但不能删除版块（仅站点管理员可删）
+            updated = forum_client.update_forum(forum_id, forum_name, "创建者维护")
+            assert updated.status_code == 200
             assert forum_client.delete_forum(forum_id).status_code == 403
-            assert forum_client.assign_forum_manager(forum_id, 4).status_code == 403
+            assert forum_client.assign_forum_manager(forum_id, 3).status_code == 200
         finally:
             assert admin_forum_client.delete_forum(forum_id).status_code == 200
 
@@ -480,6 +492,78 @@ class TestForumManagers:
         try:
             resp = admin_forum_client.remove_forum_manager(forum_id, 4)
             assert resp.status_code == 404
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_creator_cannot_be_removed_as_manager(
+            self, forum_client, admin_forum_client):
+        forum_name = f"创建者保护-{uuid4().hex[:8]}"
+        create_resp = forum_client.create_forum(forum_name, "创建者是默认版主")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            # 站点管理员也不能移除创建者，保证版块始终有版主
+            resp = admin_forum_client.remove_forum_manager(forum_id, 4)
+            assert resp.status_code == 400
+            assert "创建者" in resp.json()["message"]
+
+            forum = admin_forum_client.get_forum(forum_id).json()
+            assert 4 in [m["userID"] for m in forum["managers"]]
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_moderator_can_assign_admin_role(
+            self, forum_client, admin_forum_client):
+        forum_name = f"版主指派管理员-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "版主可增加管理员")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            # 用户4被指派为版主（缺省角色），版主可再指派管理员角色
+            assert admin_forum_client.assign_forum_manager(forum_id, 4).status_code == 200
+
+            assign_resp = forum_client.assign_forum_manager(forum_id, 3, role="Admin")
+            assert assign_resp.status_code == 200
+            assert assign_resp.json()["message"] == "管理员已指派"
+            managers = admin_forum_client.get_forum(forum_id).json()["managers"]
+            admin_entry = next(m for m in managers if m["userID"] == 3)
+            assert admin_entry["role"] == "Admin"
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_admin_role_manager_cannot_assign_managers(
+            self, forum_client, admin_forum_client):
+        forum_name = f"管理员越权-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "管理员只能管理帖子")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert admin_forum_client.assign_forum_manager(
+                forum_id, 4, role="Admin").status_code == 200
+
+            # 管理员角色可以维护版块设置，但不能指派/移除管理人员
+            assert forum_client.update_forum(
+                forum_id, forum_name, "管理员维护").status_code == 200
+            assert forum_client.assign_forum_manager(forum_id, 3).status_code == 403
+            assert forum_client.assign_forum_manager(
+                forum_id, 3, role="Admin").status_code == 403
+            assert forum_client.remove_forum_manager(forum_id, 4).status_code == 403
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_assign_manager_rejects_invalid_role(self, admin_forum_client):
+        forum_name = f"角色校验-{uuid4().hex[:8]}"
+        create_resp = admin_forum_client.create_forum(forum_name, "校验角色")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            resp = admin_forum_client.assign_forum_manager(forum_id, 4, role="Owner")
+            assert resp.status_code == 400
+            assert resp.json()["message"] == "管理人员角色不合法"
         finally:
             admin_forum_client.delete_forum(forum_id)
 

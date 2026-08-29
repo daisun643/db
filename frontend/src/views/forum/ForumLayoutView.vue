@@ -59,7 +59,7 @@
       :folders="favoriteFolders"
       v-model:pickerFolderName="pickerFolderName"
       @close="closeFolderPicker"
-      @select="selectFolderForFavorite"
+      @save="handlePickerSaveFolders"
       @create="handlePickerCreateFolder"
     />
   </div>
@@ -93,7 +93,7 @@ const {
   handlePostCreated,
   folderPickerOpen,
   pickerFolderName,
-  selectFolderForFavorite,
+  handlePickerSaveFolders,
   handlePickerCreateFolder,
   closeFolderPicker,
   editingPost,

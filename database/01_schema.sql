@@ -264,9 +264,11 @@ CREATE TABLE "PostMedia" (
 CREATE TABLE "ForumManager" (
     "forumId" NUMBER NOT NULL,
     "userId"  NUMBER NOT NULL,
+    "role"    VARCHAR2(20) DEFAULT 'Moderator' NOT NULL,
     CONSTRAINT "PK_ForumManager" PRIMARY KEY ("forumId", "userId"),
     CONSTRAINT "FK_ForumMgr_Forum" FOREIGN KEY ("forumId") REFERENCES "Forum"("forumId"),
-    CONSTRAINT "FK_ForumMgr_User"  FOREIGN KEY ("userId")  REFERENCES "User"("userId")
+    CONSTRAINT "FK_ForumMgr_User"  FOREIGN KEY ("userId")  REFERENCES "User"("userId"),
+    CONSTRAINT "CK_ForumMgr_Role" CHECK ("role" IN ('Moderator', 'Admin'))
 );
 
 CREATE TABLE "ForumMember" (

@@ -320,6 +320,10 @@ public class ForumManager
     public int UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
+
+    // Moderator=版主，Admin=管理员
+    [MaxLength(20)]
+    public string? Role { get; set; }
 }
 
 [Table("ForumMember")]

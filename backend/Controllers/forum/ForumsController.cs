@@ -15,6 +15,8 @@ namespace Backend.Controllers;
 public class ForumsController : ControllerBase
 {
     private const long MaxAvatarBytes = 2 * 1024 * 1024;
+    private const string ManagerRoleModerator = "Moderator"; // 版主
+    private const string ManagerRoleAdmin = "Admin"; // 管理员
 
     private readonly AppDbContext _db;
     private readonly INotificationService _notificationService;
@@ -42,13 +44,14 @@ public class ForumsController : ControllerBase
             .ThenInclude(a => a!.Media)
             .AsQueryable();
 
-        // 普通用户仅查看开放版块；已指派的版主可以额外看到自己负责的未开放版块。
+        // 普通用户仅查看开放版块；已指派的管理人员和版块创建者可以额外看到自己负责的未开放版块。
         if (!canSeeAll)
         {
             if (currentUserId.HasValue)
             {
                 var userId = currentUserId.Value;
                 query = query.Where(f => f.Status == "Active" ||
+                    f.CreatorID == userId ||
                     f.ForumManagers.Any(fm => fm.UserID == userId));
             }
             else
@@ -100,7 +103,8 @@ public class ForumsController : ControllerBase
 
         query = User.IsInRole("Admin")
             ? query
-            : query.Where(f => f.ForumManagers.Any(fm => fm.UserID == userId.Value));
+            : query.Where(f => f.CreatorID == userId.Value ||
+                f.ForumManagers.Any(fm => fm.UserID == userId.Value));
 
         var forums = await query.OrderBy(f => f.ForumName).ToListAsync();
         return Ok(await MapForumsAsync(forums));
@@ -135,8 +139,28 @@ public class ForumsController : ControllerBase
         _db.Forums.Add(forum);
         await _db.SaveChangesAsync();
 
+        // 版块必须有版主：创建者默认成为版主
+        if (userId > 0)
+        {
+            _db.ForumManagers.Add(new ForumManager
+            {
+                ForumID = forum.ForumID,
+                UserID = userId,
+                Role = ManagerRoleModerator
+            });
+            await _db.SaveChangesAsync();
+        }
+
+        var created = await _db.Forums
+            .Include(f => f.ForumManagers)
+            .ThenInclude(fm => fm.User)
+            .Include(f => f.Creator)
+            .Include(f => f.AvatarMedia)
+            .ThenInclude(a => a!.Media)
+            .SingleAsync(f => f.ForumID == forum.ForumID);
+
         return CreatedAtAction(nameof(GetById), new { id = forum.ForumID },
-            (await MapForumsAsync(new[] { forum })).Single());
+            (await MapForumsAsync(new[] { created })).Single());
     }
 
     /// <summary>
@@ -274,11 +298,16 @@ public class ForumsController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        var role = NormalizeManagerRole(request.Role);
+        if (role is null)
+            return BadRequest(new { message = "管理人员角色不合法" });
+
         var forumExists = (await _db.Forums.CountAsync(f => f.ForumID == id)) > 0;
         if (!forumExists)
             return NotFound(new { message = "论坛不存在" });
 
-        if (!await CanManageForumAsync(id))
+        // 仅站点管理员或该版块的版主可以指派管理人员（版主额外拥有增加管理员的能力）
+        if (!await CanAssignManagersAsync(id))
             return Forbid();
 
         var userExists = (await _db.Users.CountAsync(u => u.UserID == request.UserID && u.Status == "Active")) > 0;
@@ -288,34 +317,40 @@ public class ForumsController : ControllerBase
         var exists = (await _db.ForumManagers.CountAsync(fm => fm.ForumID == id && fm.UserID == request.UserID)) > 0;
         if (!exists)
         {
-            _db.ForumManagers.Add(new ForumManager { ForumID = id, UserID = request.UserID });
+            _db.ForumManagers.Add(new ForumManager { ForumID = id, UserID = request.UserID, Role = role });
             await _db.SaveChangesAsync();
         }
 
-        await CreateNotificationAsync(request.UserID, "版主权限已分配", $"你已成为论坛 #{id} 的版主", id, "assigned");
+        var roleName = role == ManagerRoleModerator ? "版主" : "管理员";
+        await CreateNotificationAsync(request.UserID, $"{roleName}权限已分配", $"你已成为论坛 #{id} 的{roleName}", id, "assigned");
         await _db.SaveChangesAsync();
-        return Ok(new { message = exists ? "该用户已经是版主" : "版主已指派" });
+        return Ok(new { message = exists ? $"该用户已经是{roleName}" : $"{roleName}已指派" });
     }
 
     [HttpDelete("{id}/managers/{userId}")]
     [Authorize]
     public async Task<ActionResult> RemoveManager(int id, int userId)
     {
-        var forumExists = (await _db.Forums.CountAsync(f => f.ForumID == id)) > 0;
-        if (!forumExists)
+        var forum = await _db.Forums.FirstOrDefaultAsync(f => f.ForumID == id);
+        if (forum is null)
             return NotFound(new { message = "论坛不存在" });
 
-        if (!await CanManageForumAsync(id))
+        if (!await CanAssignManagersAsync(id))
             return Forbid();
+
+        // 版块必须有版主：创建者是默认版主，不可被移除
+        if (forum.CreatorID == userId)
+            return BadRequest(new { message = "版块创建者是默认版主，不能移除" });
 
         var manager = await _db.ForumManagers.FirstOrDefaultAsync(fm => fm.ForumID == id && fm.UserID == userId);
         if (manager is null)
             return NotFound();
 
+        var roleName = manager.Role == ManagerRoleAdmin ? "管理员" : "版主";
         _db.ForumManagers.Remove(manager);
-        await CreateNotificationAsync(userId, "版主权限已移除", $"你不再是论坛 #{id} 的版主", id, "removed");
+        await CreateNotificationAsync(userId, $"{roleName}权限已移除", $"你不再是论坛 #{id} 的{roleName}", id, "removed");
         await _db.SaveChangesAsync();
-        return Ok(new { message = "版主已移除" });
+        return Ok(new { message = $"{roleName}已移除" });
     }
 
     [HttpPost("{id}/join")]
@@ -374,8 +409,12 @@ public class ForumsController : ControllerBase
             return true;
 
         var userId = TryGetCurrentUserId();
-        return userId.HasValue && (await _db.ForumManagers.CountAsync(fm =>
-            fm.ForumID == forum.ForumID && fm.UserID == userId.Value)) > 0;
+        if (!userId.HasValue)
+            return false;
+
+        return forum.CreatorID == userId.Value ||
+            (await _db.ForumManagers.CountAsync(fm =>
+                fm.ForumID == forum.ForumID && fm.UserID == userId.Value)) > 0;
     }
 
     private async Task<bool> CanManageForumAsync(int forumId)
@@ -384,8 +423,41 @@ public class ForumsController : ControllerBase
             return true;
 
         var userId = TryGetCurrentUserId();
-        return userId.HasValue && await _db.ForumManagers.CountAsync(fm =>
-            fm.ForumID == forumId && fm.UserID == userId.Value) > 0;
+        if (!userId.HasValue)
+            return false;
+
+        // 创建者是默认版主，同样拥有版块管理权限
+        return (await _db.Forums.CountAsync(f => f.ForumID == forumId && f.CreatorID == userId.Value)) > 0 ||
+            (await _db.ForumManagers.CountAsync(fm =>
+                fm.ForumID == forumId && fm.UserID == userId.Value)) > 0;
+    }
+
+    /// <summary>
+    /// 指派/移除管理人员的权限：站点管理员、版块创建者或该版块的版主。
+    /// 管理员（Admin 角色）只能管理帖子，不能指派管理人员。
+    /// </summary>
+    private async Task<bool> CanAssignManagersAsync(int forumId)
+    {
+        if (User.IsInRole("Admin"))
+            return true;
+
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+            return false;
+
+        return (await _db.Forums.CountAsync(f => f.ForumID == forumId && f.CreatorID == userId.Value)) > 0 ||
+            (await _db.ForumManagers.CountAsync(fm =>
+                fm.ForumID == forumId && fm.UserID == userId.Value && fm.Role == ManagerRoleModerator)) > 0;
+    }
+
+    private static string? NormalizeManagerRole(string? role)
+    {
+        return (role ?? "").Trim().ToLowerInvariant() switch
+        {
+            "" or "moderator" => ManagerRoleModerator,
+            "admin" => ManagerRoleAdmin,
+            _ => null
+        };
     }
 
     private async Task<List<ForumSummaryResponse>> MapForumsAsync(IEnumerable<Forum> forums)
@@ -426,7 +498,11 @@ public class ForumsController : ControllerBase
             CreateTime = forum.CreateTime,
             PostCount = postCounts.TryGetValue(forum.ForumID, out var count) ? count : 0,
             CanManage = isAdmin || (currentUserId.HasValue &&
-                forum.ForumManagers.Any(fm => fm.UserID == currentUserId.Value)),
+                (forum.CreatorID == currentUserId.Value ||
+                 forum.ForumManagers.Any(fm => fm.UserID == currentUserId.Value))),
+            CanAssignManagers = isAdmin || (currentUserId.HasValue &&
+                (forum.CreatorID == currentUserId.Value ||
+                 forum.ForumManagers.Any(fm => fm.UserID == currentUserId.Value && fm.Role == ManagerRoleModerator))),
             MemberCount = memberCounts.TryGetValue(forum.ForumID, out var memberCount) ? memberCount : 0,
             IsJoined = joinedForumIds.Contains(forum.ForumID),
             Creator = forum.Creator is null ? null : new ForumCreatorResponse
@@ -437,11 +513,13 @@ public class ForumsController : ControllerBase
             },
             Managers = forum.ForumManagers
                 .Where(fm => fm.User is not null)
+                .OrderBy(fm => fm.Role == ManagerRoleAdmin ? 1 : 0)
                 .Select(fm => new ForumManagerResponse
                 {
                     UserID = fm.UserID,
                     Username = fm.User!.Username ?? "",
-                    Email = fm.User.Email ?? ""
+                    Email = fm.User.Email ?? "",
+                    Role = fm.Role == ManagerRoleAdmin ? ManagerRoleAdmin : ManagerRoleModerator
                 })
                 .ToList()
         }).ToList();
