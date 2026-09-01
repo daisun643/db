@@ -456,6 +456,25 @@ class TestForumManagers:
         finally:
             admin_forum_client.delete_forum(forum_id)
 
+    def test_removed_manager_forums_leave_my_forums(
+            self, forum_client, admin_forum_client):
+        """站点管理员被移除后，“我管理的版块”不应再显示该版块。"""
+        create_resp = forum_client.create_forum(
+            f"移除验证-{uuid4().hex[:8]}", "站点管理员移除验证")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+
+        try:
+            assert forum_client.assign_forum_manager(forum_id, 1, "Admin").status_code == 200
+            mine = {f["forumID"] for f in admin_forum_client.get_my_forums().json()}
+            assert forum_id in mine
+
+            assert forum_client.remove_forum_manager(forum_id, 1).status_code == 200
+            mine = {f["forumID"] for f in admin_forum_client.get_my_forums().json()}
+            assert forum_id not in mine
+        finally:
+            forum_client.delete_forum(forum_id)
+
     def test_assigned_manager_can_view_inactive_forum(
             self, forum_client, admin_forum_client):
         forum_name = f"版主可见版块-{uuid4().hex[:8]}"
@@ -1346,6 +1365,39 @@ class TestForumAvatar:
                 f for f in forum_client.get_forums().json() if f["forumID"] == forum_id
             )
             assert listed["avatarUrl"] == avatar_url
+        finally:
+            forum_client.delete_forum_avatar(forum_id)
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_creator_can_replace_forum_avatar(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            first = forum_client.upload_forum_avatar(forum_id, "first.png", TINY_PNG)
+            assert first.status_code == 200
+
+            # 更换头像：二次上传应成功并替换旧头像（回归：曾因外键冲突返回 500）
+            second = forum_client.upload_forum_avatar(forum_id, "second.png", TINY_PNG)
+            assert second.status_code == 200
+            new_url = second.json()["avatarUrl"]
+            assert new_url != first.json()["avatarUrl"]
+            assert forum_client.get_forum(forum_id).json()["avatarUrl"] == new_url
+        finally:
+            forum_client.delete_forum_avatar(forum_id)
+            admin_forum_client.delete_forum(forum_id)
+
+    def test_avatar_survives_forum_update(self, forum_client, admin_forum_client):
+        forum_id = self._create_forum(forum_client)
+        try:
+            upload = forum_client.upload_forum_avatar(forum_id, "forum-avatar.png", TINY_PNG)
+            assert upload.status_code == 200
+            avatar_url = upload.json()["avatarUrl"]
+
+            # 保存设置后头像不应丢失（回归：PUT 返回曾丢失 avatarUrl 导致前端渲染错误）
+            update = forum_client.update_forum(
+                forum_id, f"头像测试-{uuid4().hex[:8]}", "版块头像测试", "Active")
+            assert update.status_code == 200
+            assert update.json()["avatarUrl"] == avatar_url
+            assert forum_client.get_forum(forum_id).json()["avatarUrl"] == avatar_url
         finally:
             forum_client.delete_forum_avatar(forum_id)
             admin_forum_client.delete_forum(forum_id)

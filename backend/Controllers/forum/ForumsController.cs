@@ -101,10 +101,11 @@ public class ForumsController : ControllerBase
             .ThenInclude(a => a!.Media)
             .AsQueryable();
 
-        query = User.IsInRole("Admin")
-            ? query
-            : query.Where(f => f.CreatorID == userId.Value ||
-                f.ForumManagers.Any(fm => fm.UserID == userId.Value));
+        // 我管理的版块：仅返回创建者或被指派管理人员负责的版块。
+        // 站点管理员也不例外：否则从未指派/已被移除的版块也会出现在“我管理的版块”中；
+        // 管理全部版块请使用系统管理面板。
+        query = query.Where(f => f.CreatorID == userId.Value ||
+            f.ForumManagers.Any(fm => fm.UserID == userId.Value));
 
         var forums = await query.OrderBy(f => f.ForumName).ToListAsync();
         return Ok(await MapForumsAsync(forums));
@@ -238,6 +239,8 @@ public class ForumsController : ControllerBase
             .Include(f => f.ForumManagers)
             .ThenInclude(fm => fm.User)
             .Include(f => f.Creator)
+            .Include(f => f.AvatarMedia)
+            .ThenInclude(a => a!.Media)
             .FirstOrDefaultAsync(f => f.ForumID == id);
         if (forum is null)
             return NotFound();
@@ -536,6 +539,9 @@ public class ForumsController : ControllerBase
             return;
 
         await RemoveForumAvatarAsync(forumId);
+        // 旧头像先删除并落库，再插入新记录：同一次 SaveChanges 混合删除与插入时，
+        // Oracle EF Core 生成的批次会先删 MediaFile、后删 ForumAvatar，触发 ORA-02292 外键冲突。
+        await _db.SaveChangesAsync();
 
         var media = new MediaFile
         {
