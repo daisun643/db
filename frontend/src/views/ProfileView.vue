@@ -47,10 +47,6 @@
             <span>信用分</span>
             <strong>{{ profile.credit ?? 0 }}</strong>
           </div>
-          <div class="overview-stat">
-            <span>等级积分</span>
-            <strong>Lv.{{ profile.userLevel || 1 }}</strong>
-          </div>
         </div>
       </section>
 

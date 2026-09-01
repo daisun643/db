@@ -83,8 +83,6 @@ public class UserInfo
     public string Bio { get; set; } = string.Empty;
     public int Credit { get; set; }
     public string Status { get; set; } = string.Empty;
-    public int UserLevel { get; set; }
-    public int TotalCredit { get; set; }
     public List<string> Roles { get; set; } = new();
     public List<string> Permissions { get; set; } = new();
 }

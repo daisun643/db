@@ -10,22 +10,11 @@ public class AddCreditRequest
     public string Reason { get; set; } = string.Empty;
 }
 
-public class UserLevelResponse
-{
-    public int UserId { get; set; }
-    public int CurrentLevel { get; set; }
-    public int TotalCredit { get; set; }
-    public int NextLevelRequirement { get; set; }
-    public int CreditToNextLevel { get; set; }
-}
-
 public class UserCreditResponse
 {
     public int UserId { get; set; }
     public string? Username { get; set; }
     public string? Email { get; set; }
-    public int UserLevel { get; set; }
-    public int TotalCredit { get; set; }
     public int Credit { get; set; }
 }
 

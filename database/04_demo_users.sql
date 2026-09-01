@@ -7,29 +7,29 @@ ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 -- 插入测试用户
 -- ============================================================
--- 用户1: 1@tongji.edu.cn, 密码: Password1, 角色: Admin, 等级: Lv.10
--- 用户2: 2@tongji.edu.cn, 密码: Password2, 角色: Manager, 等级: Lv.5
--- 用户3: 3@tongji.edu.cn, 密码: Password3, 角色: Moderator, 等级: Lv.3
--- 用户4: 4@tongji.edu.cn, 密码: Password4, 角色: User, 等级: Lv.1
+-- 用户1: 1@tongji.edu.cn, 密码: Password1, 角色: Admin
+-- 用户2: 2@tongji.edu.cn, 密码: Password2, 角色: Manager
+-- 用户3: 3@tongji.edu.cn, 密码: Password3, 角色: Moderator
+-- 用户4: 4@tongji.edu.cn, 密码: Password4, 角色: User
 -- 
 -- 密码哈希使用 BCrypt 生成；如需预置新用户，可运行:
 -- python scripts/encrypt.py "YourPassword123"
 
 -- 用户1 - Admin (密码: Password1)
-INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('AdminUser', '1@tongji.edu.cn', '$2b$11$qhCJLT7aCwPGasI0QVh/hOjWvtYwHfEJb.5bOwVo1Hsi362Kq4kHy', 'ADMIN00001', 1000, 'Active', 2700);
+INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status")
+VALUES ('AdminUser', '1@tongji.edu.cn', '$2b$11$qhCJLT7aCwPGasI0QVh/hOjWvtYwHfEJb.5bOwVo1Hsi362Kq4kHy', 'ADMIN00001', 1000, 'Active');
 
 -- 用户2 - Manager (密码: Password2)
-INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('ManagerUser', '2@tongji.edu.cn', '$2b$11$apixksR2vP7HoAQw2YXt.eMoY4CLX6CXKnfIossSDVAgwQ/C84Rq.', 'MANGER00002', 500, 'Active', 700);
+INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status")
+VALUES ('ManagerUser', '2@tongji.edu.cn', '$2b$11$apixksR2vP7HoAQw2YXt.eMoY4CLX6CXKnfIossSDVAgwQ/C84Rq.', 'MANGER00002', 500, 'Active');
 
 -- 用户3 - Moderator (密码: Password3)
-INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('ModeratorUser', '3@tongji.edu.cn', '$2b$11$LBh/YZ8C.6g82E./7Rsoe.jja7rVgIENjVtOqVPdELUMc6LFHB35W', 'MODER00003', 300, 'Active', 450);
+INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status")
+VALUES ('ModeratorUser', '3@tongji.edu.cn', '$2b$11$LBh/YZ8C.6g82E./7Rsoe.jja7rVgIENjVtOqVPdELUMc6LFHB35W', 'MODER00003', 300, 'Active');
 
 -- 用户4 - User (密码: Password4)
-INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status", "totalCredit")
-VALUES ('NormalUser', '4@tongji.edu.cn', '$2b$11$alUNRE/Pr407uL92P4XaOOzLFDdvGlw4S.KwikGwMOPH1WNrBEVdy', 'USER000004', 100, 'Active', 0);
+INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status")
+VALUES ('NormalUser', '4@tongji.edu.cn', '$2b$11$alUNRE/Pr407uL92P4XaOOzLFDdvGlw4S.KwikGwMOPH1WNrBEVdy', 'USER000004', 100, 'Active');
 -- 分配角色给用户
 -- ============================================================
 -- 用户1 分配 Admin 角色

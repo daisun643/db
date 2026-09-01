@@ -23,21 +23,6 @@ public class User
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
-    public int TotalCredit { get; set; } = 0;
-    [NotMapped]
-    public int UserLevel => TotalCredit switch
-    {
-        >= 2700 => 10,
-        >= 2200 => 9,
-        >= 1750 => 8,
-        >= 1350 => 7,
-        >= 1000 => 6,
-        >= 700 => 5,
-        >= 450 => 4,
-        >= 250 => 3,
-        >= 100 => 2,
-        _ => 1
-    };
 
     public ICollection<MediaFile> UploadedMedia { get; set; } = new List<MediaFile>();
     public UserAvatar? AvatarMedia { get; set; }

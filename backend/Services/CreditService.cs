@@ -12,29 +12,12 @@ public interface ICreditService
     Task AddCreditAsync(int userId, int credit, string reason);
     Task<CreditAdjustment?> AdjustCreditAsync(int userId, int changePoints, string reason, int? operatorId = null);
     Task<bool> CanPerformAsync(int userId, string operation);
-    Task<int> GetUserLevelAsync(int userId);
-    int GetLevelUpRequirement(int currentLevel);
-    Task<int> GetUserTotalCreditAsync(int userId);
 }
 
 public class CreditService : ICreditService
 {
     private readonly AppDbContext _db;
     private readonly ILogger<CreditService> _logger;
-
-    private static readonly Dictionary<int, int> LevelThresholds = new()
-    {
-        { 1, 0 },
-        { 2, 100 },
-        { 3, 250 },
-        { 4, 450 },
-        { 5, 700 },
-        { 6, 1000 },
-        { 7, 1350 },
-        { 8, 1750 },
-        { 9, 2200 },
-        { 10, 2700 }
-    };
 
     public CreditService(AppDbContext db, ILogger<CreditService> logger)
     {
@@ -68,22 +51,7 @@ public class CreditService : ICreditService
             ICreditService.MaxCredit);
         var actualChange = afterCredit - beforeCredit;
 
-        var previousLevel = user.UserLevel;
         user.Credit = afterCredit;
-        if (actualChange > 0)
-        {
-            user.TotalCredit += actualChange;
-        }
-
-        var newLevel = CalculateLevelFromCredit(user.TotalCredit);
-        if (newLevel > previousLevel)
-        {
-            _logger.LogInformation(
-                "用户 {UserId} 升级到 Lv.{Level}，原因：{Reason}",
-                userId,
-                newLevel,
-                normalizedReason);
-        }
 
         var adjustment = new CreditAdjustment
         {
@@ -100,14 +68,13 @@ public class CreditService : ICreditService
         await _db.SaveChangesAsync();
 
         _logger.LogInformation(
-            "用户 {UserId} 信用变更 {ChangePoints}，原因：{Reason}，变更前：{BeforeCredit}，变更后：{AfterCredit}，操作人：{OperatorId}，总积分：{TotalCredit}",
+            "用户 {UserId} 信用变更 {ChangePoints}，原因：{Reason}，变更前：{BeforeCredit}，变更后：{AfterCredit}，操作人：{OperatorId}",
             userId,
             actualChange,
             normalizedReason,
             beforeCredit,
             afterCredit,
-            operatorId,
-            user.TotalCredit);
+            operatorId);
 
         return adjustment;
     }
@@ -127,45 +94,6 @@ public class CreditService : ICreditService
             "order.create" => credit >= 50,
             _ => credit > 0
         };
-    }
-
-    public async Task<int> GetUserLevelAsync(int userId)
-    {
-        var user = await _db.Users.FindAsync(userId);
-        return user?.UserLevel ?? 1;
-    }
-
-    public int GetLevelUpRequirement(int currentLevel)
-    {
-        if (currentLevel >= 10)
-            return 2700;
-
-        if (LevelThresholds.TryGetValue(currentLevel + 1, out var nextLevelThreshold))
-        {
-            var currentLevelThreshold = LevelThresholds[currentLevel];
-            return nextLevelThreshold - currentLevelThreshold;
-        }
-
-        return 0;
-    }
-
-    public async Task<int> GetUserTotalCreditAsync(int userId)
-    {
-        var user = await _db.Users.FindAsync(userId);
-        return user?.TotalCredit ?? 0;
-    }
-
-    private int CalculateLevelFromCredit(int totalCredit)
-    {
-        for (var level = 10; level >= 1; level--)
-        {
-            if (LevelThresholds.TryGetValue(level, out var threshold) && totalCredit >= threshold)
-            {
-                return level;
-            }
-        }
-
-        return 1;
     }
 
     private static string NormalizeReason(string? reason)

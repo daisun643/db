@@ -21,7 +21,6 @@ CREATE TABLE "User" (
     "bio"          VARCHAR2(500),
     "credit"       NUMBER,
     "status"       VARCHAR2(20),
-    "totalCredit"  NUMBER DEFAULT 0,
     CONSTRAINT "PK_User" PRIMARY KEY ("userId")
 );
 

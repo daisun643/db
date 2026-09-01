@@ -104,7 +104,6 @@
               <th>用户名</th>
               <th>邮箱</th>
               <th>信用分</th>
-              <th>等级积分</th>
               <th>状态</th>
               <th>角色</th>
             </tr>
@@ -127,7 +126,6 @@
                   </div>
                 </div>
               </td>
-              <td>Lv.{{ user.userLevel || 1 }} / {{ user.totalCredit || 0 }}</td>
               <td>
                 <span :class="['badge', user.status === 'Active' ? 'badge-green' : 'badge-yellow']">
                   {{ user.status || '未知' }}

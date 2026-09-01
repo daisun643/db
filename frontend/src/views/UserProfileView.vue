@@ -14,14 +14,13 @@
           <div class="hero-title">
             <h2>{{ displayName }}</h2>
             <span class="hero-username">@{{ profile.username || '-' }}</span>
-            <span class="badge badge-level">Lv.{{ profile.userLevel || 1 }}</span>
           </div>
           <p class="hero-bio">{{ profile.bio || '这个人很懒，还没有写个人简介。' }}</p>
           <div class="hero-stats">
             <div class="hero-stat"><strong>{{ profile.postCount || 0 }}</strong><span>帖子</span></div>
             <div class="hero-stat"><strong>{{ profile.productCount || 0 }}</strong><span>商品</span></div>
             <div class="hero-stat"><strong>{{ profile.friendCount || 0 }}</strong><span>好友</span></div>
-            <div class="hero-stat"><strong>{{ profile.totalCredit || 0 }}</strong><span>等级积分</span></div>
+            <div class="hero-stat"><strong>{{ profile.credit ?? 0 }}</strong><span>信用分</span></div>
           </div>
         </div>
         <div class="hero-actions">
@@ -151,7 +150,6 @@ watch(userId, () => {
 .hero-title { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 .hero-title h2 { margin: 0; font-size: 1.25rem; color: #172033; }
 .hero-username { color: var(--text-secondary); font-size: .82rem; }
-.badge-level { background: #efedff; color: #5749c8; }
 .hero-bio { margin: .5rem 0 0; color: var(--text-secondary); font-size: .85rem; line-height: 1.6; }
 .hero-stats { display: flex; flex-wrap: wrap; gap: 1.4rem; margin-top: .9rem; }
 .hero-stat { display: grid; justify-items: start; }

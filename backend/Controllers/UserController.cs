@@ -31,45 +31,6 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户等级和积分信息
-    /// </summary>
-    [HttpGet("{userId}/level")]
-    public async Task<ActionResult<UserLevelResponse>> GetUserLevel(int userId)
-    {
-        var user = await _db.Users.FindAsync(userId);
-        if (user == null)
-            return NotFound(new { message = "用户不存在" });
-
-        var nextLevelReq = _creditService.GetLevelUpRequirement(user.UserLevel);
-        
-        // 计算距下一个等级还需要多少积分
-        int creditToNext = 0;
-        if (user.UserLevel < 10)
-        {
-            // 获取下一个等级的阈值
-            var levelThresholds = new Dictionary<int, int>
-            {
-                { 2, 100 }, { 3, 250 }, { 4, 450 }, { 5, 700 },
-                { 6, 1000 }, { 7, 1350 }, { 8, 1750 }, { 9, 2200 }, { 10, 2700 }
-            };
-            
-            if (levelThresholds.TryGetValue(user.UserLevel + 1, out var nextThreshold))
-            {
-                creditToNext = Math.Max(0, nextThreshold - user.TotalCredit);
-            }
-        }
-
-        return Ok(new UserLevelResponse
-        {
-            UserId = user.UserID,
-            CurrentLevel = user.UserLevel,
-            TotalCredit = user.TotalCredit,
-            NextLevelRequirement = nextLevelReq,
-            CreditToNextLevel = creditToNext
-        });
-    }
-
-    /// <summary>
     /// 获取用户积分详情
     /// </summary>
     [Authorize]
@@ -90,8 +51,6 @@ public class UserController : ControllerBase
                 UserId = u.UserID,
                 Username = u.Username,
                 Email = u.Email,
-                UserLevel = u.UserLevel,
-                TotalCredit = u.TotalCredit,
                 Credit = u.Credit ?? 0
             })
             .FirstOrDefaultAsync();
@@ -229,8 +188,6 @@ public class UserController : ControllerBase
             avatarUrl = user.AvatarUrl,
             contact = user.Contact,
             bio = user.Bio,
-            userLevel = user.UserLevel,
-            totalCredit = user.TotalCredit,
             credit = user.Credit,
             status = user.Status,
             roles = roles,
@@ -268,8 +225,7 @@ public class UserController : ControllerBase
             username = user.Username,
             avatarUrl = user.AvatarUrl,
             bio = user.Bio,
-            userLevel = user.UserLevel,
-            totalCredit = user.TotalCredit,
+            credit = user.Credit ?? 0,
             postCount,
             productCount,
             friendCount,
@@ -342,8 +298,6 @@ public class UserController : ControllerBase
             avatarUrl = user.AvatarUrl,
             contact = user.Contact,
             bio = user.Bio,
-            userLevel = user.UserLevel,
-            totalCredit = user.TotalCredit,
             credit = user.Credit,
             status = user.Status
         });

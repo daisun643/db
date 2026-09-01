@@ -337,8 +337,6 @@ public class AuthController : ControllerBase
             Bio = user.Bio ?? "",
             Credit = user.Credit ?? 0,
             Status = user.Status ?? "Active",
-            UserLevel = user.UserLevel,
-            TotalCredit = user.TotalCredit,
             Roles = roles,
             Permissions = permissions
         };

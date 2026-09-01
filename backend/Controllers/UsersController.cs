@@ -123,8 +123,7 @@ public class UsersController : ControllerBase
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Credit = 100,
             Status = "Active",
-            UserCode = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant(),
-            TotalCredit = 0
+            UserCode = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant()
         };
 
         _db.Users.Add(user);
@@ -170,8 +169,6 @@ public class UsersController : ControllerBase
             UserCode = user.UserCode ?? "",
             Credit = user.Credit ?? 0,
             Status = user.Status ?? "",
-            UserLevel = user.UserLevel,
-            TotalCredit = user.TotalCredit,
             Roles = user.UserRoles
                 .Select(ur => ur.Role?.RoleName)
                 .Where(roleName => !string.IsNullOrWhiteSpace(roleName))

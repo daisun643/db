@@ -154,7 +154,7 @@ class TestStage1Registration:
 
 class TestStage1CurrentUser:
 
-    def test_auth_me_returns_roles_permissions_and_level_fields(self, admin_client):
+    def test_auth_me_returns_roles_and_permissions(self, admin_client):
         resp = admin_client.me()
         data = assert_success(resp)
         user = data["user"]
@@ -164,8 +164,6 @@ class TestStage1CurrentUser:
         assert "permissions" in user
         assert "Admin" in user["roles"]
         assert "dashboard.view" in user["permissions"]
-        assert isinstance(user["userLevel"], int)
-        assert isinstance(user["totalCredit"], int)
 
 
 class TestStage2Profile:
@@ -489,14 +487,12 @@ class TestStage5BackendEntryAccess:
 
 class TestStage6Credit:
 
-    def test_profile_exposes_credit_level_and_total_credit(self, user_client):
+    def test_profile_exposes_credit(self, user_client):
         resp = user_client.get("/api/user/profile")
 
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data["credit"], int)
-        assert isinstance(data["userLevel"], int)
-        assert isinstance(data["totalCredit"], int)
 
     def test_admin_can_view_user_credit(self, admin_client):
         resp = admin_client.get_user_credit(4)
@@ -505,8 +501,6 @@ class TestStage6Credit:
         data = resp.json()
         assert data["userId"] == 4
         assert isinstance(data["credit"], int)
-        assert isinstance(data["userLevel"], int)
-        assert isinstance(data["totalCredit"], int)
 
     def test_normal_user_cannot_adjust_credit(self, user_client):
         resp = user_client.adjust_credit(4, 10, "stage6 forbidden")
