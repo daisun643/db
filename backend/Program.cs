@@ -24,6 +24,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+// SSE 推送广播：跨请求共享在线连接，必须 Singleton
+builder.Services.AddSingleton<INotificationPushService, NotificationPushService>();
 builder.Services.AddScoped<IMediaStorageService>((sp) =>
 {
     var mediaStorageSettings = sp.GetRequiredService<IOptions<MediaStorageSettings>>().Value;

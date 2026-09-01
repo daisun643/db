@@ -57,10 +57,8 @@
     <FolderPickerModal
       :open="folderPickerOpen"
       :folders="favoriteFolders"
-      v-model:pickerFolderName="pickerFolderName"
       @close="closeFolderPicker"
       @save="handlePickerSaveFolders"
-      @create="handlePickerCreateFolder"
     />
   </div>
 </template>
@@ -92,9 +90,7 @@ const {
   closeComposer,
   handlePostCreated,
   folderPickerOpen,
-  pickerFolderName,
   handlePickerSaveFolders,
-  handlePickerCreateFolder,
   closeFolderPicker,
   editingPost,
   closeEditPost,

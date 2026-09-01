@@ -68,10 +68,76 @@ public class ReportsController : ControllerBase
         };
 
         _db.ReportTickets.Add(report);
+
+        // 举报受理通知：通知所在版块的版主（含创建者）；商品或无版主版块则通知所有管理员
+        var reporter = await _db.Users.FindAsync(userId);
+        var targetLabel = targetType switch
+        {
+            "Post" => "帖子",
+            "Comment" => "评论",
+            "Product" => "商品",
+            _ => "内容"
+        };
+        var receivers = await GetReportNotifyReceiversAsync(targetType, request.TargetID);
+        foreach (var receiverId in receivers.Where(id => id != userId).Distinct())
+        {
+            await _notificationService.CreateAsync(new CreateNotificationOptions
+            {
+                UserID = receiverId,
+                Type = "Report",
+                Title = "收到新举报",
+                Content = $"{reporter?.Username ?? "有用户"} 举报了{targetLabel}，原因：{request.Reason}",
+                TargetType = targetType,
+                TargetID = request.TargetID,
+                Link = targetType == "Post" ? $"/forums/post/{request.TargetID}" : null,
+                EventKey = $"report:filed:{targetType}:{request.TargetID}:{receiverId}"
+            });
+        }
+
         await _db.SaveChangesAsync();
 
-        report.Reporter = await _db.Users.FindAsync(userId);
+        report.Reporter = reporter;
         return Ok(MapReport(report));
+    }
+
+    // 举报受理通知接收人：帖子/评论 → 所在版块的版主∪创建者；商品或无版主版块 → 所有管理员
+    private async Task<List<int>> GetReportNotifyReceiversAsync(string targetType, int targetId)
+    {
+        int? forumId = null;
+        if (targetType == "Post")
+        {
+            forumId = (await _db.Posts.FindAsync(targetId))?.ForumID;
+        }
+        else if (targetType == "Comment")
+        {
+            var comment = await _db.PostComments
+                .Include(c => c.Post)
+                .FirstOrDefaultAsync(c => c.CommentID == targetId);
+            forumId = comment?.Post?.ForumID;
+        }
+
+        if (forumId.HasValue)
+        {
+            var receivers = await _db.ForumManagers
+                .Where(fm => fm.ForumID == forumId.Value)
+                .Select(fm => fm.UserID)
+                .ToListAsync();
+            var creatorId = await _db.Forums
+                .Where(f => f.ForumID == forumId.Value)
+                .Select(f => f.CreatorID ?? 0)
+                .FirstOrDefaultAsync();
+            if (creatorId > 0)
+                receivers.Add(creatorId);
+
+            if (receivers.Count > 0)
+                return receivers;
+        }
+
+        return await _db.UserRoles
+            .Where(ur => ur.Role != null && ur.Role.RoleName == "Admin")
+            .Select(ur => ur.UserID)
+            .Distinct()
+            .ToListAsync();
     }
 
     [HttpPost("{id}/review")]

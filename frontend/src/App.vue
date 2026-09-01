@@ -15,10 +15,19 @@
 </template>
 
 <script setup>
+import { watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import Sidebar from './components/Sidebar.vue'
+import { startStream, stopStream } from './utils/notificationStream'
 
 const authStore = useAuthStore()
+
+// 登录后建立 SSE 推送连接，登出时关闭；immediate 覆盖页面刷新时已登录的场景
+watch(
+  () => authStore.isAuthenticated,
+  (authenticated) => (authenticated ? startStream() : stopStream()),
+  { immediate: true },
+)
 </script>
 
 <style>

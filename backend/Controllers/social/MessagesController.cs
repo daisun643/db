@@ -21,11 +21,13 @@ public class MessagesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly INotificationService _notificationService;
+    private readonly INotificationPushService _pushService;
 
-    public MessagesController(AppDbContext db, INotificationService notificationService)
+    public MessagesController(AppDbContext db, INotificationService notificationService, INotificationPushService pushService)
     {
         _db = db;
         _notificationService = notificationService;
+        _pushService = pushService;
     }
 
 
@@ -139,6 +141,8 @@ public class MessagesController : ControllerBase
 
         message.Sender = await _db.Users.FindAsync(currentUserId);
         message.Receiver = receiver;
+        // 消息已落库且 ID 已生成，实时推送给接收方的在线连接
+        _pushService.Publish(request.ReceiverID, "message", MapMessage(message));
         return Ok(MapMessage(message));
     }
 

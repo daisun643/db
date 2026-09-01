@@ -23,6 +23,20 @@ public class PostsController : ControllerBase
     private readonly INotificationService _notificationService;
     private static readonly string[] SensitiveWords = ["违禁", "敏感词", "spam"];
 
+    // 帖子状态动作 → 通知文案（用于给帖子作者发状态变化通知）
+    private static readonly Dictionary<string, string> StatusActionMessages = new(StringComparer.Ordinal)
+    {
+        ["pin"] = "被置顶",
+        ["unpin"] = "已被取消置顶",
+        ["elite"] = "被设为精华",
+        ["unelite"] = "已被取消精华",
+        ["ban"] = "已被封禁",
+        ["restore"] = "已被恢复",
+        ["delete"] = "已被删除",
+        ["approve"] = "已通过审核",
+        ["reject"] = "审核未通过"
+    };
+
     public PostsController(AppDbContext db, ICreditService creditService, IMediaStorageService mediaStorageService, INotificationService notificationService)
     {
         _db = db;
@@ -164,7 +178,7 @@ public class PostsController : ControllerBase
         await _db.SaveChangesAsync();
         await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -209,7 +223,7 @@ public class PostsController : ControllerBase
         await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
         await _db.SaveChangesAsync();
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
         if (hitWord != null)
@@ -289,6 +303,24 @@ public class PostsController : ControllerBase
             _ => post.Status
         };
         post.UpdateTime = DateTime.Now;
+
+        // 状态变化通知：操作人≠帖子作者时通知作者（恢复/封禁/加精/置顶/审核等）
+        if (post.UserID.HasValue && post.UserID.Value != userId &&
+            StatusActionMessages.TryGetValue(action, out var statusMessage))
+        {
+            await _notificationService.CreateAsync(new CreateNotificationOptions
+            {
+                UserID = post.UserID.Value,
+                Type = "Moderation",
+                Title = "帖子状态更新",
+                Content = $"你的帖子《{post.Title}》{statusMessage}",
+                TargetType = "Post",
+                TargetID = post.PostID,
+                Link = $"/forums/post/{post.PostID}",
+                EventKey = $"post:status:{post.PostID}:{action}"
+            });
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "状态已更新", status = post.Status });
@@ -401,6 +433,24 @@ public class PostsController : ControllerBase
         {
             _db.PostLikes.Add(new PostLike { PostID = id, UserID = userId, CreateTime = DateTime.Now });
             post.LikeCount = (post.LikeCount ?? 0) + 1;
+
+            // 点赞通知：点赞人≠帖子作者时通知作者；EventKey 持久去重，取消后再点赞不会重复通知
+            if (post.UserID.HasValue && post.UserID.Value != userId)
+            {
+                var liker = await _db.Users.FindAsync(userId);
+                await _notificationService.CreateAsync(new CreateNotificationOptions
+                {
+                    UserID = post.UserID.Value,
+                    Type = "Like",
+                    Title = "收到点赞",
+                    Content = $"{liker?.Username ?? "有人"} 赞了你的帖子《{post.Title}》",
+                    TargetType = "Post",
+                    TargetID = post.PostID,
+                    Link = $"/forums/post/{post.PostID}",
+                    EventKey = $"like:post:{post.PostID}:{userId}"
+                });
+            }
+
             await _db.SaveChangesAsync();
         }
 
@@ -531,7 +581,9 @@ public class PostsController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
-        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums");
+        var user = await _db.Users.FindAsync(userId);
+
+        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
 
         // 评论回复通知：两个独立判断
         // 1. 只要评论者不是帖子作者 → 通知帖子作者
@@ -542,10 +594,10 @@ public class PostsController : ControllerBase
                 UserID = post.UserID.Value,
                 Type = "Reply",
                 Title = "帖子新评论",
-                Content = $"有人在帖子《{post.Title}》中发表了评论",
+                Content = $"{user?.Username ?? "有人"} 评论了你的帖子《{post.Title}》",
                 TargetType = "Post",
                 TargetID = post.PostID,
-                Link = $"/forums",
+                Link = $"/forums/post/{post.PostID}",
                 EventKey = $"reply:post:{comment.CommentID}:{post.UserID.Value}"
             });
         }
@@ -563,10 +615,10 @@ public class PostsController : ControllerBase
                     UserID = parentComment.UserID.Value,
                     Type = "Reply",
                     Title = "评论回复",
-                    Content = $"有人在帖子《{post.Title}》中回复了你的评论",
+                    Content = $"{user?.Username ?? "有人"} 回复了你在帖子《{post.Title}》中的评论",
                     TargetType = "Comment",
                     TargetID = parentComment.CommentID,
-                    Link = $"/forums",
+                    Link = $"/forums/post/{post.PostID}",
                     EventKey = $"reply:comment:{comment.CommentID}:{parentComment.UserID.Value}"
                 });
             }
@@ -574,7 +626,6 @@ public class PostsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        var user = await _db.Users.FindAsync(userId);
         var commenterAvatar = await GetUserAvatarUrlsAsync(new[] { userId });
         return Ok(new CommentResponse
         {

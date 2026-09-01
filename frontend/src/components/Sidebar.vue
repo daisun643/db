@@ -51,10 +51,13 @@
         </router-link>
 
         <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item" title="消息">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <polyline points="22,6 12,13 2,6" />
-          </svg>
+          <span class="nav-icon-wrap">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <span v-if="unreadTotal > 0 && route.path !== '/messages'" class="nav-badge">{{ badgeText }}</span>
+          </span>
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
 
@@ -100,16 +103,44 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { getUnreadMessageCount, getUnreadNotificationCount } from '../api'
 import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAccess'
 import { canShowAvatar, markAvatarFailed } from '../utils/avatarFallback'
+import { onStreamEvent, onStreamOpen } from '../utils/notificationStream'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const isCollapsed = ref(true)
 const routeAccess = ref({})
+
+// 侧边栏消息入口的未读角标：未读私信 + 未读通知（由 SSE 推送驱动刷新）
+const messageUnread = ref(0)
+const notificationUnread = ref(0)
+
+const unreadTotal = computed(() => messageUnread.value + notificationUnread.value)
+const badgeText = computed(() => (unreadTotal.value > 99 ? '99+' : String(unreadTotal.value)))
+
+const loadUnreadCounts = async () => {
+  if (!authStore.isAuthenticated) {
+    messageUnread.value = 0
+    notificationUnread.value = 0
+    return
+  }
+  try {
+    const [messageRes, notificationRes] = await Promise.all([
+      getUnreadMessageCount(),
+      getUnreadNotificationCount(),
+    ])
+    messageUnread.value = messageRes.data.count || 0
+    notificationUnread.value = notificationRes.data.count || 0
+  } catch {
+    // 刷新失败保留上次结果，下次推送事件或路由切换会重试
+  }
+}
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -142,13 +173,30 @@ const updateRouteAccess = async () => {
 
 const handleLogout = async () => {
   await authStore.logout()
+  messageUnread.value = 0
+  notificationUnread.value = 0
   routeAccess.value = {}
   router.push('/login')
 }
 
+// SSE 推送驱动：收到通知/私信事件立即刷新角标；连接建立（含断线重连）时全量刷新
+const unbindStreamEvents = [
+  onStreamEvent('notification', loadUnreadCounts),
+  onStreamEvent('message', loadUnreadCounts),
+  onStreamOpen(loadUnreadCounts),
+]
+
 onMounted(() => {
   updateRouteAccess()
+  loadUnreadCounts()
 })
+
+onUnmounted(() => {
+  unbindStreamEvents.forEach((unbind) => unbind())
+})
+
+// 路由切换后立即刷新未读数（如在消息页处理后返回其他页面）
+watch(() => route.fullPath, loadUnreadCounts)
 
 watch(
   () => [authStore.isAuthenticated, authStore.user?.roles, authStore.user?.permissions],
@@ -280,6 +328,29 @@ watch(
   flex: 1;
   font-weight: 500;
   white-space: nowrap;
+}
+
+.nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .user-section {

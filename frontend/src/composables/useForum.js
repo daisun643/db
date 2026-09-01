@@ -50,7 +50,6 @@ const forumForm = ref({
 // 收藏夹选择器
 const folderPickerOpen = ref(false)
 const folderPickerTarget = ref(null)
-const pickerFolderName = ref('')
 
 // 各列表页面注册自己的句柄，用于点赞/收藏后跨列表同步、操作后统一刷新
 const feedHandles = new Set()
@@ -234,25 +233,9 @@ const handlePickerSaveFolders = async (folderIds) => {
   notice.value = okCount === 1 ? '收藏成功。' : `已收藏到 ${okCount} 个收藏夹。`
 }
 
-const handlePickerCreateFolder = async () => {
-  if (!pickerFolderName.value.trim()) return
-  const res = await createFavoriteFolder({ folderName: pickerFolderName.value.trim() })
-  pickerFolderName.value = ''
-  await loadFavoriteFolders()
-  notice.value = '收藏夹创建成功。'
-  if (folderPickerTarget.value) {
-    await addPostToFavoriteFolder(res.data.folderID, folderPickerTarget.value.postID)
-    updatePostFavoriteState(folderPickerTarget.value.postID, true)
-    await loadFavoriteFolders()
-    notice.value = '收藏夹创建成功，帖子已收藏。'
-  }
-  closeFolderPicker()
-}
-
 const closeFolderPicker = () => {
   folderPickerOpen.value = false
   folderPickerTarget.value = null
-  pickerFolderName.value = ''
 }
 
 // ---- 帖子删除 / 编辑 ----
@@ -450,9 +433,7 @@ export function useForum() {
     handleLike,
     handleFavorite,
     folderPickerOpen,
-    pickerFolderName,
     handlePickerSaveFolders,
-    handlePickerCreateFolder,
     closeFolderPicker,
 
     // 删除 / 编辑

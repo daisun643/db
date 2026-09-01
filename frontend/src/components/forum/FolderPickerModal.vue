@@ -33,16 +33,6 @@
           暂无收藏夹，请先创建一个
         </li>
       </ul>
-      <form @submit.prevent="$emit('create')" class="folder-picker-form">
-        <input
-          :value="pickerFolderName"
-          @input="$emit('update:pickerFolderName', $event.target.value)"
-          type="text"
-          placeholder="新收藏夹名称"
-          required
-        />
-        <button class="btn btn-primary" type="submit">创建并收藏</button>
-      </form>
       <div class="folder-picker-footer">
         <button
           class="btn btn-primary"
@@ -61,10 +51,9 @@ import { ref, watch } from 'vue'
 const props = defineProps({
   open: { type: Boolean, required: true },
   folders: { type: Array, default: () => [] },
-  pickerFolderName: { type: String, default: '' },
 })
 
-defineEmits(['close', 'save', 'create', 'update:pickerFolderName'])
+defineEmits(['close', 'save'])
 
 const selectedIds = ref([])
 
@@ -205,28 +194,6 @@ watch(() => props.open, (opened) => {
   color: #536471;
   padding: 1.5rem 1rem;
   text-align: center;
-}
-
-.folder-picker-form {
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-}
-
-.folder-picker-form input {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  flex: 1;
-  font: inherit;
-  min-width: 0;
-  padding: 0.5rem 0.75rem;
-}
-
-.folder-picker-form input:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .folder-picker-footer {

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text;
+using System.Threading.Channels;
 
 namespace Backend.Controllers;
 
@@ -17,11 +19,15 @@ public class NotificationsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly INotificationService _notificationService;
+    private readonly INotificationPushService _pushService;
 
-    public NotificationsController(AppDbContext db, INotificationService notificationService)
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(25);
+
+    public NotificationsController(AppDbContext db, INotificationService notificationService, INotificationPushService pushService)
     {
         _db = db;
         _notificationService = notificationService;
+        _pushService = pushService;
     }
 
     [HttpGet]
@@ -73,6 +79,76 @@ public class NotificationsController : ControllerBase
         var userId = CurrentUserId();
         var count = await _db.Notifications.CountAsync(n => n.UserID == userId && (n.IsRead != "1" || n.IsRead == null));
         return Ok(new { count });
+    }
+
+    /// <summary>
+    /// SSE 长连接：向当前用户实时推送通知/私信事件。
+    /// 事件类型：notification（信号，前端重拉列表）、message（完整私信体）。
+    /// </summary>
+    [HttpGet("stream")]
+    public async Task Stream(CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId();
+        var (connectionId, events) = _pushService.Subscribe(userId);
+
+        Response.Headers.ContentType = "text/event-stream; charset=utf-8";
+        Response.Headers.CacheControl = "no-cache";
+        // 关闭 nginx 类反向代理的响应缓冲，保证事件即时到达
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        try
+        {
+            await WriteFrameAsync(": connected\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var hasData = false;
+                var timedOut = false;
+                try
+                {
+                    // 定时器兼作心跳：空闲超时写注释帧，防止代理/网络断开空闲连接
+                    hasData = await events.WaitToReadAsync(cancellationToken).AsTask()
+                        .WaitAsync(HeartbeatInterval, cancellationToken);
+                }
+                catch (TimeoutException)
+                {
+                    timedOut = true;
+                }
+
+                if (timedOut)
+                {
+                    await WriteFrameAsync(": ping\n\n", cancellationToken);
+                }
+                else if (!hasData)
+                {
+                    // 通道已关闭，连接被注销，结束推送
+                    break;
+                }
+                else
+                {
+                    while (events.TryRead(out var frame))
+                    {
+                        await WriteFrameAsync(frame, cancellationToken);
+                    }
+                }
+
+                await Response.Body.FlushAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 客户端断开或服务器关闭，属正常退出
+        }
+        finally
+        {
+            _pushService.Unsubscribe(userId, connectionId);
+        }
+    }
+
+    private async Task WriteFrameAsync(string frame, CancellationToken cancellationToken)
+    {
+        await Response.Body.WriteAsync(Encoding.UTF8.GetBytes(frame), cancellationToken);
     }
 
     [HttpPost("{id}/read")]

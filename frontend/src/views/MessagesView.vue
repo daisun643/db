@@ -8,7 +8,7 @@
         </button>
         <button :class="['tab', { active: activeTab === 'notifications' }]" @click="activeTab = 'notifications'">
           通知
-          <span class="badge badge-red" v-if="notifications.length > 0">{{ notifications.length }}</span>
+          <span class="badge badge-red" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
         </button>
       </div><span>连接每一位同学</span>
     </div>
@@ -105,26 +105,45 @@
 
     <div v-if="activeTab === 'notifications'" class="tab-content">
       <div v-if="loading" class="loading">加载中...</div>
-      <div v-else-if="notifications.length === 0" class="empty-state">
-        <p>暂无通知</p>
-      </div>
-      <div v-else class="notification-list">
-        <article v-for="notification in notifications" :key="notification.notificationID" class="notification-item">
-          <div class="notification-icon">!</div>
-          <div class="notification-content">
-            <h4>{{ notification.title }}</h4>
-            <p>{{ notification.content }}</p>
-            <span class="notification-time">{{ formatDate(notification.createTime) }}</span>
-          </div>
-          <button class="link-button danger" @click="handleDeleteNotification(notification)">删除</button>
-        </article>
-      </div>
+      <template v-else>
+        <div v-if="notifications.length > 0" class="notification-toolbar">
+          <span class="notification-summary">
+            共 {{ notifications.length }} 条<template v-if="unreadNotifications > 0">，{{ unreadNotifications }} 条未读</template>
+          </span>
+          <button class="link-button" :disabled="markingAllRead || unreadNotifications === 0" @click="handleMarkAllNotificationsRead">
+            {{ markingAllRead ? '处理中...' : '全部已读' }}
+          </button>
+        </div>
+        <div v-if="notifications.length === 0" class="empty-state">
+          <p>暂无通知</p>
+        </div>
+        <div v-else class="notification-list">
+          <article
+            v-for="notification in notifications"
+            :key="notification.notificationID"
+            :class="['notification-item', { unread: !notification.isRead, clickable: !!notification.link }]"
+            @click="handleNotificationClick(notification)"
+          >
+            <div :class="['notification-icon', typeMeta(notification.type).className]">{{ typeMeta(notification.type).label }}</div>
+            <div class="notification-content">
+              <h4>
+                {{ notification.title }}
+                <span v-if="!notification.isRead" class="unread-dot"></span>
+              </h4>
+              <p>{{ notification.content }}</p>
+              <span class="notification-time">{{ formatDate(notification.createTime) }}</span>
+            </div>
+            <button class="link-button danger" @click.stop="handleDeleteNotification(notification)">删除</button>
+          </article>
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -136,10 +155,14 @@ import {
   getNotifications,
   getSentFriendRequests,
   getUnreadMessageCount,
+  getUnreadNotificationCount,
   markAllMessagesRead,
+  markAllNotificationsRead,
+  markNotificationRead,
   rejectFriendRequest,
   sendMessage,
 } from '../api'
+import { onStreamEvent, onStreamOpen } from '../utils/notificationStream'
 
 const activeTab = ref('messages')
 const loading = ref(false)
@@ -158,9 +181,9 @@ const messageText = ref('')
 const error = ref(null)
 const success = ref(null)
 const latestSentFriendRequest = ref(null)
-const AUTO_REFRESH_INTERVAL = 5000
-let refreshTimer = null
-let refreshing = false
+const router = useRouter()
+const unreadNotifications = ref(0)
+const markingAllRead = ref(false)
 const errorMessage = (e) => e.response?.data?.message || e.message || '操作失败'
 
 const filteredConversations = computed(() => {
@@ -254,7 +277,8 @@ const loadNotifications = async () => {
   try {
     loading.value = true
     const res = await getNotifications()
-    notifications.value = res.data
+    // 后端返回分页结构 { items, page, total }
+    notifications.value = Array.isArray(res.data) ? res.data : (res.data.items || [])
   } catch (e) {
     error.value = '无法加载通知: ' + (e.response?.data?.message || e.message)
   } finally {
@@ -357,9 +381,69 @@ const handleDeleteFriend = async (friend = selectedFriend.value) => {
   }
 }
 
+const NOTIFICATION_TYPES = {
+  Like: { label: '点赞', className: 'type-like' },
+  Reply: { label: '评论', className: 'type-reply' },
+  Mention: { label: '提及', className: 'type-mention' },
+  Report: { label: '举报', className: 'type-report' },
+  Moderation: { label: '管理', className: 'type-moderation' },
+  System: { label: '系统', className: 'type-system' },
+  Transaction: { label: '交易', className: 'type-transaction' },
+  Friend: { label: '好友', className: 'type-friend' },
+  Message: { label: '私信', className: 'type-message' },
+}
+
+const typeMeta = (type) => NOTIFICATION_TYPES[type] || { label: '通知', className: 'type-system' }
+
+const loadUnreadNotificationCount = async () => {
+  try {
+    const res = await getUnreadNotificationCount()
+    unreadNotifications.value = res.data.count || 0
+  } catch {
+    // 未读数加载失败不打断页面，下次切换或操作后会重试
+  }
+}
+
 const handleDeleteNotification = async (notification) => {
-  await deleteNotification(notification.notificationID)
+  try {
+    await deleteNotification(notification.notificationID)
+  } catch (e) {
+    error.value = '删除通知失败: ' + errorMessage(e)
+    return
+  }
+  if (!notification.isRead) {
+    unreadNotifications.value = Math.max(0, unreadNotifications.value - 1)
+  }
   await loadNotifications()
+}
+
+const handleMarkAllNotificationsRead = async () => {
+  if (markingAllRead.value) return
+  try {
+    markingAllRead.value = true
+    await markAllNotificationsRead()
+    notifications.value = notifications.value.map((notification) => ({ ...notification, isRead: true }))
+    unreadNotifications.value = 0
+  } catch (e) {
+    error.value = '全部已读失败: ' + errorMessage(e)
+  } finally {
+    markingAllRead.value = false
+  }
+}
+
+const handleNotificationClick = async (notification) => {
+  if (!notification.isRead) {
+    try {
+      await markNotificationRead(notification.notificationID)
+      notification.isRead = true
+      unreadNotifications.value = Math.max(0, unreadNotifications.value - 1)
+    } catch {
+      // 标记已读失败不阻断跳转
+    }
+  }
+  if (notification.link) {
+    router.push(notification.link)
+  }
 }
 
 const formatDate = (value) => {
@@ -388,58 +472,68 @@ const conversationPreview = (conversation) => {
   return conversation.latestMessageIsMine ? `我：${conversation.latestMessageContent}` : conversation.latestMessageContent
 }
 
-const refreshMessagesPanel = async () => {
-  if (activeTab.value !== 'messages' || refreshing) return
+// SSE 推送：新私信到达（后端只发给接收人，senderID 即对方）
+const handleStreamMessage = async (message) => {
+  if (!message || !message.messageID) return
 
-  refreshing = true
-  try {
-    await Promise.all([loadFriends(), loadUnreadCount()])
-    if (selectedFriend.value) {
-      const selectedUserId = selectedFriend.value.userID
-      await loadMessages(true, 'new')
-      await markAllMessagesRead(selectedUserId)
-      messages.value = messages.value.map((message) =>
-        message.senderID === selectedUserId ? { ...message, isRead: true } : message,
+  const friend = selectedFriend.value
+  if (friend && message.senderID === friend.userID) {
+    // 正在查看与发送者的会话：直接追加并保持已读
+    if (messages.value.some((item) => item.messageID === message.messageID)) return
+    messages.value = [...messages.value, message]
+    await scrollMessagesToBottom()
+    try {
+      await markAllMessagesRead(friend.userID)
+      messages.value = messages.value.map((item) =>
+        item.senderID === friend.userID ? { ...item, isRead: true } : item,
       )
-      await Promise.all([loadUnreadCount(), loadFriends()])
+    } catch {
+      // 标记已读失败不影响消息展示
     }
-  } catch (e) {
-    // 自动刷新失败时不打断用户当前操作，下一轮刷新会继续尝试。
-  } finally {
-    refreshing = false
+    await Promise.all([loadUnreadCount(), loadFriends()])
+  } else {
+    // 其他会话：刷新会话列表排序/预览与未读角标
+    await Promise.all([loadFriends(), loadUnreadCount()])
   }
 }
 
-const startAutoRefresh = () => {
-  if (refreshTimer) return
-  refreshTimer = window.setInterval(refreshMessagesPanel, AUTO_REFRESH_INTERVAL)
+// SSE 推送：新通知信号（载荷无稳定 ID），重拉列表与未读数
+const handleStreamNotification = async () => {
+  await Promise.all([loadNotifications(), loadUnreadNotificationCount()])
 }
 
-const stopAutoRefresh = () => {
-  if (!refreshTimer) return
-  window.clearInterval(refreshTimer)
-  refreshTimer = null
+// SSE 连接建立/重连成功：按当前 tab 全量刷新兼底
+const handleStreamOpen = async () => {
+  if (activeTab.value === 'notifications') {
+    await handleStreamNotification()
+    return
+  }
+  await Promise.all([loadFriends(), loadUnreadCount()])
+  if (selectedFriend.value) await loadMessages(true, 'new')
 }
+
+const unbindStreamEvents = [
+  onStreamEvent('message', handleStreamMessage),
+  onStreamEvent('notification', handleStreamNotification),
+  onStreamOpen(handleStreamOpen),
+]
 
 watch(activeTab, async (tab) => {
   if (tab === 'messages') {
     await Promise.all([loadFriends(), loadUnreadCount()])
     await loadMessages()
-    startAutoRefresh()
   }
   if (tab === 'notifications') {
-    stopAutoRefresh()
-    await loadNotifications()
+    await Promise.all([loadNotifications(), loadUnreadNotificationCount()])
   }
 })
 
 onMounted(async () => {
-  await Promise.all([loadFriends(), loadUnreadCount(), loadNotifications()])
-  startAutoRefresh()
+  await Promise.all([loadFriends(), loadUnreadCount(), loadNotifications(), loadUnreadNotificationCount()])
 })
 
 onUnmounted(() => {
-  stopAutoRefresh()
+  unbindStreamEvents.forEach((unbind) => unbind())
 })
 </script>
 
@@ -747,6 +841,20 @@ onUnmounted(() => {
   padding: 1rem;
 }
 
+.notification-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.25rem 0.25rem 0;
+}
+
+.notification-summary {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .notification-icon {
   width: 32px;
   height: 32px;
@@ -758,6 +866,17 @@ onUnmounted(() => {
   justify-content: center;
   flex-shrink: 0;
   font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  vertical-align: middle;
 }
 
 .notification-content {
@@ -830,6 +949,18 @@ onUnmounted(() => {
 .messages-page .message-form .btn-primary { border-radius:11px; background:linear-gradient(135deg,#5f50dc,#7563ef); }
 .messages-page .notification-item { border:1px solid rgba(25,34,59,.08); border-radius:18px; box-shadow:0 10px 28px rgba(29,35,58,.04); }
 .messages-page .notification-icon { color:#6654e8; background:#efedff; }
+.messages-page .notification-item.unread { border-color:rgba(102,84,232,.35); background:#f7f6ff; }
+.messages-page .notification-item.clickable { cursor:pointer; transition:border-color .15s ease; }
+.messages-page .notification-item.clickable:hover { border-color:#7463ee; }
+.messages-page .notification-icon.type-like { color:#dc2626; background:#fee2e2; }
+.messages-page .notification-icon.type-reply { color:#2563eb; background:#dbeafe; }
+.messages-page .notification-icon.type-mention { color:#b45309; background:#fef3c7; }
+.messages-page .notification-icon.type-report { color:#be185d; background:#fce7f3; }
+.messages-page .notification-icon.type-moderation { color:#6d28d9; background:#ede9fe; }
+.messages-page .notification-icon.type-system { color:#0369a1; background:#e0f2fe; }
+.messages-page .notification-icon.type-transaction { color:#15803d; background:#dcfce7; }
+.messages-page .notification-icon.type-friend { color:#0f766e; background:#ccfbf1; }
+.messages-page .notification-icon.type-message { color:#475569; background:#e2e8f0; }
 @media(max-width:900px){.messages-page .messages-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){.messages-nav{overflow-x:auto}.messages-nav > span{display:none}.messages-page .friends-panel,.messages-page .conversation-panel{width:100%;border-radius:18px}.messages-page .friend-form,.messages-page .message-form{width:100%}.messages-page .message-item{max-width:92%}}
 </style>
