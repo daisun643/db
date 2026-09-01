@@ -73,7 +73,7 @@
             <h2>{{ selectedFriend.username || selectedFriend.email }}</h2>
           </div>
 
-          <div v-if="loading" class="loading">加载中...</div>
+          <div v-if="messageLoading && messages.length === 0" class="loading">加载中...</div>
           <div v-else ref="messageListRef" class="message-list">
             <article
               v-for="message in messages"
@@ -104,7 +104,7 @@
     </div>
 
     <div v-if="activeTab === 'notifications'" class="tab-content">
-      <div v-if="loading" class="loading">加载中...</div>
+      <div v-if="notificationLoading" class="loading">加载中...</div>
       <template v-else>
         <div v-if="notifications.length > 0" class="notification-toolbar">
           <span class="notification-summary">
@@ -165,7 +165,8 @@ import {
 import { onStreamEvent, onStreamOpen } from '../utils/notificationStream'
 
 const activeTab = ref('messages')
-const loading = ref(false)
+const messageLoading = ref(false)
+const notificationLoading = ref(false)
 const sending = ref(false)
 const unreadMessages = ref(0)
 const conversations = ref([])
@@ -258,7 +259,7 @@ const loadMessages = async (silent = false, scrollMode = 'always') => {
 
   let shouldScroll = false
   try {
-    if (!silent) loading.value = true
+    if (!silent) messageLoading.value = true
     const previousLatestId = latestMessageId(messages.value)
     const res = await getMessages({ userId: selectedFriend.value.userID })
     messages.value = res.data
@@ -267,7 +268,7 @@ const loadMessages = async (silent = false, scrollMode = 'always') => {
   } catch (e) {
     if (!silent) error.value = '无法加载私信: ' + (e.response?.data?.message || e.message)
   } finally {
-    if (!silent) loading.value = false
+    if (!silent) messageLoading.value = false
   }
 
   if (shouldScroll) await scrollMessagesToBottom()
@@ -275,14 +276,14 @@ const loadMessages = async (silent = false, scrollMode = 'always') => {
 
 const loadNotifications = async () => {
   try {
-    loading.value = true
+    notificationLoading.value = true
     const res = await getNotifications()
     // 后端返回分页结构 { items, page, total }
     notifications.value = Array.isArray(res.data) ? res.data : (res.data.items || [])
   } catch (e) {
     error.value = '无法加载通知: ' + (e.response?.data?.message || e.message)
   } finally {
-    loading.value = false
+    notificationLoading.value = false
   }
 }
 
@@ -292,7 +293,9 @@ const loadUnreadCount = async () => {
 }
 
 const selectFriend = async (friend) => {
+  const changedFriend = selectedFriend.value?.friendshipID !== friend.friendshipID
   selectedFriend.value = friend
+  if (changedFriend) messages.value = []
   await loadMessages()
   await markAllMessagesRead(friend.userID)
   messages.value = messages.value.map((message) =>
@@ -342,12 +345,19 @@ const handleSendMessage = async () => {
   try {
     sending.value = true
     error.value = null
-    await sendMessage({
-      receiverID: selectedFriend.value.userID,
+    const receiverID = selectedFriend.value.userID
+    const response = await sendMessage({
+      receiverID,
       content: messageText.value.trim(),
     })
     messageText.value = ''
-    await loadMessages(false, 'always')
+    // 发送接口已经返回完整消息，直接追加，避免刷新期间卸载整个消息列表。
+    if (selectedFriend.value?.userID === receiverID && response.data?.messageID) {
+      if (!messages.value.some((message) => message.messageID === response.data.messageID)) {
+        messages.value = [...messages.value, response.data]
+      }
+      await scrollMessagesToBottom()
+    }
     await Promise.all([loadFriends(), loadUnreadCount()])
   } catch (e) {
     error.value = '发送私信失败: ' + errorMessage(e)
@@ -946,7 +956,7 @@ onUnmounted(() => {
 .messages-page .message-list { border:0; border-radius:18px; background:radial-gradient(circle at top left,rgba(105,87,245,.1),transparent 28%),#f8f8fc; }
 .messages-page .message-item.mine .message-content { background:linear-gradient(135deg,#5f50dc,#7361eb); }
 .messages-page .message-content { border-color:#e6e7ed; box-shadow:0 8px 24px rgba(29,35,58,.06); }
-.messages-page .message-form .btn-primary { border-radius:11px; background:linear-gradient(135deg,#5f50dc,#7563ef); }
+.messages-page .message-form .btn-primary { min-width:5.5rem; justify-content:center; border-radius:11px; background:linear-gradient(135deg,#5f50dc,#7563ef); }
 .messages-page .notification-item { border:1px solid rgba(25,34,59,.08); border-radius:18px; box-shadow:0 10px 28px rgba(29,35,58,.04); }
 .messages-page .notification-icon { color:#6654e8; background:#efedff; }
 .messages-page .notification-item.unread { border-color:rgba(102,84,232,.35); background:#f7f6ff; }
