@@ -26,7 +26,7 @@
         </div>
         <div class="hero-actions">
           <template v-if="profile.isSelf">
-            <router-link to="/profile" class="btn btn-primary">编辑我的资料</router-link>
+            <router-link to="/profile" class="btn btn-primary">信息维护</router-link>
           </template>
           <template v-else>
             <button

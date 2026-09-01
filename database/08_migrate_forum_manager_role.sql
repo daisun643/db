@@ -7,14 +7,20 @@
 -- 本脚本幂等，可在全新数据卷（初始化脚本之后）或已部署数据卷上执行。
 -- ============================================================
 
+-- Oracle 容器会为每个初始化脚本创建独立会话，必须显式切换到业务 PDB 和 schema。
+ALTER SESSION SET CONTAINER = XEPDB1;
+ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
+
 SET DEFINE OFF
 
 DECLARE
     v_count NUMBER;
 BEGIN
     SELECT COUNT(*) INTO v_count
-    FROM user_tab_columns
-    WHERE table_name = 'ForumManager' AND column_name = 'role';
+    FROM all_tab_columns
+    WHERE owner = 'APPUSER'
+      AND table_name = 'ForumManager'
+      AND column_name = 'role';
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE 'ALTER TABLE "ForumManager" ADD ("role" VARCHAR2(20) DEFAULT ''Moderator'' NOT NULL)';
         EXECUTE IMMEDIATE 'ALTER TABLE "ForumManager" ADD CONSTRAINT "CK_ForumMgr_Role" CHECK ("role" IN (''Moderator'', ''Admin''))';

@@ -523,6 +523,10 @@ public class UserController : ControllerBase
             _db.UserAvatars.Remove(oldLink);
             if (oldLink.Media != null)
                 _db.MediaFiles.Remove(oldLink.Media);
+
+            // Oracle EF Core 可能在同一批次中先删除 MediaFile，再删除 UserAvatar，
+            // 触发 FK_UserAvatar_Media。先提交旧关联的删除，再插入新头像记录。
+            await _db.SaveChangesAsync();
         }
 
         var media = new MediaFile

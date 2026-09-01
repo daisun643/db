@@ -40,6 +40,18 @@ def _register_unique_user(client, prefix: str = "stage2", password: str = "Passw
     }
 
 
+def _valid_png() -> bytes:
+    """最小合法 PNG，供头像上传测试复用。"""
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+
 def _assert_auth_response_failure(response, message: str | None = None) -> dict:
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
     data = response.json()
@@ -245,14 +257,7 @@ class TestStage2Profile:
 
     def test_user_can_upload_local_avatar(self, client):
         _register_unique_user(client, "avatar")
-        png = (
-            b"\x89PNG\r\n\x1a\n"
-            b"\x00\x00\x00\rIHDR"
-            b"\x00\x00\x00\x01\x00\x00\x00\x01"
-            b"\x08\x02\x00\x00\x00\x90wS\xde"
-            b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
-            b"\x00\x00\x00\x00IEND\xaeB`\x82"
-        )
+        png = _valid_png()
 
         resp = client.upload_avatar("avatar.png", png, "image/png")
 
@@ -263,6 +268,25 @@ class TestStage2Profile:
 
         profile = client.get("/api/user/profile").json()
         assert profile["avatarUrl"] == data["avatarUrl"]
+
+    def test_user_can_replace_existing_avatar(self, client):
+        """回归覆盖：替换已有头像时必须先删除关联再删除媒体记录。"""
+        _register_unique_user(client, "avatar_replace")
+
+        first = client.upload_avatar("avatar-first.png", _valid_png(), "image/png")
+        assert first.status_code == 200, first.text
+        first_url = first.json()["avatarUrl"]
+
+        second = client.upload_avatar("avatar-second.png", _valid_png(), "image/png")
+
+        assert second.status_code == 200, second.text
+        second_url = second.json()["avatarUrl"]
+        assert second_url.startswith("/uploads/avatars/")
+        assert second_url.endswith(".png")
+        assert second_url != first_url
+
+        profile = client.get("/api/user/profile").json()
+        assert profile["avatarUrl"] == second_url
 
     def test_avatar_upload_rejects_non_image_file(self, client):
         _register_unique_user(client, "avatar_bad")

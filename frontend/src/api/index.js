@@ -40,10 +40,10 @@ export const adjustCredit = (data) => api.post('/user/credit/add', data)
 export const updateProfile = (data) => api.put('/user/profile', data)
 export const uploadAvatar = (file) => {
   const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/user/avatar', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  formData.append('file', file, file.name)
+  // 让 Axios 自动生成带 boundary 的 multipart Content-Type，避免浏览器上传时
+  // 手动设置请求头导致 ASP.NET Core 无法解析 IFormFile。
+  return api.post('/user/avatar', formData)
 }
 export const uploadImages = (files, bucket = 'posts') => {
   const formData = new FormData()

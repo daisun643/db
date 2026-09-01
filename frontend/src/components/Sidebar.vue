@@ -71,7 +71,7 @@
       </div>
 
       <div class="user-section">
-        <div class="user-profile" title="个人资料" @click="$router.push('/profile')">
+        <div class="user-profile" title="查看我的主页" @click="openUserProfile">
           <div class="user-avatar">
             <img
               v-if="userAvatarUrl"
@@ -144,6 +144,17 @@ const loadUnreadCounts = async () => {
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
+}
+
+const openUserProfile = () => {
+  const userId = authStore.user?.userId
+  if (userId) {
+    router.push(`/user/${userId}`)
+    return
+  }
+
+  // 用户信息尚未完成加载时保留一个可用的兜底入口。
+  router.push('/profile')
 }
 
 const userAvatarUrl = computed(() => {
