@@ -53,7 +53,7 @@
       :subtitle="selectedCreditUser ? `${selectedCreditUser.username} · 当前信用分 ${selectedCreditUser.credit}` : ''"
       tag="form"
       @close="closeCreditDialog"
-      @submit.prevent="handleAdjustCredit(selectedCreditUser.userID)"
+      @submit="handleAdjustCredit(selectedCreditUser.userID)"
     >
       <label class="credit-form-label">
         调整分值
