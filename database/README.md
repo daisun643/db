@@ -11,6 +11,7 @@
 | 05 | `05_seed_core.sql` | 写入论坛、帖子、商品等核心演示数据 |
 | 06 | `06_seed_scenarios.sql` | 补充媒体、收藏、钱包、通知、订单和仲裁场景 |
 | 08 | `08_migrate_forum_manager_role.sql` | ForumManager 增加 role 列，存量数据补齐版主角色（幂等，可单独在已部署库执行） |
+| 09 | `09_migrate_single_session.sql` | 增加用户单会话版本列（幂等，可单独在已部署库执行） |
 
 ## 维护约定
 

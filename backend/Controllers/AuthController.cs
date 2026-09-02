@@ -1,3 +1,4 @@
+using Backend.Authorization;
 using Backend.Data;
 using Backend.Models.DTOs;
 using Backend.Services;
@@ -127,6 +128,20 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout()
     {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var cookieSessionVersion = User.FindFirstValue(AuthenticationSession.ClaimType);
+        if (int.TryParse(userIdValue, out var userId)
+            && !string.IsNullOrWhiteSpace(cookieSessionVersion))
+        {
+            var user = await _context.Users.SingleOrDefaultAsync(x => x.UserID == userId);
+            if (user != null
+                && string.Equals(user.SessionVersion, cookieSessionVersion, StringComparison.Ordinal))
+            {
+                user.SessionVersion = null;
+                await _context.SaveChangesAsync();
+            }
+        }
+
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         
         return Ok(new AuthResponse
@@ -268,11 +283,17 @@ public class AuthController : ControllerBase
 
     private async Task SignInUserAsync(int userId, string email, string username, List<string> roles, List<string> permissions)
     {
+        var user = await _context.Users.SingleAsync(x => x.UserID == userId);
+        var sessionVersion = AuthenticationSession.CreateVersion();
+        user.SessionVersion = sessionVersion;
+        await _context.SaveChangesAsync();
+
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
             new Claim(ClaimTypes.Email, email),
-            new Claim(ClaimTypes.Name, username)
+            new Claim(ClaimTypes.Name, username),
+            new Claim(AuthenticationSession.ClaimType, sessionVersion)
         };
 
         foreach (var role in roles)

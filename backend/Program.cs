@@ -2,10 +2,12 @@
 using Backend.Configuration;
 using Backend.Data;
 using Backend.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +60,36 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         {
             context.Response.StatusCode = 403;
             return Task.CompletedTask;
+        };
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            var userIdValue = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var cookieSessionVersion = context.Principal?.FindFirst(AuthenticationSession.ClaimType)?.Value;
+            if (!int.TryParse(userIdValue, out var userId)
+                || string.IsNullOrWhiteSpace(cookieSessionVersion))
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                return;
+            }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var currentSession = await db.Users
+                .AsNoTracking()
+                .Where(user => user.UserID == userId)
+                .Select(user => new { user.SessionVersion, user.Status })
+                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+
+            if (currentSession == null
+                || !string.Equals(currentSession.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(
+                    currentSession.SessionVersion,
+                    cookieSessionVersion,
+                    StringComparison.Ordinal))
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            }
         };
     });
 
@@ -117,5 +149,4 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
-
 

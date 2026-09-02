@@ -23,6 +23,8 @@ public class User
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
+    [MaxLength(64)]
+    public string? SessionVersion { get; set; }
 
     public ICollection<MediaFile> UploadedMedia { get; set; } = new List<MediaFile>();
     public UserAvatar? AvatarMedia { get; set; }

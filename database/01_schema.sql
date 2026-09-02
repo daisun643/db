@@ -21,6 +21,7 @@ CREATE TABLE "User" (
     "bio"          VARCHAR2(500),
     "credit"       NUMBER,
     "status"       VARCHAR2(20),
+    "sessionVersion" VARCHAR2(64),
     CONSTRAINT "PK_User" PRIMARY KEY ("userId")
 );
 
