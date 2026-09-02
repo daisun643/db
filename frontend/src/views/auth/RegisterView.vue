@@ -102,8 +102,8 @@
 <script setup>
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { sendCode } from '../api'
+import { useAuthStore } from '../../stores/auth'
+import { sendCode } from '../../api'
 
 const router = useRouter()
 const authStore = useAuthStore()

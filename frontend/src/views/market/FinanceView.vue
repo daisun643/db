@@ -65,7 +65,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import { getFinanceFlows, getFinanceSummary } from '../api/index.js'
+import { getFinanceFlows, getFinanceSummary } from '../../api/index.js'
 
 export default {
   name: 'FinanceView',

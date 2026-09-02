@@ -170,10 +170,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import ProductTabs from '../tab/product/ProductTabs.vue'
-import AllProductsPanel from '../tab/product/AllProductsPanel.vue'
-import MyProductsPanel from '../tab/product/MyProductsPanel.vue'
-import OrdersPanel from '../tab/product/OrdersPanel.vue'
+import ProductTabs from '../../tab/product/ProductTabs.vue'
+import AllProductsPanel from '../../tab/product/AllProductsPanel.vue'
+import MyProductsPanel from '../../tab/product/MyProductsPanel.vue'
+import OrdersPanel from '../../tab/product/OrdersPanel.vue'
 import {
   cancelTransaction,
   confirmReceipt,
@@ -187,7 +187,7 @@ import {
   payTransaction,
   sendOrderMessage,
   updateProduct,
-} from '../api'
+} from '../../api'
 
 const router = useRouter()
 

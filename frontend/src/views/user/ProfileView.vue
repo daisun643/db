@@ -193,9 +193,9 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { changePassword, getCreditAdjustments, getProfile, updateProfile, uploadAvatar } from '../api'
-import { useAuthStore } from '../stores/auth'
-import { canShowAvatar, markAvatarFailed } from '../utils/avatarFallback'
+import { changePassword, getCreditAdjustments, getProfile, updateProfile, uploadAvatar } from '../../api'
+import { useAuthStore } from '../../stores/auth'
+import { canShowAvatar, markAvatarFailed } from '../../utils/avatarFallback'
 
 const authStore = useAuthStore()
 const profile = ref(null)

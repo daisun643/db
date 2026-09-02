@@ -161,8 +161,8 @@ import {
   markNotificationRead,
   rejectFriendRequest,
   sendMessage,
-} from '../api'
-import { onStreamEvent, onStreamOpen } from '../utils/notificationStream'
+} from '../../api'
+import { onStreamEvent, onStreamOpen } from '../../utils/notificationStream'
 
 const activeTab = ref('messages')
 const messageLoading = ref(false)

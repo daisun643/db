@@ -65,11 +65,11 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { createFriendRequest, getFriendRelation, getUserPublicProfile } from '../api'
-import MessagePopup from '../components/MessagePopup.vue'
-import UserTabs from '../tab/user/UserTabs.vue'
-import UserPostsPanel from '../tab/user/UserPostsPanel.vue'
-import UserProductsPanel from '../tab/user/UserProductsPanel.vue'
+import { createFriendRequest, getFriendRelation, getUserPublicProfile } from '../../api'
+import MessagePopup from '../../components/MessagePopup.vue'
+import UserTabs from '../../tab/user/UserTabs.vue'
+import UserPostsPanel from '../../tab/user/UserPostsPanel.vue'
+import UserProductsPanel from '../../tab/user/UserProductsPanel.vue'
 
 const route = useRoute()
 

@@ -89,7 +89,7 @@
 <script setup>
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { forgotPassword, resetPassword } from '../api'
+import { forgotPassword, resetPassword } from '../../api'
 
 const router = useRouter()
 

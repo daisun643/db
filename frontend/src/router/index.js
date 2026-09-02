@@ -5,22 +5,22 @@ import { getRequiredPermissions } from './routeAccess'
 const routes = [
   { 
     path: '/', 
-    component: () => import('../views/HomeView.vue'),
+    component: () => import('../views/home/HomeView.vue'),
     meta: { requiresAuth: true }
   },
   { 
     path: '/login', 
-    component: () => import('../views/LoginView.vue'),
+    component: () => import('../views/auth/LoginView.vue'),
     meta: { guest: true }
   },
   { 
     path: '/register', 
-    component: () => import('../views/RegisterView.vue'),
+    component: () => import('../views/auth/RegisterView.vue'),
     meta: { guest: true }
   },
   { 
     path: '/forgot-password', 
-    component: () => import('../views/ForgotPasswordView.vue'),
+    component: () => import('../views/auth/ForgotPasswordView.vue'),
     meta: { guest: true }
   },
   {
@@ -59,32 +59,67 @@ const routes = [
   },
   { 
     path: '/products', 
-    component: () => import('../views/ProductsView.vue'),
+    component: () => import('../views/market/ProductsView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/products') }
   },
   { 
     path: '/messages', 
-    component: () => import('../views/MessagesView.vue'),
+    component: () => import('../views/social/MessagesView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/messages') }
   },
   { 
     path: '/profile', 
-    component: () => import('../views/ProfileView.vue'),
+    component: () => import('../views/user/ProfileView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/profile') }
   },
   { 
     path: '/user/:id', 
-    component: () => import('../views/UserProfileView.vue'),
+    component: () => import('../views/user/UserProfileView.vue'),
     meta: { requiresAuth: true }
   },
   { 
     path: '/system-status', 
-    component: () => import('../views/SystemStatusView.vue'),
+    component: () => import('../views/system/SystemStatusDashboardView.vue'),
     meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status') }
   },
   {
+    path: '/system-status/forums',
+    component: () => import('../views/system/SystemForumsView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/users',
+    component: () => import('../views/system/SystemUsersView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/audits',
+    component: () => import('../views/system/SystemAuditsView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/posts',
+    component: () => import('../views/system/SystemPostsView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/disputes',
+    component: () => import('../views/system/SystemDisputesView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/reports',
+    component: () => import('../views/system/SystemReportsView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
+    path: '/system-status/announcements',
+    component: () => import('../views/system/SystemAnnouncementsView.vue'),
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/system-status'), accessPath: '/system-status' }
+  },
+  {
     path: '/finance',
-    component: () => import('../views/FinanceView.vue'),
+    component: () => import('../views/market/FinanceView.vue'),
     meta: { requiresAuth: true}
 }
 ]
