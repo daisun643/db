@@ -111,6 +111,46 @@ public class ForumsController : ControllerBase
         return Ok(await MapForumsAsync(forums));
     }
 
+    /// <summary>
+    /// 我关注的版块（按关注时间倒序）
+    /// </summary>
+    [HttpGet("joined")]
+    [Authorize]
+    public async Task<ActionResult<List<ForumSummaryResponse>>> GetJoined()
+    {
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+            return Unauthorized();
+
+        var joinedForumIds = await _db.ForumMembers
+            .Where(fm => fm.UserID == userId.Value)
+            .OrderByDescending(fm => fm.JoinTime ?? DateTime.MinValue)
+            .Select(fm => fm.ForumID)
+            .ToListAsync();
+
+        if (joinedForumIds.Count == 0)
+            return Ok(new List<ForumSummaryResponse>());
+
+        var forums = await _db.Forums
+            .Include(f => f.ForumManagers)
+            .ThenInclude(fm => fm.User)
+            .Include(f => f.Creator)
+            .Include(f => f.AvatarMedia)
+            .ThenInclude(a => a!.Media)
+            .Where(f => joinedForumIds.Contains(f.ForumID))
+            .ToListAsync();
+
+        // 按关注时间倒序返回
+        var orderMap = joinedForumIds
+            .Select((id, index) => new { id, index })
+            .ToDictionary(x => x.id, x => x.index);
+        var ordered = forums
+            .OrderBy(f => orderMap.TryGetValue(f.ForumID, out var index) ? index : int.MaxValue)
+            .ToList();
+
+        return Ok(await MapForumsAsync(ordered));
+    }
+
     [HttpPost]
     [RequirePermission("forums.create")]
     public async Task<ActionResult<ForumSummaryResponse>> Create([FromBody] CreateForumRequest request)
