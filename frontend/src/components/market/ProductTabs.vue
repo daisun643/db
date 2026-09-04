@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import TabBar from '../TabBar.vue'
+import TabBar from '../../tab/TabBar.vue'
 
 defineProps({
   modelValue: { type: String, default: 'all' },
