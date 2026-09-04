@@ -27,11 +27,39 @@
             <span>标题</span>
             <input v-model="postForm.title" type="text" placeholder="用一句话概括你想讨论的内容" required />
           </label>
-          <label class="composer-field">
-            <span>正文</span>
-            <textarea v-model="postForm.content" placeholder="补充背景、细节或你的看法…" required autofocus></textarea>
+          <div class="composer-field">
+            <div class="composer-field-head">
+              <span>正文</span>
+              <div class="composer-mode-toggle">
+                <button
+                  type="button"
+                  :class="{ active: !showPreview }"
+                  @click="showPreview = false"
+                >编辑</button>
+                <button
+                  type="button"
+                  :class="{ active: showPreview }"
+                  @click="showPreview = true"
+                >预览</button>
+              </div>
+            </div>
+            <textarea
+              v-if="!showPreview"
+              v-model="postForm.content"
+              placeholder="补充背景、细节或你的看法…"
+              required
+              autofocus
+            ></textarea>
+            <div v-else class="composer-preview">
+              <div
+                v-if="postForm.content.trim()"
+                class="post-content markdown-body"
+                v-html="previewHtml"
+              ></div>
+              <p v-else class="composer-preview-empty">暂无内容，切换到「编辑」填写正文。</p>
+            </div>
             <small class="field-hint">支持 Markdown：标题、列表、引用、链接、代码块等。</small>
-          </label>
+          </div>
           <div v-if="createImagePreviewUrls.length" class="image-strip">
             <div v-for="(url, index) in createImagePreviewUrls" :key="url" class="image-preview-item">
               <img :src="url" :alt="`预览图 ${index + 1}`" loading="lazy" />
@@ -65,6 +93,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { createPost, uploadImages } from '../../api'
+import { renderMarkdown } from '../../utils/markdown'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -84,6 +113,8 @@ const postForm = ref({
 })
 const createImageFiles = ref([])
 const createImagePreviewUrls = ref([])
+const showPreview = ref(false)
+const previewHtml = computed(() => renderMarkdown(postForm.value.content))
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -119,6 +150,7 @@ const resetForm = () => {
     title: '',
     content: '',
   }
+  showPreview.value = false
   clearCreateImageState()
 }
 
@@ -167,6 +199,11 @@ const removeCreateImage = (index) => {
 }
 
 const handleCreatePost = async () => {
+  // 预览模式下 textarea 未渲染，原生 required 校验不生效：先切回编辑再提交
+  if (showPreview.value) {
+    showPreview.value = false
+    return
+  }
   try {
     submitting.value = true
     const uploaded = createImageFiles.value.length > 0
@@ -224,6 +261,104 @@ const handleCreatePost = async () => {
   position: absolute;
   right: 0.375rem;
   top: 0.375rem;
+}
+
+.composer-field-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.composer-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #dfe2e8;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.composer-mode-toggle button {
+  background: #fff;
+  border: none;
+  color: #566074;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+}
+
+.composer-mode-toggle button + button {
+  border-left: 1px solid #dfe2e8;
+}
+
+.composer-mode-toggle button.active {
+  background: #0f1419;
+  color: #fff;
+}
+
+.composer-preview {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  line-height: 1.7;
+  min-height: 160px;
+  padding: 0.65rem 0.7rem;
+  overflow-wrap: break-word;
+}
+
+.composer-preview-empty {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.composer-preview :deep(h1),
+.composer-preview :deep(h2),
+.composer-preview :deep(h3),
+.composer-preview :deep(h4) {
+  margin: 0.6em 0 0.35em;
+  line-height: 1.35;
+}
+
+.composer-preview :deep(p) {
+  margin: 0.4em 0;
+}
+
+.composer-preview :deep(ul),
+.composer-preview :deep(ol) {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.composer-preview :deep(blockquote) {
+  border-left: 3px solid var(--border);
+  color: var(--text-secondary);
+  margin: 0.5em 0;
+  padding: 0.1em 0 0.1em 0.75em;
+}
+
+.composer-preview :deep(code) {
+  background: #f1f3f5;
+  border-radius: 4px;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}
+
+.composer-preview :deep(pre) {
+  background: #f1f3f5;
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 0.6rem 0.75rem;
+}
+
+.composer-preview :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.composer-preview :deep(a) {
+  color: var(--primary);
 }
 
 .field-hint {

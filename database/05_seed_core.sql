@@ -39,7 +39,7 @@ AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '技术讨论');
 
 INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
 SELECT '二手交易', '闲置物品转让、求购信息、二手好物推荐', 'Active', SYSTIMESTAMP - INTERVAL '25' DAY, "userId"
-FROM "User" WHERE "email" = '2@tongji.edu.cn'
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '二手交易');
 
 INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
@@ -49,12 +49,12 @@ AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '校园活动');
 
 INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
 SELECT '学习交流', '课程资料分享与学习交流', 'Active', SYSTIMESTAMP - INTERVAL '21' DAY, "userId"
-FROM "User" WHERE "email" = '2@tongji.edu.cn'
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '学习交流');
 
 INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
 SELECT '求职求助', '实习、求职、考研与就业信息分享', 'Active', SYSTIMESTAMP - INTERVAL '20' DAY, "userId"
-FROM "User" WHERE "email" = '3@tongji.edu.cn'
+FROM "User" WHERE "email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '求职求助');
 
 INSERT INTO "Forum" ("forumName", "description", "status", "createTime", "creatorId")
@@ -180,28 +180,13 @@ FROM "User" WHERE "email" = '3@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Pro
 
 -- ============================================================
 -- 8. 论坛管理员（role：Moderator=版主，Admin=管理员）
+-- 演示数据约定：所有版块的版主统一为 1@tongji.edu.cn
 -- ============================================================
 
 INSERT INTO "ForumManager" ("forumId", "userId", "role")
 SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
-WHERE f."forumName" = '校园生活' AND u."email" = '3@tongji.edu.cn'
+WHERE u."email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
-
-INSERT INTO "ForumManager" ("forumId", "userId", "role")
-SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
-WHERE f."forumName" = '技术讨论' AND u."email" = '1@tongji.edu.cn'
-AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
-
-INSERT INTO "ForumManager" ("forumId", "userId", "role")
-SELECT f."forumId", u."userId", 'Moderator' FROM "Forum" f, "User" u
-WHERE f."forumName" = '二手交易' AND u."email" = '2@tongji.edu.cn'
-AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = u."userId");
-
--- 版块必须有版主：创建者默认成为版主（与后端创建版块逻辑保持一致）
-INSERT INTO "ForumManager" ("forumId", "userId", "role")
-SELECT f."forumId", f."creatorId", 'Moderator' FROM "Forum" f
-WHERE f."creatorId" IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM "ForumManager" fm WHERE fm."forumId" = f."forumId" AND fm."userId" = f."creatorId");
 
 -- ============================================================
 -- 9. 演示用通知关联数据
@@ -329,13 +314,13 @@ WHERE u."email" = '4@tongji.edu.cn'
   AND pr."title" = '《算法导论》第四版'
 AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:dispute:user4:algorithm-resolved');
 
--- Forum：用户3是校园生活版主
+-- Forum：用户1是校园生活版主
 INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
-SELECT '版主权限已分配', '你已成为“校园生活”版块版主，可以协助维护帖子和评论秩序。', SYSTIMESTAMP - INTERVAL '25' MINUTE, 'Forum', 'Forum', f."forumId", '/forums', '0', NULL, 'seed:notification:forum:user3:campus-manager', u."userId"
+SELECT '版主权限已分配', '你已成为“校园生活”版块版主，可以协助维护帖子和评论秩序。', SYSTIMESTAMP - INTERVAL '25' MINUTE, 'Forum', 'Forum', f."forumId", '/forums', '0', NULL, 'seed:notification:forum:user1:campus-manager', u."userId"
 FROM "User" u, "Forum" f
-WHERE u."email" = '3@tongji.edu.cn'
+WHERE u."email" = '1@tongji.edu.cn'
   AND f."forumName" = '校园生活'
-AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:forum:user3:campus-manager');
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:forum:user1:campus-manager');
 
 -- Friend：用户4和 Admin User 的好友关系
 INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
@@ -373,13 +358,13 @@ WHERE seller."email" = '1@tongji.edu.cn'
   AND pr."title" = '《算法导论》第四版'
 AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:transaction:user1:algorithm-sold');
 
--- Manager User：二手交易版主管理通知和商品相关通知
+-- Manager User：商品相关通知
 INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
-SELECT '版主权限已分配', '你已成为“二手交易”版块版主，请协助维护商品帖和交易秩序。', SYSTIMESTAMP - INTERVAL '50' MINUTE, 'Forum', 'Forum', f."forumId", '/forums', '0', NULL, 'seed:notification:forum:user2:market-manager', u."userId"
+SELECT '版主权限已分配', '你已成为“二手交易”版块版主，请协助维护商品帖和交易秩序。', SYSTIMESTAMP - INTERVAL '50' MINUTE, 'Forum', 'Forum', f."forumId", '/forums', '0', NULL, 'seed:notification:forum:user1:market-manager', u."userId"
 FROM "User" u, "Forum" f
-WHERE u."email" = '2@tongji.edu.cn'
+WHERE u."email" = '1@tongji.edu.cn'
   AND f."forumName" = '二手交易'
-AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:forum:user2:market-manager');
+AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:forum:user1:market-manager');
 
 INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
 SELECT '商品收到咨询', '有同学对你发布的“机械键盘 Cherry MX 青轴”感兴趣，建议及时查看私信。', SYSTIMESTAMP - INTERVAL '45' MINUTE, 'Message', 'Product', pr."productId", '/messages', '0', NULL, 'seed:notification:message:user2:keyboard-inquiry', u."userId"
@@ -388,7 +373,7 @@ WHERE u."email" = '2@tongji.edu.cn'
   AND pr."title" = '机械键盘 Cherry MX 青轴'
 AND NOT EXISTS (SELECT 1 FROM "Notification" WHERE "eventKey" = 'seed:notification:message:user2:keyboard-inquiry');
 
--- Moderator User：校园生活版主通知和帖子互动通知
+-- Moderator User：帖子互动通知
 INSERT INTO "Notification" ("title", "content", "createTime", "type", "targetType", "targetId", "link", "isRead", "readTime", "eventKey", "userId")
 SELECT '帖子新评论', '你的《食堂新出的菜品测评来了！》收到新的评论，大家正在讨论食堂新品。', SYSTIMESTAMP - INTERVAL '55' MINUTE, 'Reply', 'Post', p."postId", '/forums', '0', NULL, 'seed:notification:reply:user3:canteen-comment', u."userId"
 FROM "User" u, "Post" p

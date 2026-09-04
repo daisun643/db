@@ -34,9 +34,17 @@
             <div
               class="post-content markdown-body"
               v-html="renderMarkdown(selectedPost.content || selectedPost.contentPreview)"
+              @click="handleContentImageClick"
             ></div>
             <div v-if="selectedPost.imageUrls?.length" class="detail-images">
-              <img v-for="url in selectedPost.imageUrls" :key="url" :src="url" alt="" loading="lazy" />
+              <img
+                v-for="url in selectedPost.imageUrls"
+                :key="url"
+                :src="url"
+                alt=""
+                loading="lazy"
+                @click="openImagePreview(url)"
+              />
             </div>
             <div class="post-actions">
               <span
@@ -196,6 +204,11 @@
         </div>
       </section>
     </aside>
+
+    <div v-if="previewImage" class="image-lightbox" @click="closeImagePreview">
+      <img :src="previewImage" alt="图片预览" />
+      <button class="lightbox-close" aria-label="关闭预览" @click.stop="closeImagePreview">×</button>
+    </div>
   </section>
 </template>
 
@@ -327,10 +340,38 @@ const postAuthorAvatarUrl = computed(() => {
 
 const load = () => loadPostDetail(postId.value)
 
-onMounted(load)
+// ---- 图片点击放大预览 ----
+
+const previewImage = ref('')
+
+const openImagePreview = (url) => {
+  if (!url) return
+  previewImage.value = url
+}
+
+const closeImagePreview = () => {
+  previewImage.value = ''
+}
+
+const handleContentImageClick = (event) => {
+  const img = event.target.closest('img')
+  if (img?.src) openImagePreview(img.src)
+}
+
+const handlePreviewKeydown = (event) => {
+  if (event.key === 'Escape') closeImagePreview()
+}
+
+onMounted(() => {
+  load()
+  window.addEventListener('keydown', handlePreviewKeydown)
+})
 watch(postId, load)
 watch(selectedPost, loadForumCard)
-onBeforeUnmount(closePostDetail)
+onBeforeUnmount(() => {
+  closePostDetail()
+  window.removeEventListener('keydown', handlePreviewKeydown)
+})
 </script>
 
 <style scoped>
@@ -605,13 +646,64 @@ onBeforeUnmount(closePostDetail)
   margin: 0.75rem 0;
 }
 
+.post-content :deep(img) {
+  cursor: zoom-in;
+  max-width: 100%;
+}
+
 .detail-images img {
   aspect-ratio: 16 / 10;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  cursor: zoom-in;
   object-fit: cover;
   width: 100%;
+}
+
+.image-lightbox {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.82);
+  cursor: zoom-out;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 2rem;
+  position: fixed;
+  z-index: 1200;
+}
+
+.image-lightbox img {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  cursor: zoom-out;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.lightbox-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 1.4rem;
+  height: 40px;
+  justify-content: center;
+  line-height: 1;
+  position: absolute;
+  right: 1.25rem;
+  top: 1rem;
+  width: 40px;
+}
+
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .post-actions {

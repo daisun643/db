@@ -13,7 +13,37 @@
         <div class="composer-avatar">{{ userInitial }}</div>
         <div class="composer-fields">
           <input v-model="editForm.title" type="text" placeholder="帖子标题" required />
-          <textarea v-model="editForm.content" placeholder="帖子内容" required></textarea>
+          <div class="composer-edit-field">
+            <div class="composer-field-head">
+              <span>正文</span>
+              <div class="composer-mode-toggle">
+                <button
+                  type="button"
+                  :class="{ active: !showPreview }"
+                  @click="showPreview = false"
+                >编辑</button>
+                <button
+                  type="button"
+                  :class="{ active: showPreview }"
+                  @click="showPreview = true"
+                >预览</button>
+              </div>
+            </div>
+            <textarea
+              v-if="!showPreview"
+              v-model="editForm.content"
+              placeholder="帖子内容"
+              required
+            ></textarea>
+            <div v-else class="composer-preview">
+              <div
+                v-if="editForm.content.trim()"
+                class="post-content markdown-body"
+                v-html="previewHtml"
+              ></div>
+              <p v-else class="composer-preview-empty">暂无内容，切换到「编辑」填写正文。</p>
+            </div>
+          </div>
           <p class="field-hint">支持 Markdown：标题、列表、引用、链接、代码块等。</p>
           <div class="composer-row">
             <input
@@ -41,6 +71,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { updatePost, uploadImages } from '../../api'
+import { renderMarkdown } from '../../utils/markdown'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -57,6 +88,8 @@ const editImageUrls = ref([])
 const editImageNewUrls = ref([])
 const editImageFiles = ref([])
 const editingSaving = ref(false)
+const showPreview = ref(false)
+const previewHtml = computed(() => renderMarkdown(editForm.value.content))
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -88,6 +121,7 @@ watch(() => props.post, (post) => {
 
 watch(() => props.open, (isOpen) => {
   if (!isOpen) {
+    showPreview.value = false
     clearEditImageState()
   }
 })
@@ -156,6 +190,12 @@ const removeEditImage = (index) => {
 
 const handleUpdatePost = async () => {
   if (!props.post) return
+
+  // 预览模式下 textarea 未渲染，原生 required 校验不生效：先切回编辑再保存
+  if (showPreview.value) {
+    showPreview.value = false
+    return
+  }
 
   try {
     editingSaving.value = true
@@ -293,6 +333,113 @@ const handleUpdatePost = async () => {
   border-color: var(--primary);
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.composer-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.composer-field-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: #4c5567;
+}
+
+.composer-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #dfe2e8;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.composer-mode-toggle button {
+  background: #fff;
+  border: none;
+  color: #566074;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+}
+
+.composer-mode-toggle button + button {
+  border-left: 1px solid #dfe2e8;
+}
+
+.composer-mode-toggle button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.composer-preview {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  line-height: 1.7;
+  min-height: 160px;
+  padding: 0.55rem 0.625rem;
+  overflow-wrap: break-word;
+}
+
+.composer-preview-empty {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.composer-preview :deep(h1),
+.composer-preview :deep(h2),
+.composer-preview :deep(h3),
+.composer-preview :deep(h4) {
+  margin: 0.6em 0 0.35em;
+  line-height: 1.35;
+}
+
+.composer-preview :deep(p) {
+  margin: 0.4em 0;
+}
+
+.composer-preview :deep(ul),
+.composer-preview :deep(ol) {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.composer-preview :deep(blockquote) {
+  border-left: 3px solid var(--border);
+  color: var(--text-secondary);
+  margin: 0.5em 0;
+  padding: 0.1em 0 0.1em 0.75em;
+}
+
+.composer-preview :deep(code) {
+  background: #f1f3f5;
+  border-radius: 4px;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}
+
+.composer-preview :deep(pre) {
+  background: #f1f3f5;
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 0.6rem 0.75rem;
+}
+
+.composer-preview :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.composer-preview :deep(a) {
+  color: var(--primary);
 }
 
 .composer-row {
