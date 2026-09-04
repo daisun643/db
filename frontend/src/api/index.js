@@ -58,6 +58,7 @@ export const uploadImages = (files, bucket = 'posts') => {
 export const changePassword = (data) => api.post('/user/password', data)
 export const getForums = () => api.get('/forums')
 export const getMyForums = () => api.get('/forums/mine')
+export const getJoinedForums = () => api.get('/forums/joined')
 export const getForum = (id) => api.get(`/forums/${id}`)
 export const createForum = (data) => api.post('/forums', data)
 export const updateForum = (id, data) => api.put(`/forums/${id}`, data)

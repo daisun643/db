@@ -10,7 +10,7 @@
       >{{ entry.label }}</router-link>
     </nav>
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['MyPostsView', 'MyCommentsView', 'MyForumsView', 'FavoritesView']">
+      <keep-alive :include="['MyPostsView', 'MyCommentsView', 'MyForumsView', 'MyJoinedForumsView', 'FavoritesView']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
@@ -26,6 +26,7 @@ const entries = [
   { path: '/forums/my/posts', label: '我的帖子' },
   { path: '/forums/my/comments', label: '我的评论' },
   { path: '/forums/my/forums', label: '我管理的版块' },
+  { path: '/forums/my/joined', label: '关注的版块' },
   { path: '/forums/my/favorites', label: '收藏夹' },
 ]
 </script>

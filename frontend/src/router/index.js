@@ -52,6 +52,7 @@ const routes = [
           { path: 'posts', component: () => import('../views/forum/MyPostsView.vue') },
           { path: 'comments', component: () => import('../views/forum/MyCommentsView.vue') },
           { path: 'forums', component: () => import('../views/forum/MyForumsView.vue') },
+          { path: 'joined', component: () => import('../views/forum/MyJoinedForumsView.vue') },
           { path: 'favorites', component: () => import('../views/forum/FavoritesView.vue') },
         ],
       },
