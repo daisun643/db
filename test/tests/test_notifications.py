@@ -117,7 +117,7 @@ class TestReplyEvents:
         """用户评论别人帖子后，帖子作者收到 Reply 通知"""
         # admin 发帖，user 4 评论 → admin 收到通知
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         title = unique("reply-post-v2")
         post_resp = forum.create_post(1, title, "post for reply test")
         assert post_resp.status_code in (200, 201), post_resp.text
@@ -145,7 +145,7 @@ class TestReplyEvents:
         admin_forum.close()
 
         user_forum = ForumAPI()
-        user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+        user_forum.share_session_with(notification_client)
         comment_resp = user_forum.create_comment(post_id, "parent comment from user")
         assert comment_resp.status_code in (200, 201), comment_resp.text
         parent_comment_id = comment_resp.json()["commentID"]
@@ -163,7 +163,7 @@ class TestReplyEvents:
     def test_self_comment_does_not_notify_self(self, admin_notification_client):
         """自己评论自己的帖子不产生 Reply 通知"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         title = unique("self-comment-v2")
         post_resp = forum.create_post(1, title, "self comment test")
         assert post_resp.status_code in (200, 201), post_resp.text
@@ -183,7 +183,7 @@ class TestReportEvents:
         """举报处理后，举报人收到 Report 通知"""
         # admin 发帖，user 举报
         admin_forum = ForumAPI()
-        admin_forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        admin_forum.share_session_with(admin_notification_client)
         title = unique("report-review-v2")
         post_resp = admin_forum.create_post(1, title, "post to be reported")
         assert post_resp.status_code in (200, 201), post_resp.text
@@ -192,7 +192,7 @@ class TestReportEvents:
 
         # user 4 举报
         user_forum = ForumAPI()
-        user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+        user_forum.share_session_with(notification_client)
         report_resp = user_forum.create_report("Post", post_id, "test report reason")
         assert report_resp.status_code == 200, report_resp.text
         report_id = report_resp.json()["reportID"]
@@ -211,7 +211,7 @@ class TestReportEvents:
         """举报成立后，被处理用户（帖子作者）收到违规通知"""
         # admin 发帖（admin 有发帖权限）
         admin_forum = ForumAPI()
-        admin_forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        admin_forum.share_session_with(admin_notification_client)
         title = unique("report-penalty-v2")
         post_resp = admin_forum.create_post(1, title, "post that will be penalized")
         assert post_resp.status_code in (200, 201), post_resp.text
@@ -219,7 +219,7 @@ class TestReportEvents:
 
         # user 4 举报
         user_forum = ForumAPI()
-        user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+        user_forum.share_session_with(notification_client)
         report_resp = user_forum.create_report("Post", post_id, "test penalty report")
         assert report_resp.status_code == 200, report_resp.text
         report_id = report_resp.json()["reportID"]
@@ -239,7 +239,7 @@ class TestDisputeEvents:
         """发起纠纷后，卖家收到 Dispute 通知（验证本次 tx_id）"""
         admin_market = MarketAPI()
         manager_market = MarketAPI()
-        admin_market.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        admin_market.share_session_with(admin_notification_client)
         manager_market.login(TEST_USERS["manager"]["email"], TEST_USERS["manager"]["password"])
 
         manager_market.deposit(500)
@@ -271,8 +271,8 @@ class TestDisputeEvents:
         """纠纷处理完成后，买卖双方收到结果通知"""
         admin_market = MarketAPI()
         manager_market = MarketAPI()
-        admin_market.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
-        manager_market.login(TEST_USERS["manager"]["email"], TEST_USERS["manager"]["password"])
+        admin_market.share_session_with(admin_notification_client)
+        manager_market.share_session_with(manager_notification_client)
 
         manager_market.deposit(500)
         product_resp = admin_market.create_product(unique("dispute-resolve-v2"), 50.0, stock=5)
@@ -322,7 +322,7 @@ class TestNotificationEvents:
         admin_market = MarketAPI()
         manager_market = MarketAPI()
         admin_market.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
-        manager_market.login(TEST_USERS["manager"]["email"], TEST_USERS["manager"]["password"])
+        manager_market.share_session_with(manager_notification_client)
 
         product_resp = admin_market.create_product(unique("notification-product"), 9.9, stock=3)
         assert product_resp.status_code in (200, 201)
@@ -340,7 +340,7 @@ class TestNotificationEvents:
 
     def test_audit_event_creates_notification(self, admin_notification_client):
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         title = unique("audit-spam-v1")
         post_resp = forum.create_post(1, title, "spam content for audit notification")
         forum.close()
@@ -468,7 +468,7 @@ class TestForumLikeNotifications:
     def test_like_post_notifies_author_with_liker_and_link(self, admin_notification_client):
         """别人点赞帖子后，作者收到 Like 通知，含点赞人用户名与帖子详情页链接"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("like-notify"), "like notification test")
@@ -493,7 +493,7 @@ class TestForumLikeNotifications:
     def test_unlike_and_relike_does_not_duplicate_notification(self, admin_notification_client):
         """取消点赞后再点赞，EventKey 去重不产生第二条 Like 通知"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("like-dedupe"), "like dedupe test")
@@ -515,7 +515,7 @@ class TestForumLikeNotifications:
     def test_self_like_does_not_notify(self, admin_notification_client):
         """自己点赞自己的帖子不产生 Like 通知"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("like-self"), "self like test")
@@ -535,7 +535,7 @@ class TestPostStatusNotifications:
     def test_restore_notifies_author(self, admin_notification_client, notification_client):
         """管理员删除后恢复帖子，作者收到“已被恢复”通知"""
         user_forum = ForumAPI()
-        user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+        user_forum.share_session_with(notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(user_forum, unique("restore-notify"), "restore notification test")
@@ -559,7 +559,7 @@ class TestPostStatusNotifications:
     def test_ban_notifies_author(self, admin_notification_client, notification_client):
         """管理员封禁帖子后，作者收到“已被封禁”通知"""
         user_forum = ForumAPI()
-        user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+        user_forum.share_session_with(notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(user_forum, unique("ban-notify"), "ban notification test")
@@ -580,7 +580,7 @@ class TestPostStatusNotifications:
     def test_owner_status_change_does_not_notify_self(self, admin_notification_client):
         """作者自己删除/恢复自己的帖子不产生 Moderation 通知"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("status-self"), "owner status change test")
@@ -601,7 +601,7 @@ class TestCommentNotificationContent:
     def test_comment_notification_contains_commenter_and_link(self, admin_notification_client):
         """评论通知文案含评论人用户名，link 指向帖子详情页"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("comment-content"), "comment notification content test")
@@ -632,13 +632,13 @@ class TestReportFiledNotifications:
     ):
         """提交举报后，版主或管理员收到“收到新举报”通知，含举报人用户名与原因；举报人自身不接收"""
         forum = ForumAPI()
-        forum.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+        forum.share_session_with(admin_notification_client)
         post_id = None
         try:
             post_id = create_post_for_test(forum, unique("report-filed"), "report filed notification test")
 
             user_forum = ForumAPI()
-            user_forum.login(TEST_USERS["user"]["email"], TEST_USERS["user"]["password"])
+            user_forum.share_session_with(notification_client)
             report_resp = user_forum.create_report("Post", post_id, "举报受理通知测试原因")
             user_forum.close()
             assert report_resp.status_code == 200, report_resp.text

@@ -648,6 +648,20 @@ class TestForumManagers:
 
 class TestUserSearch:
 
+    @pytest.fixture
+    def moderator_with_forum(self, moderator_forum_client, admin_forum_client):
+        """站点 Moderator（3@）默认无任何版块管理角色，
+        指派为临时版块版主后具备版块管理人员身份，可使用用户搜索。"""
+        create_resp = admin_forum_client.create_forum(
+            f"搜索权限-{uuid4().hex[:8]}", "版块管理人员搜索验证")
+        assert create_resp.status_code == 201
+        forum_id = create_resp.json()["forumID"]
+        try:
+            assert admin_forum_client.assign_forum_manager(forum_id, 3).status_code == 200
+            yield moderator_forum_client
+        finally:
+            admin_forum_client.delete_forum(forum_id)
+
     @staticmethod
     def _fresh_plain_client():
         """注册全新普通用户：测试中 user4 会创建版块成为版主，
@@ -666,8 +680,8 @@ class TestUserSearch:
         assert client.login(email, "Password123").status_code == 200
         return client
 
-    def test_forum_manager_can_search_users(self, moderator_forum_client):
-        resp = moderator_forum_client.search_users(TEST_USERS["user"]["email"])
+    def test_forum_manager_can_search_users(self, moderator_with_forum):
+        resp = moderator_with_forum.search_users(TEST_USERS["user"]["email"])
         assert resp.status_code == 200
         assert 4 in [u["userID"] for u in resp.json()]
 
@@ -689,13 +703,13 @@ class TestUserSearch:
         forum_client.post("/api/auth/logout")
         assert forum_client.search_users("tongji").status_code == 401
 
-    def test_search_empty_keyword_returns_empty(self, moderator_forum_client):
-        resp = moderator_forum_client.search_users("   ")
+    def test_search_empty_keyword_returns_empty(self, moderator_with_forum):
+        resp = moderator_with_forum.search_users("   ")
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_search_no_match_returns_empty(self, moderator_forum_client):
-        resp = moderator_forum_client.search_users(f"不存在用户-{uuid4().hex}")
+    def test_search_no_match_returns_empty(self, moderator_with_forum):
+        resp = moderator_with_forum.search_users(f"不存在用户-{uuid4().hex}")
         assert resp.status_code == 200
         assert resp.json() == []
 
