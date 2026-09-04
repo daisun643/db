@@ -84,6 +84,9 @@
     </details>
 
     <div v-if="loading" class="loading">加载中...</div>
+    <div v-else-if="products.length === 0" class="empty-state">
+      <p>暂无商品</p>
+    </div>
     <div v-else class="product-grid">
       <article v-for="product in products" :key="product.productID" class="product-card">
         <div class="product-head">
@@ -93,7 +96,8 @@
           </span>
         </div>
         <div v-if="product.imageUrls?.length" class="product-images">
-          <img v-for="url in product.imageUrls.slice(0, 3)" :key="url" :src="url" alt="" loading="lazy" />
+          <img :src="product.imageUrls[0]" :alt="product.title" loading="lazy" />
+          <span v-if="product.imageUrls.length > 1" class="image-count">{{ product.imageUrls.length }} 图</span>
         </div>
         <p>{{ product.description || '暂无描述' }}</p>
         <div class="product-meta">
@@ -119,9 +123,6 @@
           <button class="link-button danger" @click="$emit('report', product)">举报</button>
         </div>
       </article>
-      <div v-if="products.length === 0" class="empty-state">
-        <p>暂无商品</p>
-      </div>
     </div>
 
     <section v-if="productTotalPages > 1" class="market-pagination">
@@ -416,9 +417,8 @@ onMounted(() => {
 }
 
 .product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
+  column-gap: 1rem;
+  column-width: 270px;
 }
 
 .product-card {
@@ -432,6 +432,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  margin-bottom: 1rem;
+  break-inside: avoid;
 }
 
 .product-head {
@@ -442,18 +444,29 @@ onMounted(() => {
 }
 
 .product-images {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: relative;
 }
 
 .product-images img {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   object-fit: cover;
   width: 100%;
+}
+
+.image-count {
+  align-items: center;
+  background: rgba(17, 24, 43, 0.66);
+  border-radius: 999px;
+  bottom: 0.5rem;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.7rem;
+  padding: 0.125rem 0.5rem;
+  position: absolute;
+  right: 0.5rem;
 }
 
 .image-preview-item {
@@ -570,11 +583,10 @@ onMounted(() => {
 .form-row { align-items: stretch; }
 .form-row > * { flex: 1 1 130px; }
 
-.product-grid { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 1rem; }
+.product-grid { column-width: 285px; column-gap: 1rem; }
 .product-card { position: relative; overflow: hidden; gap: .85rem; background: #fff; transition: transform .25s, box-shadow .25s, border-color .25s; }
 .product-head h2 { font-size: 1.05rem; letter-spacing: -.02em; }
 .product-images { overflow: hidden; border-radius: 15px; background: #f2f4f7; }
-.product-card .product-images img:first-child:last-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
 .product-images img { border: 0; border-radius: 0; }
 .product-card > p { min-height: 2.8em; margin: 0; line-height: 1.55; }
 .product-meta { gap: .45rem; }
@@ -595,7 +607,6 @@ onMounted(() => {
 @media (max-width: 640px) {
   .market-filter-bar { grid-template-columns: 1fr; }
   .market-filter-bar select { min-width: 0; width: 100%; }
-  .product-grid { grid-template-columns: 1fr; }
   .product-card { border-radius: 18px; }
 }
 </style>
