@@ -13,7 +13,7 @@
 ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 
--- 用户1 - Admin (1@tongji.edu.cn)
+-- 用户1 - Manager (1@tongji.edu.cn)
 INSERT INTO "MediaFile" ("storageProvider", "objectKey", "fileName", "url", "mimeType", "uploadTime", "uploadedByUserId")
 SELECT 's3', 'avatars/user-avatar-1.png', 'user-avatar-1.png', '/uploads/avatars/user-avatar-1.png', 'image/png', SYSTIMESTAMP, u."userId"
 FROM "User" u WHERE u."email" = '1@tongji.edu.cn'

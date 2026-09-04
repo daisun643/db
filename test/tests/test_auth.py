@@ -162,7 +162,7 @@ class TestStage1CurrentUser:
         assert user["email"] == "1@tongji.edu.cn"
         assert "roles" in user
         assert "permissions" in user
-        assert "Admin" in user["roles"]
+        assert "Manager" in user["roles"]
         assert "dashboard.view" in user["permissions"]
 
 
@@ -410,9 +410,10 @@ class TestStage4Rbac:
     def test_normal_user_cannot_access_rbac_metadata(self, user_client):
         assert user_client.get_roles().status_code == 403
 
-    def test_manager_cannot_access_rbac_metadata(self, client):
+    def test_manager_can_access_rbac_metadata(self, client):
+        """站点 Admin 已并入 Manager：Manager 拥有 roles.manage，可读 RBAC 元数据。"""
         assert_success(client.login("2@tongji.edu.cn", "Password2"))
-        assert client.get_roles().status_code == 403
+        assert client.get_roles().status_code == 200
 
     def test_admin_can_read_predefined_roles_and_permissions(self, admin_client):
         roles = admin_client.get_roles()
@@ -420,7 +421,7 @@ class TestStage4Rbac:
 
         assert roles.status_code == 200
         assert permissions.status_code == 200
-        assert {role["roleName"] for role in roles.json()} >= {"Admin", "User"}
+        assert {role["roleName"] for role in roles.json()} >= {"Manager", "User"}
         assert any(permission["permissionName"] == "forums.view" for permission in permissions.json())
 
     @pytest.mark.parametrize("mutation", [

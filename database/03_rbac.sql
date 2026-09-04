@@ -10,8 +10,7 @@ ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 -- 插入默认角色
 -- ============================================================
 
-INSERT INTO "Role" ("roleName", "description", "createTime") VALUES ('Admin', '主管理员，拥有所有权限', SYSTIMESTAMP);
-INSERT INTO "Role" ("roleName", "description", "createTime") VALUES ('Manager', '普通管理员，可以审核内容和查看后台', SYSTIMESTAMP);
+INSERT INTO "Role" ("roleName", "description", "createTime") VALUES ('Manager', '管理员，拥有所有权限', SYSTIMESTAMP);
 INSERT INTO "Role" ("roleName", "description", "createTime") VALUES ('Moderator', '版主，可以管理论坛和审核内容', SYSTIMESTAMP);
 INSERT INTO "Role" ("roleName", "description", "createTime") VALUES ('User', '普通用户，基础权限', SYSTIMESTAMP);
 
@@ -62,28 +61,13 @@ INSERT INTO "Permission" ("permissionName", "description", "resource", "action")
 INSERT INTO "Permission" ("permissionName", "description", "resource", "action") VALUES ('posts.elite', '设置精华帖', 'posts', 'elite');
 INSERT INTO "Permission" ("permissionName", "description", "resource", "action") VALUES ('posts.vote', '创建投票', 'posts', 'vote');
 
--- 分配权限给角色 - Admin拥有所有权限
+-- 分配权限给角色 - Manager（管理员，拥有所有权限）
 -- ============================================================
 
 INSERT INTO "RolePermission" ("roleId", "permissionId") 
 SELECT r."roleId", p."permissionId" 
 FROM "Role" r, "Permission" p 
-WHERE r."roleName" = 'Admin';
-
--- 分配权限给角色 - Manager（普通管理员）
--- ============================================================
-
-INSERT INTO "RolePermission" ("roleId", "permissionId")
-SELECT r."roleId", p."permissionId"
-FROM "Role" r, "Permission" p
-WHERE r."roleName" = 'Manager'
-AND p."permissionName" IN (
-    'dashboard.view',
-    'users.view', 'users.ban',
-    'forums.view', 'forums.create', 'forums.edit',
-    'posts.view', 'posts.edit', 'posts.delete', 'posts.moderate',
-    'products.view'
-);
+WHERE r."roleName" = 'Manager';
 
 -- 分配权限给角色 - Moderator
 -- ============================================================

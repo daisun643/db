@@ -7,7 +7,7 @@ ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 -- 插入测试用户
 -- ============================================================
--- 用户1: 1@tongji.edu.cn, 密码: Password1, 角色: Admin
+-- 用户1: 1@tongji.edu.cn, 密码: Password1, 角色: Manager
 -- 用户2: 2@tongji.edu.cn, 密码: Password2, 角色: Manager
 -- 用户3: 3@tongji.edu.cn, 密码: Password3, 角色: Moderator
 -- 用户4: 4@tongji.edu.cn, 密码: Password4, 角色: User
@@ -15,7 +15,7 @@ ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 -- 密码哈希使用 BCrypt 生成；如需预置新用户，可运行:
 -- python scripts/encrypt.py "YourPassword123"
 
--- 用户1 - Admin (密码: Password1)
+-- 用户1 - Manager (密码: Password1)
 INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "status")
 VALUES ('AdminUser', '1@tongji.edu.cn', '$2b$11$qhCJLT7aCwPGasI0QVh/hOjWvtYwHfEJb.5bOwVo1Hsi362Kq4kHy', 'ADMIN00001', 1000, 'Active');
 
@@ -32,11 +32,11 @@ INSERT INTO "User" ("username", "email", "passwordHash", "userCode", "credit", "
 VALUES ('NormalUser', '4@tongji.edu.cn', '$2b$11$alUNRE/Pr407uL92P4XaOOzLFDdvGlw4S.KwikGwMOPH1WNrBEVdy', 'USER000004', 100, 'Active');
 -- 分配角色给用户
 -- ============================================================
--- 用户1 分配 Admin 角色
+-- 用户1 分配 Manager 角色
 INSERT INTO "UserRole" ("userId", "roleId", "assignTime")
 SELECT u."userId", r."roleId", SYSTIMESTAMP
 FROM "User" u, "Role" r
-WHERE u."email" = '1@tongji.edu.cn' AND r."roleName" = 'Admin';
+WHERE u."email" = '1@tongji.edu.cn' AND r."roleName" = 'Manager';
 
 -- 用户2 分配 Manager 角色
 INSERT INTO "UserRole" ("userId", "roleId", "assignTime")

@@ -34,9 +34,8 @@ public class DisputesController : ControllerBase
     public async Task<ActionResult<List<DisputeTicketResponse>>> GetDisputes()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var canViewAll = User.IsInRole("Admin") ||
+        var canViewAll = User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
-            User.IsInRole("Manager") ||
             HasAnyPermission("dashboard.view", "products.edit");
 
         var query = _db.DisputeTickets
@@ -304,8 +303,7 @@ public class DisputesController : ControllerBase
         var candidates = await _db.UserRoles
             .Include(ur => ur.Role)
             .Where(ur => ur.Role != null &&
-                (ur.Role.RoleName == "Admin" ||
-                 ur.Role.RoleName == "Manager" ||
+                (ur.Role.RoleName == "Manager" ||
                  ur.Role.RoleName == "Moderator"))
             .Select(ur => ur.UserID)
             .Distinct()

@@ -390,7 +390,7 @@ public class UserController : ControllerBase
 
     private bool CanManageCredit()
     {
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole("Manager"))
             return true;
 
         var permissions = User.Claims

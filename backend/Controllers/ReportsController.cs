@@ -134,7 +134,7 @@ public class ReportsController : ControllerBase
         }
 
         return await _db.UserRoles
-            .Where(ur => ur.Role != null && ur.Role.RoleName == "Admin")
+            .Where(ur => ur.Role != null && ur.Role.RoleName == "Manager")
             .Select(ur => ur.UserID)
             .Distinct()
             .ToListAsync();

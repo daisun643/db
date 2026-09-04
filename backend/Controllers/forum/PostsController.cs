@@ -145,7 +145,7 @@ public class PostsController : ControllerBase
             return BadRequest(ModelState);
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        if (!User.IsInRole("Admin") && !HasPermission("posts.create"))
+        if (!User.IsInRole("Manager") && !HasPermission("posts.create"))
             return Forbid();
 
         if (!await _creditService.CanPerformAsync(userId, "post"))
@@ -209,7 +209,7 @@ public class PostsController : ControllerBase
             return NotFound();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var isModerator = User.IsInRole("Admin") || User.IsInRole("Moderator") || HasPermission("posts.delete");
+        var isModerator = User.IsInRole("Manager") || User.IsInRole("Moderator") || HasPermission("posts.delete");
 
         if (post.UserID != userId && !isModerator)
             return Forbid();
@@ -251,7 +251,7 @@ public class PostsController : ControllerBase
             return NotFound();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var canDelete = User.IsInRole("Admin") ||
+        var canDelete = User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             HasPermission("posts.delete") ||
             await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
@@ -279,7 +279,7 @@ public class PostsController : ControllerBase
         if (action is not "pin" and not "unpin" and not "elite" and not "unelite" and not "ban" and not "restore" and not "delete" and not "approve" and not "reject")
             return BadRequest(new { message = "状态动作不合法" });
 
-        var canModerate = User.IsInRole("Admin") ||
+        var canModerate = User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
             await IsForumCreatorAsync(post.ForumID, userId) ||
@@ -348,7 +348,7 @@ public class PostsController : ControllerBase
     private bool CanViewModerationStatus()
     {
         return User.Identity?.IsAuthenticated == true &&
-            (User.IsInRole("Admin") ||
+            (User.IsInRole("Manager") ||
              User.IsInRole("Moderator") ||
              HasPermission("posts.moderate") ||
              HasPermission("posts.delete") ||
@@ -652,7 +652,7 @@ public class PostsController : ControllerBase
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         var canDelete = comment.UserID == userId ||
-            User.IsInRole("Admin") ||
+            User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             HasPermission("posts.delete") ||
             await _db.ForumManagers.CountAsync(fm =>

@@ -24,7 +24,7 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
             .Select(c => c.Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (context.User.IsInRole("Admin") || requirement.Permissions.Any(userPermissions.Contains))
+        if (context.User.IsInRole("Manager") || requirement.Permissions.Any(userPermissions.Contains))
         {
             context.Succeed(requirement);
         }

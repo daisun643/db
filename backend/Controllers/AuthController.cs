@@ -268,7 +268,7 @@ public class AuthController : ControllerBase
             return true;
         }
 
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole("Manager"))
         {
             return true;
         }

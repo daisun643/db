@@ -42,13 +42,13 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 按用户名/邮箱搜索可用用户（仅供指派版主使用：Admin 或版块版主）
+    /// 按用户名/邮箱搜索可用用户（仅供指派版主使用：Manager 或版块版主）
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult> Search([FromQuery] string? keyword)
     {
         var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var canAssignManager = User.IsInRole("Admin") ||
+        var canAssignManager = User.IsInRole("Manager") ||
             await _db.ForumManagers.CountAsync(fm => fm.UserID == currentUserId) > 0;
         if (!canAssignManager)
             return Forbid();
@@ -73,7 +73,7 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<AdminUserResponse>> GetById(int id)
     {
         var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var isAdmin = User.IsInRole("Admin");
+        var isAdmin = User.IsInRole("Manager");
         
         if (id != currentUserId && !isAdmin)
             return Forbid();

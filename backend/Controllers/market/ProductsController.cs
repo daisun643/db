@@ -159,7 +159,7 @@ public class ProductsController : ControllerBase
             return BadRequest(ModelState);
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        if (!User.IsInRole("Admin") && !HasProductPermission("products.create"))
+        if (!User.IsInRole("Manager") && !HasProductPermission("products.create"))
             return Forbid();
 
         if (!await _creditService.CanPerformAsync(userId, "product.publish"))
@@ -432,7 +432,7 @@ public class ProductsController : ControllerBase
     private bool CanManageProduct(Product product, int userId, string permission)
     {
         return product.UserID == userId ||
-            User.IsInRole("Admin") ||
+            User.IsInRole("Manager") ||
             HasProductPermission(permission);
     }
 

@@ -34,7 +34,7 @@ public class ForumsController : ControllerBase
     public async Task<ActionResult<List<ForumSummaryResponse>>> GetAll()
     {
         var currentUserId = TryGetCurrentUserId();
-        var canSeeAll = User.IsInRole("Admin");
+        var canSeeAll = User.IsInRole("Manager");
 
         var query = _db.Forums
             .Include(f => f.ForumManagers)
@@ -270,7 +270,7 @@ public class ForumsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Manager")]
     public async Task<ActionResult> Delete(int id)
     {
         var forum = await _db.Forums.FindAsync(id);
@@ -408,7 +408,7 @@ public class ForumsController : ControllerBase
 
     private async Task<bool> CanViewForumAsync(Forum forum)
     {
-        if (User.IsInRole("Admin") || forum.Status == "Active")
+        if (User.IsInRole("Manager") || forum.Status == "Active")
             return true;
 
         var userId = TryGetCurrentUserId();
@@ -422,7 +422,7 @@ public class ForumsController : ControllerBase
 
     private async Task<bool> CanManageForumAsync(int forumId)
     {
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole("Manager"))
             return true;
 
         var userId = TryGetCurrentUserId();
@@ -436,12 +436,12 @@ public class ForumsController : ControllerBase
     }
 
     /// <summary>
-    /// 指派/移除管理人员的权限：站点管理员、版块创建者或该版块的版主。
-    /// 管理员（Admin 角色）只能管理帖子，不能指派管理人员。
+    /// 指派/移除管理人员的权限：站点管理员（Manager 角色）、版块创建者或该版块的版主。
+    /// 版块管理员（ForumManager 中的 Admin 角色）只能管理帖子，不能指派管理人员。
     /// </summary>
     private async Task<bool> CanAssignManagersAsync(int forumId)
     {
-        if (User.IsInRole("Admin"))
+        if (User.IsInRole("Manager"))
             return true;
 
         var userId = TryGetCurrentUserId();
@@ -467,7 +467,7 @@ public class ForumsController : ControllerBase
     {
         var forumList = forums.ToList();
         var currentUserId = TryGetCurrentUserId();
-        var isAdmin = User.IsInRole("Admin");
+        var isAdmin = User.IsInRole("Manager");
         var ids = forumList.Select(f => f.ForumID).ToList();
         var publicStatuses = new[] { "Active", "Elite", "Pinned" };
         var postCounts = await _db.Posts

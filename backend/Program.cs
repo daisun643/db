@@ -95,9 +95,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("Manager", policy => policy.RequireRole("Admin", "Manager"));
-    options.AddPolicy("Moderator", policy => policy.RequireRole("Admin", "Manager", "Moderator"));
+    options.AddPolicy("Manager", policy => policy.RequireRole("Manager"));
+    options.AddPolicy("Moderator", policy => policy.RequireRole("Manager", "Moderator"));
     options.AddPolicy("Dashboard", policy => policy.Requirements.Add(new PermissionRequirement("dashboard.view")));
 });
 
