@@ -61,7 +61,22 @@ const routes = [
   { 
     path: '/products', 
     component: () => import('../views/market/ProductsView.vue'),
-    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/products') }
+    // 子路由共用 /products 的权限校验（后端路由表只认 /products）
+    meta: { requiresAuth: true, requiresBackendRouteCheck: true, requiredPermissions: getRequiredPermissions('/products'), accessPath: '/products' },
+    children: [
+      {
+        path: '',
+        component: () => import('../views/market/AllProductsView.vue'),
+      },
+      {
+        path: 'my',
+        component: () => import('../views/market/MyProductsView.vue'),
+      },
+      {
+        path: 'orders',
+        component: () => import('../views/market/OrdersView.vue'),
+      },
+    ],
   },
   { 
     path: '/messages', 
