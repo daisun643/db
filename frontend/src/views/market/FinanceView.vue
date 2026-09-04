@@ -23,10 +23,13 @@
 
     <!-- 流水列表 -->
     <section class="flow-section">
-      <div class="flow-stats">
-        <span>共 {{ totalCount }} 条记录</span>
-        <span>总收入：¥ {{ summary.totalIncome?.toFixed(2) || '0.00' }}</span>
-        <span>总支出：¥ {{ summary.totalExpense?.toFixed(2) || '0.00' }}</span>
+      <div class="flow-header">
+        <div class="flow-stats">
+          <span>共 {{ totalCount }} 条记录</span>
+          <span>总收入：¥ {{ summary.totalIncome?.toFixed(2) || '0.00' }}</span>
+          <span>总支出：¥ {{ summary.totalExpense?.toFixed(2) || '0.00' }}</span>
+        </div>
+        <button class="recharge-btn" type="button" @click="openDeposit">充值</button>
       </div>
 
       <div v-if="loading" class="loading">加载中...</div>
@@ -60,20 +63,76 @@
         </tbody>
       </table></div>
     </section>
+
+    <!-- 充值弹窗 -->
+    <ModalDialog
+      :visible="depositOpen"
+      variant="dialog"
+      kicker="WALLET"
+      title="钱包充值"
+      :subtitle="`当前可用余额 ¥ ${summary.availableAmount?.toFixed(2) || '0.00'}`"
+      tag="form"
+      @close="closeDeposit"
+      @submit="submitDeposit"
+    >
+      <div class="deposit-form">
+        <label class="deposit-label">
+          <span>充值金额</span>
+          <input
+            v-model="depositAmount"
+            class="deposit-input"
+            type="number"
+            min="0.01"
+            max="99999999"
+            step="0.01"
+            placeholder="请输入充值金额"
+            required
+          />
+        </label>
+        <div class="deposit-quick">
+          <button
+            v-for="amt in quickAmounts"
+            :key="amt"
+            class="quick-btn"
+            type="button"
+            @click="depositAmount = amt"
+          >¥{{ amt }}</button>
+        </div>
+      </div>
+      <template #actions>
+        <button class="btn" type="button" @click="closeDeposit">取消</button>
+        <button class="btn btn-primary" type="submit" :disabled="depositSubmitting">
+          {{ depositSubmitting ? '充值中...' : '确认充值' }}
+        </button>
+      </template>
+    </ModalDialog>
+
+    <MessagePopup :message="notice" type="success" @close="notice = ''" />
+    <MessagePopup :message="error" type="error" @close="error = ''" />
   </div>
 </template>
 
 <script>
 import { ref, onMounted } from 'vue'
-import { getFinanceFlows, getFinanceSummary } from '../../api/index.js'
+import { depositWallet, getFinanceFlows, getFinanceSummary } from '../../api/index.js'
+import ModalDialog from '../../components/ModalDialog.vue'
+import MessagePopup from '../../components/MessagePopup.vue'
 
 export default {
   name: 'FinanceView',
+  components: { ModalDialog, MessagePopup },
   setup() {
     const flows = ref([])
     const summary = ref({})
     const totalCount = ref(0)
     const loading = ref(false)
+
+    const depositOpen = ref(false)
+    const depositAmount = ref('')
+    const depositSubmitting = ref(false)
+    const notice = ref('')
+    const error = ref('')
+    const quickAmounts = [50, 100, 200, 500]
 
     const formatDate = (isoString) => {
       if (!isoString) return '—'
@@ -103,6 +162,42 @@ export default {
         }
     }
 
+    const openDeposit = () => {
+      depositAmount.value = ''
+      notice.value = ''
+      error.value = ''
+      depositOpen.value = true
+    }
+
+    const closeDeposit = () => {
+      if (depositSubmitting.value) return
+      depositOpen.value = false
+    }
+
+    const submitDeposit = async () => {
+      const amount = Number(depositAmount.value)
+      if (!Number.isFinite(amount) || amount < 0.01) {
+        error.value = '请输入有效的充值金额（最低 ¥0.01）'
+        return
+      }
+      if (amount > 99999999) {
+        error.value = '单笔充值金额不能超过 ¥99999999'
+        return
+      }
+      depositSubmitting.value = true
+      try {
+        await depositWallet({ amount })
+        depositOpen.value = false
+        notice.value = `充值成功，已到账 ¥${amount.toFixed(2)}`
+        await fetchData()
+      } catch (err) {
+        console.error('钱包充值失败', err)
+        error.value = err?.response?.data?.title || '充值失败，请稍后重试'
+      } finally {
+        depositSubmitting.value = false
+      }
+    }
+
     onMounted(() => {
       fetchData()
     })
@@ -112,7 +207,16 @@ export default {
       summary,
       totalCount,
       loading,
-      formatDate
+      formatDate,
+      depositOpen,
+      depositAmount,
+      depositSubmitting,
+      quickAmounts,
+      notice,
+      error,
+      openDeposit,
+      closeDeposit,
+      submitDeposit
     }
   }
 }
@@ -228,6 +332,21 @@ export default {
 .finance-page .flow-table td { padding:.85rem .8rem; }
 .finance-page .flow-table tr:last-child td { border-bottom:0; }
 .finance-page .flow-table tr:hover td { background:#faf9ff; }
+.finance-page .flow-header { align-items:center; display:flex; flex-wrap:wrap; gap:.75rem; justify-content:space-between; margin-bottom:1rem; }
+.finance-page .flow-header .flow-stats { margin-bottom:0; }
+.finance-page .recharge-btn { background:#6254c8; border:0; border-radius:999px; color:#fff; cursor:pointer; font-size:.8rem; font-weight:700; padding:.55rem 1.3rem; transition:background .2s; }
+.finance-page .recharge-btn:hover { background:#5243b4; }
+.deposit-form { display:flex; flex-direction:column; gap:.9rem; }
+.deposit-label { color:#858b9d; display:flex; flex-direction:column; font-size:.72rem; font-weight:700; gap:.4rem; letter-spacing:.04em; }
+.deposit-input { border:1px solid #e2e3ea; border-radius:12px; color:#171d31; font-size:1rem; padding:.65rem .8rem; transition:border-color .2s, box-shadow .2s; }
+.deposit-input:focus { border-color:#6254c8; box-shadow:0 0 0 3px rgba(98,84,200,.15); outline:none; }
+.deposit-quick { display:flex; flex-wrap:wrap; gap:.5rem; }
+.quick-btn { background:#f8f8fc; border:1px solid #e8e9ef; border-radius:999px; color:#6254c8; cursor:pointer; font-size:.78rem; font-weight:600; padding:.4rem .85rem; transition:background .2s, border-color .2s; }
+.quick-btn:hover { background:#f2f0ff; border-color:#6254c8; }
+.finance-page .btn { background:#fff; border:1px solid #e2e3ea; border-radius:10px; color:#3f4455; cursor:pointer; font-size:.82rem; font-weight:600; padding:.55rem 1.1rem; }
+.finance-page .btn:disabled { cursor:not-allowed; opacity:.6; }
+.finance-page .btn-primary { background:#6254c8; border-color:#6254c8; color:#fff; }
+.finance-page .btn-primary:hover:not(:disabled) { background:#5243b4; }
 @media(max-width:900px){.finance-page .summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.finance-page .summary-cards{gap:.65rem}.finance-page .card{padding:1rem;border-radius:16px}.finance-page .card-value{font-size:1.05rem}.finance-page .flow-section{padding:.8rem;border-radius:18px}}
 </style>

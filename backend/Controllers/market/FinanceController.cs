@@ -33,9 +33,11 @@ public class FinanceController : ControllerBase
 
         // 内部类定义在方法外部（为了简洁，这里直接放内部）
         var outflows = new List<FlowItem>();
+        // 支出：购买商品（排除钱包充值流水）
         var outflowsQuery = _db.Transactions
             .Include(t => t.Product)
             .Where(t => t.UserID == userId
+                        && t.ProductID != null
                         && (t.TransactionStatus == "Paid"
                             || t.TransactionStatus == "Completed"
                             || t.TransactionStatus == "Disputed"
@@ -55,11 +57,12 @@ public class FinanceController : ControllerBase
         }
 
         var inflows = new List<FlowItem>();
+        // 收入：出售商品所得 + 钱包充值（无商品关联）
         var inflowsQuery = _db.Transactions
             .Include(t => t.Product)
-            .Where(t => t.Product != null
-                        && t.Product.UserID == userId
-                        && t.TransactionStatus == "Completed");
+            .Where(t => t.TransactionStatus == "Completed"
+                        && ((t.Product != null && t.Product.UserID == userId)
+                            || (t.ProductID == null && t.UserID == userId)));
 
         foreach (var t in await inflowsQuery.ToListAsync())
         {
@@ -70,7 +73,9 @@ public class FinanceController : ControllerBase
                 Status = t.TransactionStatus ?? "",
                 Time = t.PayTime ?? t.CreateTime,
                 TransactionId = t.TransactionID,
-                Description = t.Product != null ? $"出售商品：{t.Product.Title}" : "商品收入（商品已下架）"
+                Description = t.Product != null
+                    ? $"出售商品：{t.Product.Title}"
+                    : (t.ProductID == null ? "钱包充值" : "商品收入（商品已下架）")
             });
         }
 
@@ -105,13 +110,17 @@ public class FinanceController : ControllerBase
         var balance = availableBalance;
         var availableAmount = availableBalance - frozenAmount;
 
+        // 总收入与流水口径一致：出售所得 + 充值
         var totalIncome = await _db.Transactions
             .Include(t => t.Product)
-            .Where(t => t.Product != null && t.Product.UserID == userId && t.TransactionStatus == "Completed")
+            .Where(t => t.TransactionStatus == "Completed"
+                        && ((t.Product != null && t.Product.UserID == userId)
+                            || (t.ProductID == null && t.UserID == userId)))
             .SumAsync(t => t.TransactionAmount ?? 0);
 
         var totalExpense = await _db.Transactions
             .Where(t => t.UserID == userId
+                        && t.ProductID != null
                         && (t.TransactionStatus == "Paid"
                             || t.TransactionStatus == "Completed"
                             || t.TransactionStatus == "Disputed"

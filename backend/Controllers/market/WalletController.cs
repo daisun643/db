@@ -39,6 +39,17 @@ public class WalletController : ControllerBase
 
         var wallet = await GetOrCreateWalletAsync(CurrentUserId());
         wallet.Balance = (wallet.Balance ?? 0) + request.Amount;
+
+        // 充值计入资金流水（无商品关联）
+        _db.Transactions.Add(new Transaction
+        {
+            UserID = wallet.UserID,
+            TransactionAmount = request.Amount,
+            TransactionStatus = "Completed",
+            CreateTime = DateTime.Now,
+            PayTime = DateTime.Now
+        });
+
         await _db.SaveChangesAsync();
 
         return Ok(MapWallet(wallet));

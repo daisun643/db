@@ -42,11 +42,12 @@ public class TransactionsController : ControllerBase
         var normalizedStatus = status?.Trim();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        // 排除钱包充值流水（无商品关联），只返回商品订单
         var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
-            .Where(t => t.UserID == userId)
+            .Where(t => t.UserID == userId && t.ProductID != null)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(normalizedStatus))
