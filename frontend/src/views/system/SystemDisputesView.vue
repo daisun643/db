@@ -35,7 +35,7 @@
               v-model="disputeDrafts[dispute.ticketID].decision"
               type="text"
               placeholder="仲裁结论"
-              :disabled="dispute.status !== 'Open'"
+              :disabled="!canResolve(dispute)"
               required
             />
             <input
@@ -45,10 +45,10 @@
               :max="dispute.transactionAmount || undefined"
               step="0.01"
               placeholder="退款金额"
-              :disabled="dispute.status !== 'Open'"
+              :disabled="!canResolve(dispute)"
               required
             />
-            <button class="btn" type="submit" :disabled="dispute.status !== 'Open'">结案</button>
+            <button class="btn" type="submit" :disabled="!canResolve(dispute)">结案</button>
           </form>
         </article>
       </div>
@@ -74,6 +74,9 @@ const formatDate = (value) => value ? new Date(value).toLocaleString('zh-CN', {
   hour: '2-digit',
   minute: '2-digit',
 }) : ''
+
+// 与后端结案接口保持一致：Open 与 NeedSupplement 两种状态都允许结案
+const canResolve = (dispute) => dispute.status === 'Open' || dispute.status === 'NeedSupplement'
 
 const loadDisputes = async () => {
   const res = await getDisputes()

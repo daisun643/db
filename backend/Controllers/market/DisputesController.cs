@@ -144,7 +144,10 @@ public class DisputesController : ControllerBase
             return NotFound();
         if (dispute.Status is not "Open" and not "NeedSupplement")
             return BadRequest(new { message = "该纠纷已处理" });
-        if (dispute.ArbitratorID != userId &&
+        // 工单优先分派给版主，而后台“交易纠纷”页面只对站点管理员开放，
+        // 因此管理员需要能接管并结案分派给他人的工单。
+        if (!User.IsInRole("Manager") &&
+            dispute.ArbitratorID != userId &&
             dispute.Transaction?.Product?.UserID != userId)
             return Forbid();
         if (dispute.Transaction == null || dispute.Transaction.Product?.UserID == null)

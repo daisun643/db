@@ -93,6 +93,26 @@ class TestDisputeResolution:
         resp = market_client.resolve_dispute(dispute["ticketID"], "自行处理", refund_amount=0)
         assert resp.status_code == 403
 
+    def test_manager_can_resolve_ticket_assigned_to_others(self, market_client, manager_market_client,
+                                                           admin_market_client):
+        """站点管理员可结案分派给他人的工单（后台“交易纠纷”页面场景）"""
+        product = market_client.create_product("管理员接管仲裁商品", 70.0, stock=5).json()
+        manager_market_client.deposit(200)
+        order = manager_market_client.create_order(product["productID"]).json()
+        manager_market_client.pay_order(order["transactionID"])
+
+        dispute = manager_market_client.create_dispute(order["transactionID"], "申请管理员协助").json()
+
+        # 结案人既不是被指派的仲裁员，也不是买卖双方，只能凭站点管理员身份接管
+        operator_id = admin_market_client.get_wallet().json()["userID"]
+        assert dispute["arbitratorID"] != operator_id
+        assert dispute["sellerID"] != operator_id
+        assert dispute["buyerID"] != operator_id
+
+        resp = admin_market_client.resolve_dispute(dispute["ticketID"], "管理员接管结案", refund_amount=70.0)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "Resolved"
+
     def test_partial_refund_correct_amount(self, admin_market_client, market_client):
         """部分退款金额计算正确"""
         product = admin_market_client.create_product("部分退款测试", 200.0, stock=5).json()
