@@ -6,6 +6,7 @@ namespace Backend.Services;
 
 public interface ICreditService
 {
+    // 上下界由存储过程 "sp_adjust_credit" 负责夹取，这里仅作为对外暴露的常量
     public const int MinCredit = 0;
     public const int MaxCredit = 1000;
 
@@ -36,44 +37,36 @@ public class CreditService : ICreditService
         string reason,
         int? operatorId = null)
     {
-        var user = await _db.Users.FindAsync(userId);
-        if (user == null)
+        // 0~1000 夹取、User.credit 更新与 CreditAdjustment 审计流水都在存储过程内原子完成
+        var adjustmentId = OracleProcedure.OutInt32("p_adjustment_id");
+        await OracleProcedure.CallAsync(_db, "sp_adjust_credit",
+            OracleProcedure.InInt32("p_user_id", userId),
+            OracleProcedure.InInt32("p_change_points", changePoints),
+            OracleProcedure.InText("p_reason", reason),
+            OracleProcedure.InInt32("p_operator_id", operatorId),
+            OracleProcedure.OutInt32("p_before_credit"),
+            OracleProcedure.OutInt32("p_after_credit"),
+            OracleProcedure.OutInt32("p_real_change"),
+            adjustmentId);
+
+        var id = OracleProcedure.ReadInt32(adjustmentId);
+        if (id <= 0)
         {
             _logger.LogWarning("用户不存在: {UserId}", userId);
             return null;
         }
 
-        var normalizedReason = NormalizeReason(reason);
-        var beforeCredit = user.Credit ?? 100;
-        var afterCredit = Math.Clamp(
-            beforeCredit + changePoints,
-            ICreditService.MinCredit,
-            ICreditService.MaxCredit);
-        var actualChange = afterCredit - beforeCredit;
-
-        user.Credit = afterCredit;
-
-        var adjustment = new CreditAdjustment
-        {
-            UserID = userId,
-            Description = normalizedReason,
-            ChangePoints = actualChange,
-            BeforeCredit = beforeCredit,
-            AfterCredit = afterCredit,
-            OperatorID = operatorId,
-            AdjustTime = DateTime.Now
-        };
-
-        _db.CreditAdjustments.Add(adjustment);
-        await _db.SaveChangesAsync();
+        var adjustment = await _db.CreditAdjustments
+            .Include(a => a.Operator)
+            .FirstOrDefaultAsync(a => a.CreditAdjustmentID == id);
 
         _logger.LogInformation(
             "用户 {UserId} 信用变更 {ChangePoints}，原因：{Reason}，变更前：{BeforeCredit}，变更后：{AfterCredit}，操作人：{OperatorId}",
             userId,
-            actualChange,
-            normalizedReason,
-            beforeCredit,
-            afterCredit,
+            adjustment?.ChangePoints ?? changePoints,
+            adjustment?.Description ?? reason,
+            adjustment?.BeforeCredit,
+            adjustment?.AfterCredit,
             operatorId);
 
         return adjustment;
@@ -94,14 +87,5 @@ public class CreditService : ICreditService
             "order.create" => credit >= 50,
             _ => credit > 0
         };
-    }
-
-    private static string NormalizeReason(string? reason)
-    {
-        var normalized = reason?.Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-            return "信用分调整";
-
-        return normalized.Length <= 500 ? normalized : normalized[..500];
     }
 }

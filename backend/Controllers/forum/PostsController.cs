@@ -21,7 +21,6 @@ public class PostsController : ControllerBase
     private readonly ICreditService _creditService;
     private readonly IMediaStorageService _mediaStorageService;
     private readonly INotificationService _notificationService;
-    private static readonly string[] SensitiveWords = ["违禁", "敏感词", "spam"];
 
     // 帖子状态动作 → 通知文案（用于给帖子作者发状态变化通知）
     private static readonly Dictionary<string, string> StatusActionMessages = new(StringComparer.Ordinal)
@@ -159,7 +158,6 @@ public class PostsController : ControllerBase
         if (!forumExists)
             return BadRequest(new { message = "论坛不存在或不可用" });
 
-        var hitWord = FindSensitiveWord(request.Title, request.Content);
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         var post = new Post
         {
@@ -169,7 +167,8 @@ public class PostsController : ControllerBase
             UserID = userId,
             CreateTime = DateTime.Now,
             UpdateTime = DateTime.Now,
-            Status = hitWord == null ? "Active" : "PendingReview",
+            // 命中敏感词时由 TRG_Post_SensitiveStatus 改写为 PendingReview
+            Status = "Active",
             LikeCount = 0,
             ViewCount = 0
         };
@@ -181,18 +180,8 @@ public class PostsController : ControllerBase
         await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Post",
-                TargetID = post.PostID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
+        // 审核记录由 TRG_Post_SensitiveAudit 写入，这里重新加载以拿到触发器改写后的状态
+        await _db.Entry(post).ReloadAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = post.PostID }, await MapPostDetailAsync(post));
     }
@@ -214,30 +203,18 @@ public class PostsController : ControllerBase
         if (post.UserID != userId && !isModerator)
             return Forbid();
 
-        var hitWord = FindSensitiveWord(request.Title, request.Content);
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         post.Title = request.Title.Trim();
         post.Content = request.Content;
         post.UpdateTime = DateTime.Now;
-        post.Status = hitWord == null ? post.Status : "PendingReview";
         await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
         await _db.SaveChangesAsync();
         await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Post",
-                TargetID = post.PostID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
+        // 敏感词命中后的 PendingReview 状态与审核记录都由触发器负责
+        await _db.Entry(post).ReloadAsync();
 
         return Ok(await MapPostDetailAsync(post));
     }
@@ -431,8 +408,8 @@ public class PostsController : ControllerBase
         var exists = await _db.PostLikes.CountAsync(l => l.PostID == id && l.UserID == userId) > 0;
         if (!exists)
         {
+            // likeCount 由 TRG_PostLike_Count 原子维护
             _db.PostLikes.Add(new PostLike { PostID = id, UserID = userId, CreateTime = DateTime.Now });
-            post.LikeCount = (post.LikeCount ?? 0) + 1;
 
             // 点赞通知：点赞人≠帖子作者时通知作者；EventKey 持久去重，取消后再点赞不会重复通知
             if (post.UserID.HasValue && post.UserID.Value != userId)
@@ -452,6 +429,7 @@ public class PostsController : ControllerBase
             }
 
             await _db.SaveChangesAsync();
+            await _db.Entry(post).ReloadAsync();
         }
 
         return Ok(new { liked = true, likeCount = post.LikeCount ?? 0 });
@@ -470,8 +448,8 @@ public class PostsController : ControllerBase
         if (like != null)
         {
             _db.PostLikes.Remove(like);
-            post.LikeCount = Math.Max(0, (post.LikeCount ?? 0) - 1);
             await _db.SaveChangesAsync();
+            await _db.Entry(post).ReloadAsync();
         }
 
         return Ok(new { liked = false, likeCount = post.LikeCount ?? 0 });
@@ -554,32 +532,19 @@ public class PostsController : ControllerBase
                 return BadRequest(new { message = "父评论不存在" });
         }
 
-        var hitWord = FindSensitiveWord("", request.Content);
         var comment = new PostComment
         {
             PostID = postId,
             UserID = userId,
             ParentCommentID = request.ParentCommentID,
             Content = request.Content,
-            Status = hitWord == null ? "Active" : "PendingReview",
+            // 命中敏感词时由 TRG_PostComment_SensitiveStatus 改写为 PendingReview
+            Status = "Active",
             CreateTime = DateTime.Now
         };
 
         _db.PostComments.Add(comment);
         await _db.SaveChangesAsync();
-
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Comment",
-                TargetID = comment.CommentID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
 
         var user = await _db.Users.FindAsync(userId);
 
@@ -625,6 +590,7 @@ public class PostsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+        await _db.Entry(comment).ReloadAsync();
 
         var commenterAvatar = await GetUserAvatarUrlsAsync(new[] { userId });
         return Ok(new CommentResponse
@@ -791,8 +757,11 @@ public class PostsController : ControllerBase
     {
         if (incrementView)
         {
-            post.ViewCount = (post.ViewCount ?? 0) + 1;
-            await _db.SaveChangesAsync();
+            // 浏览量原子自增交给存储过程，避免并发下的丢更新
+            await OracleProcedure.CallAsync(_db, "sp_post_view",
+                OracleProcedure.InInt32("p_post_id", post.PostID),
+                OracleProcedure.OutInt32("p_view_count"));
+            await _db.Entry(post).ReloadAsync();
         }
 
         var listItem = (await MapPostListAsync(new[] { post })).Single();
@@ -831,12 +800,6 @@ public class PostsController : ControllerBase
             return "";
 
         return content.Length <= 120 ? content : content[..120] + "...";
-    }
-
-    private static string? FindSensitiveWord(string title, string content)
-    {
-        var text = $"{title}\n{content}";
-        return SensitiveWords.FirstOrDefault(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 
     private static List<string> NormalizeImageUrls(IEnumerable<string>? urls)

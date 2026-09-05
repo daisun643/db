@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
     public DbSet<CreditAdjustment> CreditAdjustments => Set<CreditAdjustment>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<PostSensitiveWord> PostSensitiveWords => Set<PostSensitiveWord>();
+    public DbSet<FinanceFlow> FinanceFlows => Set<FinanceFlow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -476,6 +477,20 @@ public class AppDbContext : DbContext
             e.Property(x => x.TransactionID).HasColumnName("transactionId");
             e.Property(x => x.UserID).HasColumnName("userId");
             e.HasIndex(x => x.EventKey);
+        });
+
+        // 只读视图：口径写在 database/10_views.sql，无主键、不参与变更跟踪
+        modelBuilder.Entity<FinanceFlow>(e =>
+        {
+            e.HasNoKey();
+            e.ToView("V_FinanceFlow");
+            e.Property(x => x.TransactionID).HasColumnName("transactionId");
+            e.Property(x => x.UserID).HasColumnName("userId");
+            e.Property(x => x.FlowType).HasColumnName("flowType");
+            e.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 2);
+            e.Property(x => x.Status).HasColumnName("status").IsUnicode(false);
+            e.Property(x => x.FlowTime).HasColumnName("flowTime");
+            e.Property(x => x.Description).HasColumnName("description");
         });
     }
 }

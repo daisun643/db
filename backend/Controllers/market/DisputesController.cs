@@ -142,111 +142,60 @@ public class DisputesController : ControllerBase
             .FirstOrDefaultAsync(d => d.TicketID == id);
         if (dispute == null)
             return NotFound();
-        if (dispute.Status is not "Open" and not "NeedSupplement")
-            return BadRequest(new { message = "该纠纷已处理" });
         // 工单优先分派给版主，而后台“交易纠纷”页面只对站点管理员开放，
         // 因此管理员需要能接管并结案分派给他人的工单。
         if (!User.IsInRole("Manager") &&
             dispute.ArbitratorID != userId &&
             dispute.Transaction?.Product?.UserID != userId)
             return Forbid();
-        if (dispute.Transaction == null || dispute.Transaction.Product?.UserID == null)
-            return BadRequest(new { message = "订单或卖家不存在" });
-        if (dispute.Transaction.TransactionStatus != "Disputed")
-            return BadRequest(new { message = "订单当前不在纠纷处理中" });
-
-        var buyerId = dispute.Transaction.UserID!.Value;
-        var sellerId = dispute.Transaction.Product.UserID.Value;
-        var amount = dispute.Transaction.TransactionAmount ?? 0;
-        if (request.RefundAmount > amount)
-            return BadRequest(new { message = "退款金额不能超过订单金额" });
 
         await using var dbTransaction = await _db.Database.BeginTransactionAsync();
-        var finalStatus = request.RefundAmount > 0 ? "Refunded" : "Completed";
-        var disputeUpdated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""DisputeTicket""
-            SET ""status"" = 'Resolved'
-            WHERE ""ticketId"" = {id}
-              AND ""status"" IN ('Open', 'NeedSupplement')");
 
-        var orderUpdated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Transaction""
-            SET ""transactionStatus"" = {finalStatus}
-            WHERE ""transactionId"" = {dispute.Transaction.TransactionID}
-              AND ""transactionStatus"" = 'Disputed'");
+        // 工单与订单状态流转、买卖双方钱包划转、退款流水与仲裁结果都在存储过程内原子完成；
+        // 留言板归档由 TRG_Transaction_ArchiveMsg 处理，信用分影响仍由应用层按责任方规则计算
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
+        var transactionIdParam = OracleProcedure.OutInt32("p_transaction_id");
+        var finalStatus = OracleProcedure.OutText("p_final_status");
+        var buyerIdParam = OracleProcedure.OutInt32("p_buyer_id");
+        var sellerIdParam = OracleProcedure.OutInt32("p_seller_id");
 
-        if (disputeUpdated != 1 || orderUpdated != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "该纠纷或订单状态已变化，不能重复结算" });
-        }
+        await OracleProcedure.CallAsync(_db, "sp_resolve_dispute",
+            OracleProcedure.InInt32("p_ticket_id", id),
+            OracleProcedure.InDecimal("p_refund_amount", request.RefundAmount),
+            OracleProcedure.InText("p_decision", request.Decision),
+            code,
+            message,
+            transactionIdParam,
+            finalStatus,
+            buyerIdParam,
+            sellerIdParam,
+            OracleProcedure.OutDecimal("p_order_amount"),
+            OracleProcedure.OutDecimal("p_seller_amount"),
+            OracleProcedure.OutInt32("p_buyer_wallet_id"));
 
-        var buyerWallet = await GetOrCreateWalletAsync(buyerId);
-        var sellerWallet = await GetOrCreateWalletAsync(sellerId);
-        await _db.SaveChangesAsync();
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "该纠纷已处理" });
 
+        var transactionId = OracleProcedure.ReadInt32(transactionIdParam);
+        var buyerId = OracleProcedure.ReadInt32(buyerIdParam);
+        var sellerId = OracleProcedure.ReadInt32(sellerIdParam);
+        var amount = dispute.Transaction?.TransactionAmount ?? 0;
         var sellerAmount = amount - request.RefundAmount;
-        await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Wallet""
-            SET ""balance"" = ""balance"" + {request.RefundAmount}
-            WHERE ""walletId"" = {buyerWallet.WalletID}");
-        await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Wallet""
-            SET ""balance"" = ""balance"" + {sellerAmount}
-            WHERE ""walletId"" = {sellerWallet.WalletID}");
 
-        // 纠纷结案的资金划转计入资金流水：与充值流水同构（无商品关联，仅作流水记录）。
-        // 退款为 0 时订单转为 Completed，卖家全额收入已由原订单流水体现，不重复记账。
-        if (finalStatus == "Refunded")
-        {
-            _db.Transactions.Add(new Transaction
-            {
-                UserID = buyerId,
-                TransactionAmount = request.RefundAmount,
-                TransactionStatus = "DisputeRefund",
-                CreateTime = DateTime.Now,
-                PayTime = DateTime.Now
-            });
-
-            if (sellerAmount > 0)
-                _db.Transactions.Add(new Transaction
-                {
-                    UserID = sellerId,
-                    TransactionAmount = sellerAmount,
-                    TransactionStatus = "DisputeSettlement",
-                    CreateTime = DateTime.Now,
-                    PayTime = DateTime.Now
-                });
-        }
-
-        dispute.Status = "Resolved";
-        dispute.AssignTime = dispute.AssignTime ?? DateTime.Now;
-        dispute.Transaction.TransactionStatus = finalStatus;
-        if (dispute.Transaction.Product != null && (dispute.Transaction.Product.Stock ?? 0) <= 0)
-            dispute.Transaction.Product.Status = "Sold";
-        await ArchiveOrderMessagesAsync(dispute.Transaction.TransactionID);
-
-        _db.ArbitrationResults.Add(new ArbitrationResult
-        {
-            DisputeTicketID = id,
-            Decision = request.Decision,
-            RefundAmount = request.RefundAmount,
-            CreateTime = DateTime.Now,
-            WalletID = buyerWallet.WalletID > 0 ? buyerWallet.WalletID : null
-        });
-
-        await CreateNotificationAsync(buyerId, "纠纷处理完成", $"订单 {dispute.TransactionID} 退款 ¥{request.RefundAmount}", dispute.Transaction.TransactionID);
-        await CreateNotificationAsync(sellerId, "纠纷处理完成", $"订单 {dispute.TransactionID} 结算 ¥{sellerAmount}", dispute.Transaction.TransactionID);
+        await CreateNotificationAsync(buyerId, "纠纷处理完成", $"订单 {transactionId} 退款 ¥{request.RefundAmount}", transactionId);
+        await CreateNotificationAsync(sellerId, "纠纷处理完成", $"订单 {transactionId} 结算 ¥{sellerAmount}", transactionId);
         await ApplyDisputeCreditImpactAsync(dispute, buyerId, sellerId, amount, request.RefundAmount, request.ResponsibilityParty);
         await _db.SaveChangesAsync();
         await dbTransaction.CommitAsync();
+
         return Ok(new
         {
             message = "纠纷已处理",
-            status = dispute.Status,
-            orderStatus = finalStatus,
+            status = "Resolved",
+            orderStatus = OracleProcedure.ReadText(finalStatus) ?? "",
             buyerRefundAmount = request.RefundAmount,
-            sellerSettlementAmount = amount - request.RefundAmount
+            sellerSettlementAmount = sellerAmount
         });
     }
 
@@ -382,21 +331,6 @@ public class DisputesController : ControllerBase
         return permissions.Any(userPermissions.Contains);
     }
 
-    private async Task<Wallet> GetOrCreateWalletAsync(int userId)
-    {
-        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserID == userId);
-        if (wallet != null)
-            return wallet;
-
-        wallet = new Wallet
-        {
-            UserID = userId,
-            Balance = 0
-        };
-        _db.Wallets.Add(wallet);
-        return wallet;
-    }
-
     private async Task CreateNotificationAsync(int userId, string title, string content, int transactionId)
     {
         await _notificationService.CreateAsync(new CreateNotificationOptions
@@ -411,16 +345,6 @@ public class DisputesController : ControllerBase
             Link = $"/products",
             EventKey = $"dispute:{transactionId}:{userId}:{title}"
         });
-    }
-
-    private async Task ArchiveOrderMessagesAsync(int transactionId)
-    {
-        var messages = await _db.OrderMessages
-            .Where(m => m.TransactionID == transactionId && m.IsArchived != "1")
-            .ToListAsync();
-
-        foreach (var message in messages)
-            message.IsArchived = "1";
     }
 
     private static DisputeTicketResponse MapDispute(DisputeTicket dispute)

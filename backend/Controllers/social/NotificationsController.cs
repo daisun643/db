@@ -161,8 +161,8 @@ public class NotificationsController : ControllerBase
 
         if (notification.IsRead != "1")
         {
+            // readTime 由 TRG_Notification_ReadTime 在 isRead 翻转为已读时自动写入
             notification.IsRead = "1";
-            notification.ReadTime = DateTime.Now;
             await _db.SaveChangesAsync();
         }
 
@@ -177,11 +177,9 @@ public class NotificationsController : ControllerBase
             .Where(n => n.UserID == userId && (n.IsRead != "1" || n.IsRead == null))
             .ToListAsync();
 
-        var now = DateTime.Now;
         foreach (var notification in notifications)
         {
             notification.IsRead = "1";
-            notification.ReadTime = now;
         }
 
         await _db.SaveChangesAsync();

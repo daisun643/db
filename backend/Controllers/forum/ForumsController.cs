@@ -180,17 +180,8 @@ public class ForumsController : ControllerBase
         _db.Forums.Add(forum);
         await _db.SaveChangesAsync();
 
-        // 版块必须有版主：创建者默认成为版主
-        if (userId > 0)
-        {
-            _db.ForumManagers.Add(new ForumManager
-            {
-                ForumID = forum.ForumID,
-                UserID = userId,
-                Role = ManagerRoleModerator
-            });
-            await _db.SaveChangesAsync();
-        }
+        // 版块必须有版主：创建者成为 Moderator 由 TRG_Forum_CreatorManager 写入，
+        // 下面的重查带 Include(ForumManagers) 会直接取到触发器插入的行
 
         var created = await _db.Forums
             .Include(f => f.ForumManagers)

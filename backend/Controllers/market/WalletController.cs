@@ -37,21 +37,22 @@ public class WalletController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var wallet = await GetOrCreateWalletAsync(CurrentUserId());
-        wallet.Balance = (wallet.Balance ?? 0) + request.Amount;
+        // 余额变更与充值流水（无商品关联的 Completed 订单）在存储过程内原子完成
+        var userId = CurrentUserId();
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
+        await OracleProcedure.CallAsync(_db, "sp_wallet_deposit",
+            OracleProcedure.InInt32("p_user_id", userId),
+            OracleProcedure.InDecimal("p_amount", request.Amount),
+            code,
+            message,
+            OracleProcedure.OutDecimal("p_balance"),
+            OracleProcedure.OutInt32("p_transaction_id"));
 
-        // 充值计入资金流水（无商品关联）
-        _db.Transactions.Add(new Transaction
-        {
-            UserID = wallet.UserID,
-            TransactionAmount = request.Amount,
-            TransactionStatus = "Completed",
-            CreateTime = DateTime.Now,
-            PayTime = DateTime.Now
-        });
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "充值失败" });
 
-        await _db.SaveChangesAsync();
-
+        var wallet = await _db.Wallets.AsNoTracking().FirstAsync(w => w.UserID == userId);
         return Ok(MapWallet(wallet));
     }
 

@@ -437,6 +437,23 @@ public class Transaction
     public ICollection<OrderMessage> OrderMessages { get; set; } = new List<OrderMessage>();
 }
 
+/// <summary>
+/// 视图 "V_FinanceFlow" 的只读投影：收入/支出口径由数据库固化，应用层只做过滤与汇总。
+/// </summary>
+public class FinanceFlow
+{
+    public int TransactionID { get; set; }
+    public int? UserID { get; set; }
+    [MaxLength(10)]
+    public string? FlowType { get; set; }
+    public decimal Amount { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? FlowTime { get; set; }
+    [MaxLength(500)]
+    public string? Description { get; set; }
+}
+
 [Table("DisputeTicket")]
 public class DisputeTicket
 {

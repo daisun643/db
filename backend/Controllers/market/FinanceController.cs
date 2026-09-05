@@ -13,6 +13,10 @@ public class FinanceController : ControllerBase
 {
     private readonly AppDbContext _db;
 
+    // 与视图 "V_FinanceFlow" 的 flowType 取值保持一致
+    private const string IncomeType = "收入";
+    private const string ExpenseType = "支出";
+
     public FinanceController(AppDbContext db)
     {
         _db = db;
@@ -31,84 +35,30 @@ public class FinanceController : ControllerBase
         if (userId == 0)
             return Unauthorized();
 
-        // 内部类定义在方法外部（为了简洁，这里直接放内部）
-        var outflows = new List<FlowItem>();
-        // 支出：购买商品（排除钱包充值流水）
-        var outflowsQuery = _db.Transactions
-            .Include(t => t.Product)
-            .Where(t => t.UserID == userId
-                        && t.ProductID != null
-                        && (t.TransactionStatus == "Paid"
-                            || t.TransactionStatus == "Completed"
-                            || t.TransactionStatus == "Disputed"
-                            || t.TransactionStatus == "Refunded"));
+        // 收入与支出的口径由视图 "V_FinanceFlow" 固化，应用层只做过滤、汇总与排序
+        var rows = await _db.FinanceFlows
+            .Where(f => f.UserID == userId)
+            .ToListAsync();
 
-        foreach (var t in await outflowsQuery.ToListAsync())
-        {
-            outflows.Add(new FlowItem
+        var flows = rows
+            .Select(f => new FlowItem
             {
-                Type = "支出",
-                Amount = t.TransactionAmount ?? 0,
-                Status = t.TransactionStatus ?? "",
-                Time = t.PayTime ?? t.CreateTime,
-                TransactionId = t.TransactionID,
-                Description = t.Product != null ? $"购买商品：{t.Product.Title}" : "订单消费（商品已下架）"
-            });
-        }
-
-        var inflows = new List<FlowItem>();
-        // 收入：出售商品所得 + 钱包充值（无商品关联）
-        var inflowsQuery = _db.Transactions
-            .Include(t => t.Product)
-            .Where(t => t.TransactionStatus == "Completed"
-                        && ((t.Product != null && t.Product.UserID == userId)
-                            || (t.ProductID == null && t.UserID == userId)));
-
-        foreach (var t in await inflowsQuery.ToListAsync())
-        {
-            inflows.Add(new FlowItem
-            {
-                Type = "收入",
-                Amount = t.TransactionAmount ?? 0,
-                Status = t.TransactionStatus ?? "",
-                Time = t.PayTime ?? t.CreateTime,
-                TransactionId = t.TransactionID,
-                Description = t.Product != null
-                    ? $"出售商品：{t.Product.Title}"
-                    : (t.ProductID == null ? "钱包充值" : "商品收入（商品已下架）")
-            });
-        }
-
-        // 收入：纠纷退款与结案结算（无商品关联的流水记录）
-        var disputeFlowsQuery = _db.Transactions
-            .Where(t => t.UserID == userId
-                        && (t.TransactionStatus == "DisputeRefund"
-                            || t.TransactionStatus == "DisputeSettlement"));
-
-        foreach (var t in await disputeFlowsQuery.ToListAsync())
-        {
-            inflows.Add(new FlowItem
-            {
-                Type = "收入",
-                Amount = t.TransactionAmount ?? 0,
-                Status = t.TransactionStatus ?? "",
-                Time = t.PayTime ?? t.CreateTime,
-                TransactionId = t.TransactionID,
-                Description = t.TransactionStatus == "DisputeRefund" ? "纠纷退款" : "纠纷结算"
-            });
-        }
-
-        var allFlows = outflows
-            .Concat(inflows)
+                Type = f.FlowType ?? "",
+                Amount = f.Amount,
+                Status = f.Status ?? "",
+                Time = f.FlowTime,
+                TransactionId = f.TransactionID,
+                Description = f.Description ?? ""
+            })
             .OrderByDescending(f => f.Time)
             .ToList();
 
         return Ok(new
         {
-            TotalCount = allFlows.Count,
-            TotalIncome = inflows.Sum(f => f.Amount),
-            TotalExpense = outflows.Sum(f => f.Amount),
-            Flows = allFlows
+            TotalCount = flows.Count,
+            TotalIncome = flows.Where(f => f.Type == IncomeType).Sum(f => f.Amount),
+            TotalExpense = flows.Where(f => f.Type == ExpenseType).Sum(f => f.Amount),
+            Flows = flows
         });
     }
 
@@ -122,45 +72,26 @@ public class FinanceController : ControllerBase
         var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserID == userId);
         var availableBalance = wallet?.Balance ?? 0;  // 当前可用余额（扣减在支付环节）
 
-        var frozenAmount = await _db.Transactions
-            .Where(t => t.UserID == userId && t.TransactionStatus == "Paid")
-            .SumAsync(t => t.TransactionAmount ?? 0);
+        var rows = await _db.FinanceFlows
+            .Where(f => f.UserID == userId)
+            .ToListAsync();
 
-        var balance = availableBalance;
-        var availableAmount = availableBalance - frozenAmount;
-
-        // 总收入与流水口径一致：出售所得 + 充值
-        var totalIncome = await _db.Transactions
-            .Include(t => t.Product)
-            .Where(t => t.TransactionStatus == "Completed"
-                        && ((t.Product != null && t.Product.UserID == userId)
-                            || (t.ProductID == null && t.UserID == userId)))
-            .SumAsync(t => t.TransactionAmount ?? 0);
-
-        var totalExpense = await _db.Transactions
-            .Where(t => t.UserID == userId
-                        && t.ProductID != null
-                        && (t.TransactionStatus == "Paid"
-                            || t.TransactionStatus == "Completed"
-                            || t.TransactionStatus == "Disputed"
-                            || t.TransactionStatus == "Refunded"))
-            .SumAsync(t => t.TransactionAmount ?? 0);
-
-        // 纠纷退款与结案结算同样计入总收入，与流水口径保持一致
-        var disputeIncome = await _db.Transactions
-            .Where(t => t.UserID == userId
-                        && (t.TransactionStatus == "DisputeRefund"
-                            || t.TransactionStatus == "DisputeSettlement"))
-            .SumAsync(t => t.TransactionAmount ?? 0);
+        // 总收入与流水口径一致：出售所得 + 钱包充值 + 纠纷退款/结算
+        var totalIncome = rows.Where(f => f.FlowType == IncomeType).Sum(f => f.Amount);
+        var totalExpense = rows.Where(f => f.FlowType == ExpenseType).Sum(f => f.Amount);
+        // 冻结金额：已支付但尚未确认收货的订单
+        var frozenAmount = rows
+            .Where(f => f.FlowType == ExpenseType && f.Status == "Paid")
+            .Sum(f => f.Amount);
 
         return Ok(new
         {
-            Balance = balance,
+            Balance = availableBalance,
             FrozenAmount = frozenAmount,
-            AvailableAmount = availableAmount,
-            TotalIncome = totalIncome + disputeIncome,
+            AvailableAmount = availableBalance - frozenAmount,
+            TotalIncome = totalIncome,
             TotalExpense = totalExpense,
-            NetAmount = totalIncome + disputeIncome - totalExpense
+            NetAmount = totalIncome - totalExpense
         });
     }
     // 内部类用于流水项
