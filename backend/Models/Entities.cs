@@ -172,8 +172,6 @@ public class Wallet
     [Key]
     public int WalletID { get; set; }
     public decimal? Balance { get; set; }
-    [MaxLength(255)]
-    public string? PayPassword { get; set; }
     public int? UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }

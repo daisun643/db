@@ -175,7 +175,6 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.WalletID);
             e.Property(x => x.WalletID).HasColumnName("walletId").ValueGeneratedOnAdd();
             e.Property(x => x.Balance).HasColumnName("balance").HasPrecision(18, 2);
-            e.Property(x => x.PayPassword).HasColumnName("payPassword");
             e.Property(x => x.UserID).HasColumnName("userId");
         });
 

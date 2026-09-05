@@ -13,17 +13,17 @@ UPDATE "User" SET "username" = '用户1', "bio" = '让闲置物品在校园里�
 UPDATE "User" SET "username" = '用户2', "bio" = '热爱前端、后端与开源协作。' WHERE "email" = '3@tongji.edu.cn';
 UPDATE "User" SET "username" = '用户3', "bio" = '分享学习经验和校园生活。' WHERE "email" = '4@tongji.edu.cn';
 
-INSERT INTO "Wallet" ("balance", "payPassword", "userId")
-SELECT 628.50, NULL, "userId" FROM "User" u WHERE u."email" = '1@tongji.edu.cn'
+INSERT INTO "Wallet" ("balance", "userId")
+SELECT 628.50, "userId" FROM "User" u WHERE u."email" = '1@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
-INSERT INTO "Wallet" ("balance", "payPassword", "userId")
-SELECT 356.00, NULL, "userId" FROM "User" u WHERE u."email" = '2@tongji.edu.cn'
+INSERT INTO "Wallet" ("balance", "userId")
+SELECT 356.00, "userId" FROM "User" u WHERE u."email" = '2@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
-INSERT INTO "Wallet" ("balance", "payPassword", "userId")
-SELECT 188.80, NULL, "userId" FROM "User" u WHERE u."email" = '3@tongji.edu.cn'
+INSERT INTO "Wallet" ("balance", "userId")
+SELECT 188.80, "userId" FROM "User" u WHERE u."email" = '3@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
-INSERT INTO "Wallet" ("balance", "payPassword", "userId")
-SELECT 92.50, NULL, "userId" FROM "User" u WHERE u."email" = '4@tongji.edu.cn'
+INSERT INTO "Wallet" ("balance", "userId")
+SELECT 92.50, "userId" FROM "User" u WHERE u."email" = '4@tongji.edu.cn'
 AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
 
 -- 更多帖子，覆盖活动、学习、求职和公告板块
