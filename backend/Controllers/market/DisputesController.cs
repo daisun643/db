@@ -195,6 +195,30 @@ public class DisputesController : ControllerBase
             SET ""balance"" = ""balance"" + {sellerAmount}
             WHERE ""walletId"" = {sellerWallet.WalletID}");
 
+        // 纠纷结案的资金划转计入资金流水：与充值流水同构（无商品关联，仅作流水记录）。
+        // 退款为 0 时订单转为 Completed，卖家全额收入已由原订单流水体现，不重复记账。
+        if (finalStatus == "Refunded")
+        {
+            _db.Transactions.Add(new Transaction
+            {
+                UserID = buyerId,
+                TransactionAmount = request.RefundAmount,
+                TransactionStatus = "DisputeRefund",
+                CreateTime = DateTime.Now,
+                PayTime = DateTime.Now
+            });
+
+            if (sellerAmount > 0)
+                _db.Transactions.Add(new Transaction
+                {
+                    UserID = sellerId,
+                    TransactionAmount = sellerAmount,
+                    TransactionStatus = "DisputeSettlement",
+                    CreateTime = DateTime.Now,
+                    PayTime = DateTime.Now
+                });
+        }
+
         dispute.Status = "Resolved";
         dispute.AssignTime = dispute.AssignTime ?? DateTime.Now;
         dispute.Transaction.TransactionStatus = finalStatus;

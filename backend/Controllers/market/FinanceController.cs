@@ -79,6 +79,25 @@ public class FinanceController : ControllerBase
             });
         }
 
+        // 收入：纠纷退款与结案结算（无商品关联的流水记录）
+        var disputeFlowsQuery = _db.Transactions
+            .Where(t => t.UserID == userId
+                        && (t.TransactionStatus == "DisputeRefund"
+                            || t.TransactionStatus == "DisputeSettlement"));
+
+        foreach (var t in await disputeFlowsQuery.ToListAsync())
+        {
+            inflows.Add(new FlowItem
+            {
+                Type = "收入",
+                Amount = t.TransactionAmount ?? 0,
+                Status = t.TransactionStatus ?? "",
+                Time = t.PayTime ?? t.CreateTime,
+                TransactionId = t.TransactionID,
+                Description = t.TransactionStatus == "DisputeRefund" ? "纠纷退款" : "纠纷结算"
+            });
+        }
+
         var allFlows = outflows
             .Concat(inflows)
             .OrderByDescending(f => f.Time)
@@ -127,14 +146,21 @@ public class FinanceController : ControllerBase
                             || t.TransactionStatus == "Refunded"))
             .SumAsync(t => t.TransactionAmount ?? 0);
 
+        // 纠纷退款与结案结算同样计入总收入，与流水口径保持一致
+        var disputeIncome = await _db.Transactions
+            .Where(t => t.UserID == userId
+                        && (t.TransactionStatus == "DisputeRefund"
+                            || t.TransactionStatus == "DisputeSettlement"))
+            .SumAsync(t => t.TransactionAmount ?? 0);
+
         return Ok(new
         {
             Balance = balance,
             FrozenAmount = frozenAmount,
             AvailableAmount = availableAmount,
-            TotalIncome = totalIncome,
+            TotalIncome = totalIncome + disputeIncome,
             TotalExpense = totalExpense,
-            NetAmount = totalIncome - totalExpense
+            NetAmount = totalIncome + disputeIncome - totalExpense
         });
     }
     // 内部类用于流水项
