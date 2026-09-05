@@ -8,10 +8,10 @@ ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 SET DEFINE OFF;
 
 -- 用户资料与钱包
-UPDATE "User" SET "username" = '同济小管家', "bio" = '校园论坛管理员，负责社区与交易秩序。' WHERE "email" = '1@tongji.edu.cn';
-UPDATE "User" SET "username" = '闲置循环站', "bio" = '让闲置物品在校园里继续发挥价值。' WHERE "email" = '2@tongji.edu.cn';
-UPDATE "User" SET "username" = '技术版小助手', "bio" = '热爱前端、后端与开源协作。' WHERE "email" = '3@tongji.edu.cn';
-UPDATE "User" SET "username" = '嘉定校区同学', "bio" = '分享学习经验和校园生活。' WHERE "email" = '4@tongji.edu.cn';
+UPDATE "User" SET "username" = '管理员', "bio" = '校园论坛管理员，负责社区与交易秩序。' WHERE "email" = '1@tongji.edu.cn';
+UPDATE "User" SET "username" = '用户1', "bio" = '让闲置物品在校园里继续发挥价值。' WHERE "email" = '2@tongji.edu.cn';
+UPDATE "User" SET "username" = '用户2', "bio" = '热爱前端、后端与开源协作。' WHERE "email" = '3@tongji.edu.cn';
+UPDATE "User" SET "username" = '用户3', "bio" = '分享学习经验和校园生活。' WHERE "email" = '4@tongji.edu.cn';
 
 INSERT INTO "Wallet" ("balance", "payPassword", "userId")
 SELECT 628.50, NULL, "userId" FROM "User" u WHERE u."email" = '1@tongji.edu.cn'

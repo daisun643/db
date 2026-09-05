@@ -7,21 +7,21 @@ TEST_USERS = {
     "admin": {
         "email": "1@tongji.edu.cn",
         "password": "Password1",
-        "username": "同济小管家",
+        "username": "管理员",
     },
     "manager": {
         "email": "2@tongji.edu.cn",
         "password": "Password2",
-        "username": "闲置循环站",
+        "username": "用户1",
     },
     "moderator": {
         "email": "3@tongji.edu.cn",
         "password": "Password3",
-        "username": "技术版小助手",
+        "username": "用户2",
     },
     "user": {
         "email": "4@tongji.edu.cn",
         "password": "Password4",
-        "username": "嘉定校区同学",
+        "username": "用户3",
     },
 }
