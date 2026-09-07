@@ -7,10 +7,12 @@ namespace Backend.Services;
 public class NotificationService : INotificationService
 {
     private readonly AppDbContext _db;
+    private readonly INotificationPushService _push;
 
-    public NotificationService(AppDbContext db)
+    public NotificationService(AppDbContext db, INotificationPushService push)
     {
         _db = db;
+        _push = push;
     }
 
     public async Task<Notification?> CreateAsync(CreateNotificationOptions options, bool preventDuplicate = true)
@@ -49,6 +51,7 @@ public class NotificationService : INotificationService
         };
 
         _db.Notifications.Add(notification);
+        PublishRealtime(notification);
         return notification;
     }
 
@@ -61,6 +64,23 @@ public class NotificationService : INotificationService
                 count++;
         }
         return count;
+    }
+
+    /// <summary>向在线用户广播通知信号；前端收到后重新拉取列表与未读数。</summary>
+    private void PublishRealtime(Notification notification)
+    {
+        _push.Publish(notification.UserID!.Value, "notification", new
+        {
+            title = notification.Title,
+            content = notification.Content,
+            type = notification.Type,
+            targetType = notification.TargetType,
+            targetId = notification.TargetID,
+            link = notification.Link,
+            transactionId = notification.TransactionID,
+            isRead = false,
+            createTime = notification.CreateTime
+        });
     }
 
     private static string NormalizeType(string? type)

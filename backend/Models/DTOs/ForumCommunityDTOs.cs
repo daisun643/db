@@ -8,8 +8,14 @@ public class ForumSummaryResponse
     public string ForumName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public int PostCount { get; set; }
+    public bool CanManage { get; set; }
+    public bool CanAssignManagers { get; set; }
+    public int MemberCount { get; set; }
+    public bool IsJoined { get; set; }
+    public ForumCreatorResponse? Creator { get; set; }
     public List<ForumManagerResponse> Managers { get; set; } = new();
 }
 
@@ -32,9 +38,20 @@ public class AssignForumManagerRequest
 {
     [Required]
     public int UserID { get; set; }
+
+    // Moderator=版主，Admin=管理员；缺省为版主（兼容旧调用）
+    public string Role { get; set; } = "Moderator";
 }
 
 public class ForumManagerResponse
+{
+    public int UserID { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = "Moderator";
+}
+
+public class ForumCreatorResponse
 {
     public int UserID { get; set; }
     public string Username { get; set; } = string.Empty;
@@ -46,7 +63,6 @@ public class PostListItemResponse
     public int PostID { get; set; }
     public string Title { get; set; } = string.Empty;
     public string ContentPreview { get; set; } = string.Empty;
-    public int HeatScore { get; set; }
     public int LikeCount { get; set; }
     public int ViewCount { get; set; }
     public int CommentCount { get; set; }
@@ -55,9 +71,9 @@ public class PostListItemResponse
     public DateTime? UpdateTime { get; set; }
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public int? ForumID { get; set; }
     public string ForumName { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = new();
     public List<string> ImageUrls { get; set; } = new();
     public bool IsLiked { get; set; }
     public bool IsFavorited { get; set; }
@@ -81,7 +97,6 @@ public class CreatePostRequest
     public string Content { get; set; } = string.Empty;
 
     public List<string> ImageUrls { get; set; } = new();
-    public List<string> TagNames { get; set; } = new();
 }
 
 public class UpdatePostRequest
@@ -94,7 +109,6 @@ public class UpdatePostRequest
     public string Content { get; set; } = string.Empty;
 
     public List<string> ImageUrls { get; set; } = new();
-    public List<string> TagNames { get; set; } = new();
 }
 
 public class ChangePostStatusRequest
@@ -111,8 +125,22 @@ public class CommentResponse
     public DateTime? CreateTime { get; set; }
     public int? UserID { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public int? ParentCommentID { get; set; }
     public List<CommentResponse> Replies { get; set; } = new();
+}
+
+public class MyCommentResponse
+{
+    public int CommentID { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? CreateTime { get; set; }
+    public int? ParentCommentID { get; set; }
+    public int? PostID { get; set; }
+    public string PostTitle { get; set; } = string.Empty;
+    public int? ForumID { get; set; }
+    public string ForumName { get; set; } = string.Empty;
 }
 
 public class CreateCommentRequest
@@ -137,19 +165,6 @@ public class CreateFavoriteFolderRequest
     [Required]
     [StringLength(100, MinimumLength = 1)]
     public string FolderName { get; set; } = string.Empty;
-}
-
-public class TagSuggestRequest
-{
-    public string Title { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
-}
-
-public class TagStatsResponse
-{
-    public int TagID { get; set; }
-    public string TagName { get; set; } = string.Empty;
-    public int PostCount { get; set; }
 }
 
 public class AuditRecordResponse

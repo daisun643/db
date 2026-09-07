@@ -268,6 +268,49 @@ class TestFinanceEdgeCases:
         expense_records = [f for f in flows["flows"] if f["type"] == "支出"]
         assert len(expense_records) >= 1
 
+    def test_dispute_refund_recorded_as_income_flow(self, admin_market_client, market_client):
+        """纠纷退款计入买家资金流水与总收入，且不污染我的订单"""
+        product = admin_market_client.create_product("退款流水商品", 60.0, stock=5).json()
+        market_client.deposit(200)
+        order = market_client.create_order(product["productID"]).json()
+        market_client.pay_order(order["transactionID"])
+
+        before_income = market_client.get("/api/finance/summary").json()["totalIncome"]
+
+        dispute = market_client.create_dispute(order["transactionID"], "申请全额退款").json()
+        resp = admin_market_client.resolve_dispute(dispute["ticketID"], "全额退款", refund_amount=60.0)
+        assert resp.status_code == 200
+
+        flows = market_client.get("/api/finance/flows").json()
+        refund_flows = [f for f in flows["flows"] if f["type"] == "收入" and f["description"] == "纠纷退款"]
+        assert any(f["amount"] == 60.0 for f in refund_flows)
+
+        summary = market_client.get("/api/finance/summary").json()
+        assert summary["totalIncome"] >= before_income + 60.0
+
+        # 退款流水无商品关联，不应出现在“我的订单”列表
+        order_ids = [o["transactionID"] for o in market_client.get_my_orders().json()]
+        assert all(f["transactionId"] not in order_ids for f in refund_flows)
+
+    def test_dispute_partial_refund_records_seller_settlement(self, admin_market_client, market_client):
+        """部分退款时买卖双方实收金额均计入各自资金流水"""
+        product = admin_market_client.create_product("结算流水商品", 100.0, stock=5).json()
+        market_client.deposit(200)
+        order = market_client.create_order(product["productID"]).json()
+        market_client.pay_order(order["transactionID"])
+
+        dispute = market_client.create_dispute(order["transactionID"], "申请部分退款").json()
+        resp = admin_market_client.resolve_dispute(dispute["ticketID"], "部分退款", refund_amount=40.0)
+        assert resp.status_code == 200
+
+        buyer_flows = market_client.get("/api/finance/flows").json()
+        refund = [f for f in buyer_flows["flows"] if f["type"] == "收入" and f["description"] == "纠纷退款"]
+        assert any(f["amount"] == 40.0 for f in refund)
+
+        seller_flows = admin_market_client.get("/api/finance/flows").json()
+        settlement = [f for f in seller_flows["flows"] if f["type"] == "收入" and f["description"] == "纠纷结算"]
+        assert any(f["amount"] == 60.0 for f in settlement)
+
     def test_flows_contains_correct_description_for_deleted_product(self, admin_market_client, market_client):
         product = admin_market_client.create_product("待删除流水商品", 10.0, stock=5).json()
         market_client.deposit(50)

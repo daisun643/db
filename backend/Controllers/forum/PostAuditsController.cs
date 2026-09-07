@@ -68,7 +68,6 @@ public class PostAuditsController : ControllerBase
                     PostID = post.PostID,
                     Title = post.Title ?? "",
                     ContentPreview = post.Content ?? "",
-                    HeatScore = post.HeatScore ?? 0,
                     LikeCount = post.LikeCount ?? 0,
                     ViewCount = post.ViewCount ?? 0,
                     Status = post.Status ?? "",

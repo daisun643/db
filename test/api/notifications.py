@@ -36,6 +36,13 @@ class NotificationAPI(BaseAPIClient):
             body["receiverUserIDs"] = receiver_user_ids
         return self.post(f"{self.PREFIX}/notifications/system", json=body)
 
+    def get_announcements(self, **params) -> requests.Response:
+        return self.get(f"{self.PREFIX}/notifications/announcements", params=params)
+
+    def open_stream(self) -> requests.Response:
+        """打开 SSE 推送长连接；调用方负责 close()。stream=True 避免 requests 缓冲整条流。"""
+        return self.get(f"{self.PREFIX}/notifications/stream", stream=True)
+
     def get_pending_audits(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/audits/posts")
 

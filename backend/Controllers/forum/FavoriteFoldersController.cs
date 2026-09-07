@@ -145,12 +145,6 @@ public class FavoriteFoldersController : ControllerBase
             .Select(fp => fp.Post!)
             .ToListAsync();
 
-        var postIds = posts.Select(p => p.PostID).ToList();
-        var tagRows = await _db.TagPosts
-            .Include(tp => tp.Tag)
-            .Where(tp => postIds.Contains(tp.PostID))
-            .ToListAsync();
-
         return Ok(posts.Select(p => new PostListItemResponse
         {
             PostID = p.PostID,
@@ -158,7 +152,6 @@ public class FavoriteFoldersController : ControllerBase
             ContentPreview = string.IsNullOrWhiteSpace(p.Content)
                 ? ""
                 : p.Content.Length <= 120 ? p.Content : p.Content[..120] + "...",
-            HeatScore = p.HeatScore ?? 0,
             LikeCount = p.LikeCount ?? 0,
             ViewCount = p.ViewCount ?? 0,
             Status = p.Status ?? "",
@@ -167,11 +160,7 @@ public class FavoriteFoldersController : ControllerBase
             UserID = p.UserID,
             Username = p.User?.Username ?? "",
             ForumID = p.ForumID,
-            ForumName = p.Forum?.ForumName ?? "",
-            Tags = tagRows
-                .Where(t => t.PostID == p.PostID && t.Tag?.TagName != null)
-                .Select(t => t.Tag!.TagName!)
-                .ToList()
+            ForumName = p.Forum?.ForumName ?? ""
         }).ToList());
     }
 

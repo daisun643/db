@@ -68,6 +68,34 @@ public class FriendsController : ControllerBase
 
         return Ok(requests.Select(f => MapFriend(f, userId)).ToList());
     }
+    [HttpGet("relation/{userId}")]
+    public async Task<ActionResult> GetRelation(int userId)
+    {
+        var currentUserId = CurrentUserId();
+        if (userId == currentUserId)
+            return Ok(new { userId, relation = "self", friendshipId = 0 });
+
+        var friendship = await _db.FriendShips.FirstOrDefaultAsync(f =>
+            (f.UserID == currentUserId && f.FriendID == userId) ||
+            (f.UserID == userId && f.FriendID == currentUserId));
+
+        var relation = "none";
+        if (friendship != null)
+        {
+            if (friendship.Status == "Accepted")
+                relation = "friend";
+            else if (friendship.Status == "Pending")
+                relation = friendship.UserID == currentUserId ? "pending-sent" : "pending-received";
+        }
+
+        return Ok(new
+        {
+            userId,
+            relation,
+            friendshipId = friendship?.FriendshipID ?? 0
+        });
+    }
+
     [HttpPost]
     public async Task<ActionResult<FriendResponse>> CreateRequest([FromBody] CreateFriendRequest request)
     {
@@ -99,10 +127,11 @@ public class FriendsController : ControllerBase
                 existing.UserID = userId;
                 existing.FriendID = target.UserID;
                 existing.Status = "Pending";
-                existing.UpdateTime = DateTime.Now;
+                // updateTime 由 TRG_FriendShip_TouchTime 统一刷新
                 await _db.SaveChangesAsync();
                 await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友", existing.FriendshipID, "request");
                 await _db.SaveChangesAsync();
+                await _db.Entry(existing).ReloadAsync();
                 existing.User = await _db.Users.FindAsync(existing.UserID);
                 existing.Friend = await _db.Users.FindAsync(existing.FriendID);
                 return Ok(MapFriend(existing, userId));
@@ -125,6 +154,7 @@ public class FriendsController : ControllerBase
         await CreateNotificationAsync(target.UserID, "新的好友申请", "有人请求添加你为好友", friendship.FriendshipID, "request");
         await _db.SaveChangesAsync();
 
+        await _db.Entry(friendship).ReloadAsync();
         friendship.User = await _db.Users.FindAsync(userId);
         friendship.Friend = target;
         return Ok(MapFriend(friendship, userId));
@@ -142,7 +172,6 @@ public class FriendsController : ControllerBase
         if (friendship.Status != "Pending")
             return Conflict(new { message = "该好友申请已经处理" });
         friendship.Status = "Accepted";
-        friendship.UpdateTime = DateTime.Now;
         await CreateNotificationAsync(friendship.UserID, "好友申请已通过", "你的好友申请已被接受", id, "accepted");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已接受好友申请" });
@@ -160,7 +189,6 @@ public class FriendsController : ControllerBase
         if (friendship.Status != "Pending")
             return Conflict(new { message = "该好友申请已经处理" });
         friendship.Status = "Rejected";
-        friendship.UpdateTime = DateTime.Now;
         await CreateNotificationAsync(friendship.UserID, "好友申请已拒绝", "你的好友申请已被拒绝", id, "rejected");
         await _db.SaveChangesAsync();
         return Ok(new { message = "已拒绝好友申请" });

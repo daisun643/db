@@ -73,6 +73,88 @@ class TestLoginFailure:
         assert resp_wrong.json()["message"] == resp_noexist.json()["message"]
 
 
+class TestSingleSession:
+
+    def test_second_login_invalidates_first_login_cookie(self, client):
+        user = TEST_USERS["user"]
+        other_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+            assert_success(client.me())
+
+            assert_success(other_client.login(user["email"], user["password"]))
+            assert_success(other_client.me())
+
+            assert client.me().status_code == 401
+        finally:
+            other_client.close()
+
+    def test_failed_second_login_does_not_invalidate_current_cookie(self, client):
+        user = TEST_USERS["user"]
+        other_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+
+            failed_login = other_client.login(user["email"], "WrongPassword1")
+            assert_failure(failed_login, message="邮箱或密码错误")
+
+            assert_success(client.me())
+        finally:
+            other_client.close()
+
+    def test_different_users_do_not_invalidate_each_other(self, client):
+        user = TEST_USERS["user"]
+        admin = TEST_USERS["admin"]
+        other_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+            assert_success(other_client.login(admin["email"], admin["password"]))
+
+            assert_success(client.me())
+            assert_success(other_client.me())
+        finally:
+            other_client.close()
+
+    def test_logout_invalidates_a_copied_cookie(self, client):
+        user = TEST_USERS["user"]
+        copied_cookie_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+            copied_cookie_client.session.cookies.update(client.session.cookies)
+            assert_success(copied_cookie_client.me())
+
+            assert_success(client.logout())
+
+            assert copied_cookie_client.me().status_code == 401
+        finally:
+            copied_cookie_client.close()
+
+    def test_stale_cookie_cannot_logout_the_new_session(self, client):
+        user = TEST_USERS["user"]
+        current_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+            assert_success(current_client.login(user["email"], user["password"]))
+
+            assert client.logout().status_code == 401
+            assert_success(current_client.me())
+        finally:
+            current_client.close()
+
+    def test_stale_client_can_log_in_again_and_become_current(self, client):
+        user = TEST_USERS["user"]
+        other_client = type(client)()
+        try:
+            assert_success(client.login(user["email"], user["password"]))
+            assert_success(other_client.login(user["email"], user["password"]))
+
+            assert_success(client.login(user["email"], user["password"]))
+            assert_success(client.me())
+            assert other_client.me().status_code == 401
+        finally:
+            other_client.close()
+
+
 class TestLoginLogout:
 
     def test_logout_then_me_returns_unauthorized(self, client):

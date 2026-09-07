@@ -40,6 +40,18 @@ def _register_unique_user(client, prefix: str = "stage2", password: str = "Passw
     }
 
 
+def _valid_png() -> bytes:
+    """最小合法 PNG，供头像上传测试复用。"""
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+
 def _assert_auth_response_failure(response, message: str | None = None) -> dict:
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
     data = response.json()
@@ -125,6 +137,10 @@ class TestStage1Registration:
         resp = client.register(second_email, username, "Password123", second_code)
         assert_failure(resp, message="该用户名已被使用")
 
+    def test_register_username_with_whitespace_rejected(self, client):
+        resp = client.register(_unique_email("space_name"), "user name 1", "Password123", "000000")
+        assert_failure(resp, message="用户名不能包含空格")
+
     def test_register_non_tongji_email_rejected(self, client):
         resp = client.register("student@example.com", "external_user", "Password123", "123456")
         assert_failure(resp, message="仅支持 @tongji.edu.cn 邮箱注册")
@@ -138,7 +154,7 @@ class TestStage1Registration:
 
 class TestStage1CurrentUser:
 
-    def test_auth_me_returns_roles_permissions_and_level_fields(self, admin_client):
+    def test_auth_me_returns_roles_and_permissions(self, admin_client):
         resp = admin_client.me()
         data = assert_success(resp)
         user = data["user"]
@@ -146,10 +162,8 @@ class TestStage1CurrentUser:
         assert user["email"] == "1@tongji.edu.cn"
         assert "roles" in user
         assert "permissions" in user
-        assert "Admin" in user["roles"]
+        assert "Manager" in user["roles"]
         assert "dashboard.view" in user["permissions"]
-        assert isinstance(user["userLevel"], int)
-        assert isinstance(user["totalCredit"], int)
 
 
 class TestStage2Profile:
@@ -173,7 +187,6 @@ class TestStage2Profile:
 
         resp = client.put("/api/user/profile", json={
             "username": new_username,
-            "nickname": "阶段二昵称",
             "contact": "wechat: stage2",
             "bio": "阶段二个人简介",
         })
@@ -181,14 +194,34 @@ class TestStage2Profile:
         assert resp.status_code == 200
         data = resp.json()
         assert data["username"] == new_username
-        assert data["nickname"] == "阶段二昵称"
         assert data["contact"] == "wechat: stage2"
         assert data["bio"] == "阶段二个人简介"
+        assert "nickname" not in data
 
         profile = client.get("/api/user/profile").json()
         assert profile["userId"] == created["user"]["userId"]
         assert profile["email"] == created["email"]
-        assert profile["nickname"] == "阶段二昵称"
+        assert profile["username"] == new_username
+
+    def test_profile_update_username_with_whitespace_rejected(self, client):
+        created = _register_unique_user(client, "profile_space")
+        before = client.get("/api/user/profile").json()
+
+        resp = client.put("/api/user/profile", json={
+            "username": "bad username",
+        })
+
+        # DTO 正则校验与控制器内校验均返回 400，响应体可能为 {message} 或 ModelState {errors}
+        assert resp.status_code == 400
+        data = resp.json()
+        if "message" in data:
+            assert data["message"] == "用户名不能包含空格"
+        else:
+            assert "errors" in data
+
+        # 用户名未被修改
+        profile = client.get("/api/user/profile").json()
+        assert profile["username"] == before["username"] == created["user"]["username"]
 
     def test_profile_update_ignores_user_id_and_sensitive_fields(self, client):
         created = _register_unique_user(client, "guard")
@@ -222,14 +255,7 @@ class TestStage2Profile:
 
     def test_user_can_upload_local_avatar(self, client):
         _register_unique_user(client, "avatar")
-        png = (
-            b"\x89PNG\r\n\x1a\n"
-            b"\x00\x00\x00\rIHDR"
-            b"\x00\x00\x00\x01\x00\x00\x00\x01"
-            b"\x08\x02\x00\x00\x00\x90wS\xde"
-            b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xde\xfc\x83"
-            b"\x00\x00\x00\x00IEND\xaeB`\x82"
-        )
+        png = _valid_png()
 
         resp = client.upload_avatar("avatar.png", png, "image/png")
 
@@ -240,6 +266,25 @@ class TestStage2Profile:
 
         profile = client.get("/api/user/profile").json()
         assert profile["avatarUrl"] == data["avatarUrl"]
+
+    def test_user_can_replace_existing_avatar(self, client):
+        """回归覆盖：替换已有头像时必须先删除关联再删除媒体记录。"""
+        _register_unique_user(client, "avatar_replace")
+
+        first = client.upload_avatar("avatar-first.png", _valid_png(), "image/png")
+        assert first.status_code == 200, first.text
+        first_url = first.json()["avatarUrl"]
+
+        second = client.upload_avatar("avatar-second.png", _valid_png(), "image/png")
+
+        assert second.status_code == 200, second.text
+        second_url = second.json()["avatarUrl"]
+        assert second_url.startswith("/uploads/avatars/")
+        assert second_url.endswith(".png")
+        assert second_url != first_url
+
+        profile = client.get("/api/user/profile").json()
+        assert profile["avatarUrl"] == second_url
 
     def test_avatar_upload_rejects_non_image_file(self, client):
         _register_unique_user(client, "avatar_bad")
@@ -362,111 +407,38 @@ class TestStage3PasswordReset:
 
 class TestStage4Rbac:
 
-    def test_normal_user_cannot_access_rbac_management(self, user_client):
+    def test_normal_user_cannot_access_rbac_metadata(self, user_client):
         assert user_client.get_roles().status_code == 403
-        assert user_client.create_role(f"stage4_user_{uuid.uuid4().hex[:8]}").status_code == 403
 
-    def test_manager_cannot_manage_rbac(self, client):
+    def test_manager_can_access_rbac_metadata(self, client):
+        """站点 Admin 已并入 Manager：Manager 拥有 roles.manage，可读 RBAC 元数据。"""
         assert_success(client.login("2@tongji.edu.cn", "Password2"))
-
-        assert client.get_roles().status_code == 403
-        assert client.create_role(f"stage4_manager_{uuid.uuid4().hex[:8]}").status_code == 403
-
-    def test_admin_can_create_role_permission_and_assign_permission(self, admin_client):
-        role_name = f"stage4_role_{uuid.uuid4().hex[:8]}"
-        permission_name = f"stage4.permission.{uuid.uuid4().hex[:8]}"
-
-        role_resp = admin_client.create_role(role_name, "阶段4测试角色")
-        assert role_resp.status_code == 201, role_resp.text
-        role_id = _role_id(role_resp.json())
-
-        permission_resp = admin_client.create_permission(
-            permission_name,
-            "阶段4测试权限",
-            "stage4",
-            "manage",
-        )
-        assert permission_resp.status_code == 201, permission_resp.text
-        permission_id = _permission_id(permission_resp.json())
-
-        assign_resp = admin_client.assign_permissions_to_role(role_id, [permission_id])
-        assert assign_resp.status_code == 200
-        assert assign_resp.json()["message"] == "权限分配成功"
-
-        role_detail = admin_client.get_role(role_id)
-        assert role_detail.status_code == 200
-
-    def test_create_role_name_must_be_unique_case_insensitive(self, admin_client):
-        role_name = f"stage4_unique_{uuid.uuid4().hex[:8]}"
-        assert admin_client.create_role(role_name).status_code == 201
-
-        duplicate = admin_client.create_role(role_name.upper())
-
-        assert duplicate.status_code == 400
-        assert duplicate.json()["message"] == "角色名称已存在"
-
-    def test_cannot_delete_role_that_has_users(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_role_user")
-        role_name = f"stage4_bound_{uuid.uuid4().hex[:8]}"
-        role = admin_client.create_role(role_name).json()
-        role_id = _role_id(role)
-
-        assign_resp = admin_client.assign_roles_to_user(created["user"]["userId"], [role_id])
-        assert assign_resp.status_code == 200
-
-        delete_resp = admin_client.delete_role(role_id)
-
-        assert delete_resp.status_code == 400
-        assert delete_resp.json()["message"] == "该角色下还有用户，无法删除"
-
-    def test_cannot_modify_delete_or_reassign_protected_roles(self, admin_client):
-        admin_role_id = _role_id(_get_role_by_name(admin_client, "Admin"))
-        user_role_id = _role_id(_get_role_by_name(admin_client, "User"))
-        permission_id = _permission_id(_get_permission_by_name(admin_client, "forums.view"))
-
-        update_resp = admin_client.update_role(user_role_id, "RenamedUser")
-        delete_resp = admin_client.delete_role(admin_role_id)
-        assign_resp = admin_client.assign_permissions_to_role(user_role_id, [permission_id])
-
-        assert update_resp.status_code == 400
-        assert update_resp.json()["message"] == "基础角色不能修改"
-        assert delete_resp.status_code == 400
-        assert delete_resp.json()["message"] == "基础角色不能删除"
-        assert assign_resp.status_code == 400
-        assert assign_resp.json()["message"] == "基础角色权限不能修改"
-
-    def test_role_assignment_refreshes_cookie_claims_after_relogin(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_claims")
-        role_name = f"stage4_claims_{uuid.uuid4().hex[:8]}"
-        role_id = _role_id(admin_client.create_role(role_name).json())
-        roles_manage_id = _permission_id(_get_permission_by_name(admin_client, "roles.manage"))
-
-        assert admin_client.assign_permissions_to_role(role_id, [roles_manage_id]).status_code == 200
-        assert admin_client.assign_roles_to_user(created["user"]["userId"], [role_id]).status_code == 200
-
-        assert client.get_roles().status_code == 403
-
-        assert_success(client.logout())
-        assert_success(client.login(created["email"], created["password"]))
         assert client.get_roles().status_code == 200
 
-    def test_assigning_manager_role_requires_admin_add_permission(self, admin_client, client):
-        created = _register_unique_user(client, "stage4_admin_add")
-        role_name = f"stage4_role_mgr_{uuid.uuid4().hex[:8]}"
-        role_id = _role_id(admin_client.create_role(role_name).json())
-        roles_manage_id = _permission_id(_get_permission_by_name(admin_client, "roles.manage"))
-        manager_role_id = _role_id(_get_role_by_name(admin_client, "Manager"))
+    def test_admin_can_read_predefined_roles_and_permissions(self, admin_client):
+        roles = admin_client.get_roles()
+        permissions = admin_client.get_permissions()
 
-        assert admin_client.assign_permissions_to_role(role_id, [roles_manage_id]).status_code == 200
-        assert admin_client.assign_roles_to_user(created["user"]["userId"], [role_id]).status_code == 200
+        assert roles.status_code == 200
+        assert permissions.status_code == 200
+        assert {role["roleName"] for role in roles.json()} >= {"Manager", "User"}
+        assert any(permission["permissionName"] == "forums.view" for permission in permissions.json())
 
-        assert_success(client.logout())
-        assert_success(client.login(created["email"], created["password"]))
+    @pytest.mark.parametrize("mutation", [
+        lambda client: client.create_role("dynamic-role"),
+        lambda client: client.update_role(1, "renamed-role"),
+        lambda client: client.delete_role(1),
+        lambda client: client.create_permission("dynamic.permission"),
+        lambda client: client.assign_permissions_to_role(1, []),
+        lambda client: client.assign_roles_to_user(4, []),
+    ])
+    def test_rbac_mutation_endpoints_are_removed(self, admin_client, mutation):
+        assert mutation(admin_client).status_code in (404, 405)
 
-        resp = client.assign_roles_to_user(created["user"]["userId"], [manager_role_id])
-
-        assert resp.status_code == 403
-        assert resp.json()["message"] == "分配管理员角色需要 admin.add 权限"
+    def test_admin_can_read_existing_user_roles(self, admin_client):
+        resp = admin_client.get_user_roles(4)
+        assert resp.status_code == 200
+        assert [role["roleName"] for role in resp.json()] == ["User"]
 
 
 class TestStage5BackendEntryAccess:
@@ -516,14 +488,12 @@ class TestStage5BackendEntryAccess:
 
 class TestStage6Credit:
 
-    def test_profile_exposes_credit_level_and_total_credit(self, user_client):
+    def test_profile_exposes_credit(self, user_client):
         resp = user_client.get("/api/user/profile")
 
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data["credit"], int)
-        assert isinstance(data["userLevel"], int)
-        assert isinstance(data["totalCredit"], int)
 
     def test_admin_can_view_user_credit(self, admin_client):
         resp = admin_client.get_user_credit(4)
@@ -532,8 +502,6 @@ class TestStage6Credit:
         data = resp.json()
         assert data["userId"] == 4
         assert isinstance(data["credit"], int)
-        assert isinstance(data["userLevel"], int)
-        assert isinstance(data["totalCredit"], int)
 
     def test_normal_user_cannot_adjust_credit(self, user_client):
         resp = user_client.adjust_credit(4, 10, "stage6 forbidden")
@@ -622,7 +590,6 @@ class TestStage7MemberOneCoverage:
         resp = client.put("/api/user/profile", json={
             "userId": victim["user"]["userId"],
             "username": attacker_new_username,
-            "nickname": "stage7 attacker nickname",
         })
 
         assert resp.status_code == 200
@@ -648,19 +615,13 @@ class TestStage7MemberOneCoverage:
         assert list_resp.status_code == 403
         assert create_resp.status_code == 403
 
-    def test_admin_can_create_role_and_assign_role_to_user(self, admin_client, client):
-        created = _register_unique_user(client, "stage7_assign")
-        role_name = f"stage7_role_{uuid.uuid4().hex[:8]}"
+    def test_admin_created_user_always_receives_default_role(self, admin_client):
+        resp = admin_client.post("/api/users", json={
+            "username": f"stage7_default_{uuid.uuid4().hex[:8]}",
+            "email": _unique_email("stage7_default"),
+            "password": "Password123",
+            "roleIds": [1],
+        })
 
-        role_resp = admin_client.create_role(role_name, "阶段7角色分配测试")
-        assert role_resp.status_code == 201, role_resp.text
-        role_id = _role_id(role_resp.json())
-
-        assign_resp = admin_client.assign_roles_to_user(created["user"]["userId"], [role_id])
-        assert assign_resp.status_code == 200
-        assert assign_resp.json()["message"] == "角色分配成功"
-
-        roles_resp = admin_client.get_user_roles(created["user"]["userId"])
-        assert roles_resp.status_code == 200
-        assigned_role_ids = [_role_id(role) for role in roles_resp.json()]
-        assert role_id in assigned_role_ids
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["roles"] == ["User"]

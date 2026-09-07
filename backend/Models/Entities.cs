@@ -16,10 +16,6 @@ public class User
     public string? PasswordHash { get; set; }
     [MaxLength(50)]
     public string? UserCode { get; set; }
-    [MaxLength(50)]
-    public string? Nickname { get; set; }
-    [MaxLength(500)]
-    public string? AvatarUrl { get; set; }
     [MaxLength(100)]
     public string? Contact { get; set; }
     [MaxLength(500)]
@@ -27,10 +23,13 @@ public class User
     public int? Credit { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
-    public int UserLevel { get; set; } = 1;
-    public int TotalCredit { get; set; } = 0;
+    [MaxLength(64)]
+    public string? SessionVersion { get; set; }
 
     public ICollection<MediaFile> UploadedMedia { get; set; } = new List<MediaFile>();
+    public UserAvatar? AvatarMedia { get; set; }
+    [NotMapped]
+    public string? AvatarUrl => AvatarMedia?.Media?.Url;
     
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<PostLike> PostLikes { get; set; } = new List<PostLike>();
@@ -44,9 +43,6 @@ public class MediaFile
 {
     [Key]
     public int MediaID { get; set; }
-    [MaxLength(30)]
-    public string? OwnerType { get; set; }
-    public int? OwnerID { get; set; }
     [MaxLength(50)]
     public string StorageProvider { get; set; } = "s3";
     [MaxLength(500)]
@@ -66,7 +62,33 @@ public class MediaFile
     public int? UploadedByUserID { get; set; }
     [ForeignKey("UploadedByUserID")]
     public User? UploadedByUser { get; set; }
-    public int? DisplayOrder { get; set; }
+    public ICollection<PostMedia> PostLinks { get; set; } = new List<PostMedia>();
+    public ICollection<ProductMedia> ProductLinks { get; set; } = new List<ProductMedia>();
+    public UserAvatar? AvatarLink { get; set; }
+}
+
+[Table("UserAvatar")]
+public class UserAvatar
+{
+    [Key]
+    public int UserID { get; set; }
+    [ForeignKey(nameof(UserID))]
+    public User? User { get; set; }
+    public int MediaID { get; set; }
+    [ForeignKey(nameof(MediaID))]
+    public MediaFile? Media { get; set; }
+}
+
+[Table("ForumAvatar")]
+public class ForumAvatar
+{
+    [Key]
+    public int ForumID { get; set; }
+    [ForeignKey(nameof(ForumID))]
+    public Forum? Forum { get; set; }
+    public int MediaID { get; set; }
+    [ForeignKey(nameof(MediaID))]
+    public MediaFile? Media { get; set; }
 }
 
 [Table("Role")]
@@ -144,26 +166,12 @@ public class EmailCode
     public string? IsUsed { get; set; }
 }
 
-[Table("PostTag")]
-public class PostTag
-{
-    [Key]
-    public int TagID { get; set; }
-    [MaxLength(50)]
-    public string? TagName { get; set; }
-    public DateTime? CreateTime { get; set; }
-
-    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
-}
-
 [Table("Wallet")]
 public class Wallet
 {
     [Key]
     public int WalletID { get; set; }
     public decimal? Balance { get; set; }
-    [MaxLength(255)]
-    public string? PayPassword { get; set; }
     public int? UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
@@ -184,6 +192,9 @@ public class Forum
     public int? CreatorID { get; set; }
     [ForeignKey("CreatorID")]
     public User? Creator { get; set; }
+    public ForumAvatar? AvatarMedia { get; set; }
+    [NotMapped]
+    public string? AvatarUrl => AvatarMedia?.Media?.Url;
 
     public ICollection<Post> Posts { get; set; } = new List<Post>();
     public ICollection<ForumManager> ForumManagers { get; set; } = new List<ForumManager>();
@@ -197,8 +208,6 @@ public class Post
     [MaxLength(200)]
     public string? Title { get; set; }
     public string? Content { get; set; }
-    public string? ImageUrls { get; set; }
-    public int? HeatScore { get; set; }
     public int? LikeCount { get; set; }
     public int? ViewCount { get; set; }
     public DateTime? CreateTime { get; set; }
@@ -214,8 +223,20 @@ public class Post
 
     public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
     public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
-    public ICollection<TagPost> TagPosts { get; set; } = new List<TagPost>();
     public ICollection<FolderPost> FolderPosts { get; set; } = new List<FolderPost>();
+    public ICollection<PostMedia> Media { get; set; } = new List<PostMedia>();
+}
+
+[Table("PostMedia")]
+public class PostMedia
+{
+    public int PostID { get; set; }
+    [ForeignKey(nameof(PostID))]
+    public Post? Post { get; set; }
+    public int MediaID { get; set; }
+    [ForeignKey(nameof(MediaID))]
+    public MediaFile? Media { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 [Table("PostComment")]
@@ -284,6 +305,24 @@ public class ForumManager
     public int UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
+
+    // Moderator=版主，Admin=管理员
+    [MaxLength(20)]
+    public string? Role { get; set; }
+}
+
+[Table("ForumMember")]
+public class ForumMember
+{
+    public int ForumID { get; set; }
+    [ForeignKey("ForumID")]
+    public Forum? Forum { get; set; }
+
+    public int UserID { get; set; }
+    [ForeignKey("UserID")]
+    public User? User { get; set; }
+
+    public DateTime? JoinTime { get; set; }
 }
 
 [Table("PostLike")]
@@ -298,18 +337,6 @@ public class PostLike
     [ForeignKey("UserID")]
     public User? User { get; set; }
     public DateTime? CreateTime { get; set; }
-}
-
-[Table("TagPost")]
-public class TagPost
-{
-    public int PostID { get; set; }
-    [ForeignKey("PostID")]
-    public Post? Post { get; set; }
-
-    public int TagID { get; set; }
-    [ForeignKey("TagID")]
-    public PostTag? Tag { get; set; }
 }
 
 [Table("FolderPost")]
@@ -333,11 +360,12 @@ public class Product
     public string? Title { get; set; }
     [MaxLength(4000)]
     public string? Description { get; set; }
-    public string? ImageUrls { get; set; }
-    [MaxLength(50)]
-    public string? Category { get; set; }
-    [MaxLength(50)]
-    public string? Condition { get; set; }
+    public int CategoryID { get; set; }
+    [ForeignKey(nameof(CategoryID))]
+    public ProductCategory? Category { get; set; }
+    public int ConditionID { get; set; }
+    [ForeignKey(nameof(ConditionID))]
+    public ProductCondition? Condition { get; set; }
     public decimal? Price { get; set; }
     public int? Stock { get; set; }
     [MaxLength(20)]
@@ -346,6 +374,45 @@ public class Product
     public int? UserID { get; set; }
     [ForeignKey("UserID")]
     public User? User { get; set; }
+    public ICollection<ProductMedia> Media { get; set; } = new List<ProductMedia>();
+}
+
+[Table("ProductCategory")]
+public class ProductCategory
+{
+    [Key]
+    public int CategoryID { get; set; }
+    [Required, MaxLength(50)]
+    public string CategoryName { get; set; } = string.Empty;
+    [MaxLength(200)]
+    public string? Description { get; set; }
+    public int DisplayOrder { get; set; }
+    public ICollection<Product> Products { get; set; } = new List<Product>();
+}
+
+[Table("ProductCondition")]
+public class ProductCondition
+{
+    [Key]
+    public int ConditionID { get; set; }
+    [Required, MaxLength(50)]
+    public string ConditionName { get; set; } = string.Empty;
+    [MaxLength(200)]
+    public string? Description { get; set; }
+    public int DisplayOrder { get; set; }
+    public ICollection<Product> Products { get; set; } = new List<Product>();
+}
+
+[Table("ProductMedia")]
+public class ProductMedia
+{
+    public int ProductID { get; set; }
+    [ForeignKey(nameof(ProductID))]
+    public Product? Product { get; set; }
+    public int MediaID { get; set; }
+    [ForeignKey(nameof(MediaID))]
+    public MediaFile? Media { get; set; }
+    public int DisplayOrder { get; set; }
 }
 
 [Table("Transaction")]
@@ -368,6 +435,23 @@ public class Transaction
     public ICollection<DisputeTicket> DisputeTickets { get; set; } = new List<DisputeTicket>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<OrderMessage> OrderMessages { get; set; } = new List<OrderMessage>();
+}
+
+/// <summary>
+/// 视图 "V_FinanceFlow" 的只读投影：收入/支出口径由数据库固化，应用层只做过滤与汇总。
+/// </summary>
+public class FinanceFlow
+{
+    public int TransactionID { get; set; }
+    public int? UserID { get; set; }
+    [MaxLength(10)]
+    public string? FlowType { get; set; }
+    public decimal Amount { get; set; }
+    [MaxLength(20)]
+    public string? Status { get; set; }
+    public DateTime? FlowTime { get; set; }
+    [MaxLength(500)]
+    public string? Description { get; set; }
 }
 
 [Table("DisputeTicket")]
@@ -537,4 +621,3 @@ public class Notification
     [ForeignKey("UserID")]
     public User? User { get; set; }
 }
-

@@ -41,11 +41,39 @@ public class UsersController : ControllerBase
         return Ok(users.Select(MapAdminUser).ToList());
     }
 
+    /// <summary>
+    /// 按用户名/邮箱搜索可用用户（仅供指派版主使用：Manager 或版块版主）
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<ActionResult> Search([FromQuery] string? keyword)
+    {
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var canAssignManager = User.IsInRole("Manager") ||
+            await _db.ForumManagers.CountAsync(fm => fm.UserID == currentUserId) > 0;
+        if (!canAssignManager)
+            return Forbid();
+
+        var trimmed = keyword?.Trim() ?? "";
+        if (trimmed.Length == 0)
+            return Ok(new List<object>());
+
+        var users = await _db.Users
+            .Where(u => u.Status == "Active" &&
+                ((u.Username != null && u.Username.Contains(trimmed)) ||
+                 (u.Email != null && u.Email.Contains(trimmed))))
+            .OrderBy(u => u.UserID)
+            .Take(10)
+            .Select(u => new { u.UserID, u.Username, u.Email })
+            .ToListAsync();
+
+        return Ok(users);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<AdminUserResponse>> GetById(int id)
     {
         var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var isAdmin = User.IsInRole("Admin");
+        var isAdmin = User.IsInRole("Manager");
         
         if (id != currentUserId && !isAdmin)
             return Forbid();
@@ -80,23 +108,13 @@ public class UsersController : ControllerBase
         if (usernameExists)
             return BadRequest(new { message = "该用户名已存在" });
 
-        var roleIds = request.RoleIds.Distinct().ToList();
-        if (roleIds.Count == 0)
-        {
-            var defaultRoleId = await _db.Roles
-                .Where(r => r.RoleName == "User")
-                .Select(r => r.RoleID)
-                .FirstOrDefaultAsync();
-            if (defaultRoleId > 0)
-                roleIds.Add(defaultRoleId);
-        }
-
-        if (roleIds.Count > 0)
-        {
-            var validRoleCount = await _db.Roles.CountAsync(r => roleIds.Contains(r.RoleID));
-            if (validRoleCount != roleIds.Count)
-                return BadRequest(new { message = "包含不存在的角色" });
-        }
+        var defaultRoleId = await _db.Roles
+            .Where(r => r.RoleName == "User")
+            .Select(r => r.RoleID)
+            .FirstOrDefaultAsync();
+        if (defaultRoleId == 0)
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "系统默认角色未配置" });
 
         var user = new User
         {
@@ -105,23 +123,18 @@ public class UsersController : ControllerBase
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Credit = 100,
             Status = "Active",
-            UserCode = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant(),
-            UserLevel = 1,
-            TotalCredit = 0
+            UserCode = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant()
         };
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        foreach (var roleId in roleIds)
+        _db.UserRoles.Add(new UserRole
         {
-            _db.UserRoles.Add(new UserRole
-            {
-                UserID = user.UserID,
-                RoleID = roleId,
-                AssignTime = DateTime.Now
-            });
-        }
+            UserID = user.UserID,
+            RoleID = defaultRoleId,
+            AssignTime = DateTime.Now
+        });
 
         await _db.SaveChangesAsync();
         user = await _db.Users
@@ -156,8 +169,6 @@ public class UsersController : ControllerBase
             UserCode = user.UserCode ?? "",
             Credit = user.Credit ?? 0,
             Status = user.Status ?? "",
-            UserLevel = user.UserLevel,
-            TotalCredit = user.TotalCredit,
             Roles = user.UserRoles
                 .Select(ur => ur.Role?.RoleName)
                 .Where(roleName => !string.IsNullOrWhiteSpace(roleName))

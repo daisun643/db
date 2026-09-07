@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace Backend.Controllers;
 
@@ -17,7 +16,6 @@ public class ProductsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ICreditService _creditService;
     private readonly IMediaStorageService _mediaStorageService;
-    private const string OwnerType = "Product";
     private const int MaxImageCount = 6;
 
     public ProductsController(AppDbContext db, ICreditService creditService, IMediaStorageService mediaStorageService)
@@ -34,6 +32,7 @@ public class ProductsController : ControllerBase
         [FromQuery] string? keyword,
         [FromQuery] string? category,
         [FromQuery] string? condition,
+        [FromQuery] int? sellerId,
         [FromQuery] decimal? minPrice,
         [FromQuery] decimal? maxPrice,
         [FromQuery] int? minStock,
@@ -64,7 +63,11 @@ public class ProductsController : ControllerBase
             (minStock.HasValue && maxStock.HasValue && minStock.Value > maxStock.Value))
             return BadRequest(new { message = "库存范围不合法" });
 
-        var query = _db.Products.Include(p => p.User).AsQueryable();
+        var query = _db.Products
+            .Include(p => p.User)
+            .Include(p => p.Category)
+            .Include(p => p.Condition)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -76,10 +79,13 @@ public class ProductsController : ControllerBase
         }
 
         if (!string.IsNullOrWhiteSpace(category))
-            query = query.Where(p => p.Category == category.Trim());
+            query = query.Where(p => p.Category != null && p.Category.CategoryName == category.Trim());
 
         if (!string.IsNullOrWhiteSpace(condition))
-            query = query.Where(p => p.Condition == condition.Trim());
+            query = query.Where(p => p.Condition != null && p.Condition.ConditionName == condition.Trim());
+
+        if (sellerId.HasValue)
+            query = query.Where(p => p.UserID == sellerId.Value);
 
         if (minPrice.HasValue)
             query = query.Where(p => (p.Price ?? 0) >= minPrice.Value);
@@ -134,7 +140,11 @@ public class ProductsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<ProductResponse>> GetById(int id)
     {
-        var product = await _db.Products.Include(p => p.User).FirstOrDefaultAsync(p => p.ProductID == id);
+        var product = await _db.Products
+            .Include(p => p.User)
+            .Include(p => p.Category)
+            .Include(p => p.Condition)
+            .FirstOrDefaultAsync(p => p.ProductID == id);
         if (product is null)
             return NotFound();
 
@@ -149,7 +159,7 @@ public class ProductsController : ControllerBase
             return BadRequest(ModelState);
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        if (!User.IsInRole("Admin") && !HasProductPermission("products.create"))
+        if (!User.IsInRole("Manager") && !HasProductPermission("products.create"))
             return Forbid();
 
         if (!await _creditService.CanPerformAsync(userId, "product.publish"))
@@ -162,13 +172,18 @@ public class ProductsController : ControllerBase
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         var category = NormalizeProductText(request.Category, "其他");
         var condition = NormalizeProductText(request.Condition, "良好");
+        var categoryRow = await _db.ProductCategories.SingleOrDefaultAsync(x => x.CategoryName == category);
+        var conditionRow = await _db.ProductConditions.SingleOrDefaultAsync(x => x.ConditionName == condition);
+        if (categoryRow == null || conditionRow == null)
+            return BadRequest(new { message = "商品分类或成色不在预置字典中" });
         var product = new Product
         {
             Title = request.Title.Trim(),
             Description = request.Description,
-            Category = category,
-            Condition = condition,
-            ImageUrls = SerializeImageUrls(normalizedImageUrls),
+            CategoryID = categoryRow.CategoryID,
+            ConditionID = conditionRow.ConditionID,
+            Category = categoryRow,
+            Condition = conditionRow,
             Price = request.Price,
             Stock = request.Stock,
             UserID = userId,
@@ -178,7 +193,7 @@ public class ProductsController : ControllerBase
 
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
-        await ReplaceMediaForOwnerAsync(product.ProductID, userId, normalizedImageUrls);
+        await ReplaceProductMediaAsync(product.ProductID, userId, normalizedImageUrls);
         await _db.SaveChangesAsync();
 
         var mapped = await MapProductAsync(product);
@@ -208,16 +223,23 @@ public class ProductsController : ControllerBase
             return BadRequest(new { message = "已锁定商品存在待处理订单，不可编辑" });
 
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
+        var categoryName = NormalizeProductText(request.Category, "其他");
+        var conditionName = NormalizeProductText(request.Condition, "良好");
+        var categoryRow = await _db.ProductCategories.SingleOrDefaultAsync(x => x.CategoryName == categoryName);
+        var conditionRow = await _db.ProductConditions.SingleOrDefaultAsync(x => x.ConditionName == conditionName);
+        if (categoryRow == null || conditionRow == null)
+            return BadRequest(new { message = "商品分类或成色不在预置字典中" });
         product.Title = request.Title.Trim();
         product.Description = request.Description;
-        product.Category = NormalizeProductText(request.Category, "其他");
-        product.Condition = NormalizeProductText(request.Condition, "良好");
-        product.ImageUrls = SerializeImageUrls(normalizedImageUrls);
+        product.CategoryID = categoryRow.CategoryID;
+        product.ConditionID = conditionRow.ConditionID;
+        product.Category = categoryRow;
+        product.Condition = conditionRow;
         product.Price = request.Price;
         product.Stock = request.Stock;
         product.Status = NormalizeProductStatusForUpdate(request.Status, request.Stock);
 
-        await ReplaceMediaForOwnerAsync(product.ProductID, userId, normalizedImageUrls);
+        await ReplaceProductMediaAsync(product.ProductID, userId, normalizedImageUrls);
         await _db.SaveChangesAsync();
 
         return Ok(await MapProductAsync(product));
@@ -248,6 +270,8 @@ public class ProductsController : ControllerBase
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         var products = await _db.Products
             .Include(p => p.User)
+            .Include(p => p.Category)
+            .Include(p => p.Condition)
             .Where(p => p.UserID == userId)
             .OrderByDescending(p => p.PublishTime)
             .ToListAsync();
@@ -319,8 +343,8 @@ public class ProductsController : ControllerBase
             Description = product.Description ?? "",
             Price = product.Price ?? 0,
             Stock = product.Stock ?? 0,
-            Category = product.Category ?? "其他",
-            Condition = product.Condition ?? "良好",
+            Category = product.Category?.CategoryName ?? "其他",
+            Condition = product.Condition?.ConditionName ?? "良好",
             Status = product.Status ?? "",
             PublishTime = product.PublishTime,
             UserID = product.UserID,
@@ -344,26 +368,18 @@ public class ProductsController : ControllerBase
         if (ids.Count == 0)
             return new Dictionary<int, List<string>>();
 
-        var mediaRows = await _db.MediaFiles
-            .Where(m => m.OwnerType == OwnerType &&
-                        m.OwnerID.HasValue &&
-                        ids.Contains(m.OwnerID.Value))
-            .OrderBy(m => m.DisplayOrder ?? int.MaxValue)
-            .ThenBy(m => m.MediaID)
+        var mediaRows = await _db.ProductMedia
+            .Include(x => x.Media)
+            .Where(x => ids.Contains(x.ProductID))
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.MediaID)
             .ToListAsync();
 
         return mediaRows
-            .Where(m => m.OwnerID.HasValue)
-            .GroupBy(m => m.OwnerID!.Value)
+            .GroupBy(x => x.ProductID)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(m => m.Url).Where(HasUrl).Select(url => url!).ToList());
-    }
-
-    private static string SerializeImageUrls(IEnumerable<string> urls)
-    {
-        var normalized = NormalizeImageUrls(urls);
-        return JsonSerializer.Serialize(normalized.Take(MaxImageCount).ToList());
+                g => g.Select(x => x.Media?.Url).Where(HasUrl).Select(url => url!).ToList());
     }
 
     private static List<string> NormalizeImageUrls(IEnumerable<string>? urls)
@@ -404,22 +420,7 @@ public class ProductsController : ControllerBase
             return mediaImageUrls.Take(MaxImageCount).ToList();
         }
 
-        return DeserializeImageUrls(product.ImageUrls);
-    }
-
-    private static List<string> DeserializeImageUrls(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return new List<string>();
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(value) ?? new List<string>();
-        }
-        catch
-        {
-            return new List<string>();
-        }
+        return new List<string>();
     }
 
     private bool HasProductPermission(string permission)
@@ -431,7 +432,7 @@ public class ProductsController : ControllerBase
     private bool CanManageProduct(Product product, int userId, string permission)
     {
         return product.UserID == userId ||
-            User.IsInRole("Admin") ||
+            User.IsInRole("Manager") ||
             HasProductPermission(permission);
     }
 
@@ -459,60 +460,43 @@ public class ProductsController : ControllerBase
         };
     }
 
-    private async Task ReplaceMediaForOwnerAsync(int ownerId, int? uploadedByUserId, IEnumerable<string> imageUrls)
+    private async Task ReplaceProductMediaAsync(int productId, int? uploadedByUserId, IEnumerable<string> imageUrls)
     {
         var normalized = NormalizeImageUrls(imageUrls);
 
-        var existing = await _db.MediaFiles
-            .Where(m => m.OwnerType == OwnerType && m.OwnerID == ownerId)
+        var existingLinks = await _db.ProductMedia
+            .Include(x => x.Media)
+            .Where(x => x.ProductID == productId)
             .ToListAsync();
-
-        var existingLookup = existing
-            .Where(x => !string.IsNullOrWhiteSpace(x.Url))
-            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+        var existingLookup = existingLinks
+            .Where(x => !string.IsNullOrWhiteSpace(x.Media?.Url))
+            .ToDictionary(x => x.Media!.Url!, x => x.Media!, StringComparer.OrdinalIgnoreCase);
 
         var incomingSet = normalized.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var removed in existing
-            .Where(m => !incomingSet.Contains(m.Url ?? ""))
-            .ToList())
+        foreach (var removed in existingLinks.Where(x => !incomingSet.Contains(x.Media?.Url ?? "")))
         {
-            await _mediaStorageService.DeleteByUrlAsync(removed.Url);
-            _db.MediaFiles.Remove(removed);
+            await _mediaStorageService.DeleteByUrlAsync(removed.Media?.Url);
+            if (removed.Media != null)
+                _db.MediaFiles.Remove(removed.Media);
         }
-
-        var existingRetained = existing
-            .Where(m => incomingSet.Contains(m.Url ?? ""))
-            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+        _db.ProductMedia.RemoveRange(existingLinks);
 
         for (var i = 0; i < normalized.Count; i++)
         {
             var url = normalized[i];
-            if (existingRetained.TryGetValue(url, out var matched))
+            if (!existingLookup.TryGetValue(url, out var media))
             {
-                matched.DisplayOrder = i;
-                matched.UploadTime = DateTime.UtcNow;
-                continue;
+                media = new MediaFile
+                {
+                    StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
+                    Url = url,
+                    UploadedByUserID = uploadedByUserId,
+                    UploadTime = DateTime.UtcNow
+                };
+                _db.MediaFiles.Add(media);
             }
-
-            if (existingLookup.TryGetValue(url, out var item))
-            {
-                item.OwnerID = ownerId;
-                item.DisplayOrder = i;
-                item.UploadTime = DateTime.UtcNow;
-                continue;
-            }
-
-            _db.MediaFiles.Add(new MediaFile
-            {
-                OwnerType = OwnerType,
-                OwnerID = ownerId,
-                StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
-                Url = url,
-                UploadedByUserID = uploadedByUserId,
-                DisplayOrder = i,
-                UploadTime = DateTime.UtcNow
-            });
+            _db.ProductMedia.Add(new ProductMedia { ProductID = productId, Media = media, DisplayOrder = i });
         }
     }
 }

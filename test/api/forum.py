@@ -20,6 +20,9 @@ class ForumAPI(BaseAPIClient):
     def get_forum(self, forum_id: int) -> requests.Response:
         return self.get(f"{self.PREFIX}/forums/{forum_id}")
 
+    def get_my_forums(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/forums/mine")
+
     def create_forum(self, forum_name: str, description: str = "") -> requests.Response:
         return self.post(f"{self.PREFIX}/forums", json={
             "forumName": forum_name,
@@ -36,13 +39,34 @@ class ForumAPI(BaseAPIClient):
     def delete_forum(self, forum_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}")
 
-    def assign_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
-        return self.post(f"{self.PREFIX}/forums/{forum_id}/managers", json={
-            "userID": user_id,
-        })
+    def assign_forum_manager(self, forum_id: int, user_id: int, role: str | None = None) -> requests.Response:
+        payload: dict = {"userID": user_id}
+        if role is not None:
+            payload["role"] = role
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/managers", json=payload)
 
     def remove_forum_manager(self, forum_id: int, user_id: int) -> requests.Response:
         return self.delete(f"{self.PREFIX}/forums/{forum_id}/managers/{user_id}")
+
+    def upload_forum_avatar(self, forum_id: int, filename: str, content: bytes,
+                            content_type: str = "image/png") -> requests.Response:
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/avatar", files={
+            "file": (filename, content, content_type),
+        })
+
+    def delete_forum_avatar(self, forum_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/forums/{forum_id}/avatar")
+
+    # ---- Users（指派版主时的用户搜索）----
+
+    def search_users(self, keyword: str) -> requests.Response:
+        return self.get(f"{self.PREFIX}/users/search", params={"keyword": keyword})
+
+    def join_forum(self, forum_id: int) -> requests.Response:
+        return self.post(f"{self.PREFIX}/forums/{forum_id}/join")
+
+    def leave_forum(self, forum_id: int) -> requests.Response:
+        return self.delete(f"{self.PREFIX}/forums/{forum_id}/join")
 
     # ---- Posts ----
 
@@ -53,23 +77,19 @@ class ForumAPI(BaseAPIClient):
         return self.get(f"{self.PREFIX}/posts/{post_id}")
 
     def create_post(self, forum_id: int, title: str, content: str,
-                    tag_names: list[str] | None = None,
                     image_urls: list[str] | None = None) -> requests.Response:
         return self.post(f"{self.PREFIX}/posts", json={
             "forumID": forum_id,
             "title": title,
             "content": content,
-            "tagNames": tag_names or [],
             "imageUrls": image_urls or [],
         })
 
     def update_post(self, post_id: int, title: str, content: str,
-                    tag_names: list[str] | None = None,
                     image_urls: list[str] | None = None) -> requests.Response:
         return self.put(f"{self.PREFIX}/posts/{post_id}", json={
             "title": title,
             "content": content,
-            "tagNames": tag_names or [],
             "imageUrls": image_urls or [],
         })
 
@@ -89,6 +109,9 @@ class ForumAPI(BaseAPIClient):
 
     def get_my_posts(self) -> requests.Response:
         return self.get(f"{self.PREFIX}/posts/me")
+
+    def get_my_comments(self) -> requests.Response:
+        return self.get(f"{self.PREFIX}/posts/me/comments")
 
     # ---- Favorite folders ----
 
@@ -151,11 +174,3 @@ class ForumAPI(BaseAPIClient):
             "action": action,
             "result": result,
         })
-
-    # ---- Tags ----
-
-    def get_tags(self, keyword: str = "") -> requests.Response:
-        return self.get(f"{self.PREFIX}/tags", params={"keyword": keyword})
-
-    def get_tag_stats(self, top: int = 10) -> requests.Response:
-        return self.get(f"{self.PREFIX}/tags/stats", params={"top": top})

@@ -1,6 +1,15 @@
 <template>
   <aside :class="['sidebar', { collapsed: isCollapsed }]">
-    <button class="toggle-btn" @click="toggleSidebar" aria-label="切换侧边栏">
+    <router-link to="/" class="sidebar-brand" aria-label="返回首页">
+      <span class="brand-mark">济</span>
+      <span v-if="!isCollapsed" class="brand-copy"><strong>同济校园</strong><small>Campus Hub</small></span>
+    </router-link>
+    <button
+      class="toggle-btn"
+      @click="toggleSidebar"
+      :aria-label="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+    >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M15 18l-6-6 6-6" v-if="!isCollapsed" />
         <path d="M9 18l6-6-6-6" v-else />
@@ -9,7 +18,7 @@
 
     <nav class="sidebar-nav">
       <div class="nav-section">
-        <router-link to="/" class="nav-item">
+        <router-link to="/" class="nav-item" title="首页">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             <polyline points="9 22 9 12 15 12 15 22" />
@@ -17,14 +26,14 @@
           <span class="nav-label" v-if="!isCollapsed">首页</span>
         </router-link>
 
-        <router-link v-if="canAccess('/forums')" to="/forums" class="nav-item">
+        <router-link v-if="canAccess('/forums')" to="/forums" class="nav-item" title="论坛">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span class="nav-label" v-if="!isCollapsed">论坛</span>
         </router-link>
 
-        <router-link v-if="canAccess('/products')" to="/products" class="nav-item">
+        <router-link v-if="canAccess('/products')" to="/products" class="nav-item" title="交易">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1" />
             <circle cx="20" cy="21" r="1" />
@@ -33,7 +42,7 @@
           <span class="nav-label" v-if="!isCollapsed">交易</span>
         </router-link>
 
-        <router-link to="/finance" class="nav-item">
+        <router-link to="/finance" class="nav-item" title="资金流水">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
@@ -41,15 +50,18 @@
           <span class="nav-label" v-if="!isCollapsed">资金流水</span>
         </router-link>
 
-        <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <polyline points="22,6 12,13 2,6" />
-          </svg>
+        <router-link v-if="canAccess('/messages')" to="/messages" class="nav-item" title="消息">
+          <span class="nav-icon-wrap">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <span v-if="unreadTotal > 0 && route.path !== '/messages'" class="nav-badge">{{ badgeText }}</span>
+          </span>
           <span class="nav-label" v-if="!isCollapsed">消息</span>
         </router-link>
 
-        <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item">
+        <router-link v-if="canAccess('/system-status')" to="/system-status" class="nav-item" title="系统状态">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -59,9 +71,15 @@
       </div>
 
       <div class="user-section">
-        <div class="user-profile" @click="$router.push('/profile')">
+        <div class="user-profile" title="查看我的主页" @click="openUserProfile">
           <div class="user-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <img
+              v-if="userAvatarUrl"
+              :src="userAvatarUrl"
+              :alt="authStore.user?.username || '用户'"
+              @error="markAvatarFailed(authStore.user?.avatarUrl)"
+            />
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
@@ -85,18 +103,64 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { getUnreadMessageCount, getUnreadNotificationCount } from '../api'
 import { PROTECTED_MENU_PATHS, getRequiredPermissions } from '../router/routeAccess'
+import { canShowAvatar, markAvatarFailed } from '../utils/avatarFallback'
+import { onStreamEvent, onStreamOpen } from '../utils/notificationStream'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+const isCollapsed = ref(true)
 const routeAccess = ref({})
+
+// 侧边栏消息入口的未读角标：未读私信 + 未读通知（由 SSE 推送驱动刷新）
+const messageUnread = ref(0)
+const notificationUnread = ref(0)
+
+const unreadTotal = computed(() => messageUnread.value + notificationUnread.value)
+const badgeText = computed(() => (unreadTotal.value > 99 ? '99+' : String(unreadTotal.value)))
+
+const loadUnreadCounts = async () => {
+  if (!authStore.isAuthenticated) {
+    messageUnread.value = 0
+    notificationUnread.value = 0
+    return
+  }
+  try {
+    const [messageRes, notificationRes] = await Promise.all([
+      getUnreadMessageCount(),
+      getUnreadNotificationCount(),
+    ])
+    messageUnread.value = messageRes.data.count || 0
+    notificationUnread.value = notificationRes.data.count || 0
+  } catch {
+    // 刷新失败保留上次结果，下次推送事件或路由切换会重试
+  }
+}
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
+
+const openUserProfile = () => {
+  const userId = authStore.user?.userId
+  if (userId) {
+    router.push(`/user/${userId}`)
+    return
+  }
+
+  // 用户信息尚未完成加载时保留一个可用的兜底入口。
+  router.push('/profile')
+}
+
+const userAvatarUrl = computed(() => {
+  const url = authStore.user?.avatarUrl || ''
+  return canShowAvatar(url) ? url : ''
+})
 
 const canAccess = (path) => {
   const requiredPermissions = getRequiredPermissions(path)
@@ -120,11 +184,30 @@ const updateRouteAccess = async () => {
 
 const handleLogout = async () => {
   await authStore.logout()
+  messageUnread.value = 0
+  notificationUnread.value = 0
   routeAccess.value = {}
   router.push('/login')
 }
 
-onMounted(updateRouteAccess)
+// SSE 推送驱动：收到通知/私信事件立即刷新角标；连接建立（含断线重连）时全量刷新
+const unbindStreamEvents = [
+  onStreamEvent('notification', loadUnreadCounts),
+  onStreamEvent('message', loadUnreadCounts),
+  onStreamOpen(loadUnreadCounts),
+]
+
+onMounted(() => {
+  updateRouteAccess()
+  loadUnreadCounts()
+})
+
+onUnmounted(() => {
+  unbindStreamEvents.forEach((unbind) => unbind())
+})
+
+// 路由切换后立即刷新未读数（如在消息页处理后返回其他页面）
+watch(() => route.fullPath, loadUnreadCounts)
 
 watch(
   () => [authStore.isAuthenticated, authStore.user?.roles, authStore.user?.permissions],
@@ -185,9 +268,35 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 1rem 0;
+  padding: 0 0 1rem;
   overflow-y: auto;
 }
+
+.sidebar-brand {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: 0 1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--primary);
+  font-weight: 750;
+}
+
+.brand-copy { display:flex; flex-direction:column; line-height:1.2; white-space:nowrap; }
+.brand-copy strong { font-size:.92rem; }
+.brand-copy small { margin-top:.2rem; color:var(--text-secondary); font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; }
 
 .nav-section {
   flex: 1;
@@ -232,6 +341,29 @@ watch(
   white-space: nowrap;
 }
 
+.nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
 .user-section {
   border-top: 1px solid var(--border);
   padding: 1rem 0.5rem;
@@ -262,6 +394,14 @@ watch(
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .user-avatar svg {

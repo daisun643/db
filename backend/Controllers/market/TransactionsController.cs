@@ -42,11 +42,12 @@ public class TransactionsController : ControllerBase
         var normalizedStatus = status?.Trim();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        // 排除钱包充值流水（无商品关联），只返回商品订单
         var orders = _db.Transactions
             .Include(t => t.Product)
             .ThenInclude(p => p!.User)
             .Include(t => t.User)
-            .Where(t => t.UserID == userId)
+            .Where(t => t.UserID == userId && t.ProductID != null)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(normalizedStatus))
@@ -123,53 +124,45 @@ public class TransactionsController : ControllerBase
 
         await using var dbTransaction = await _db.Database.BeginTransactionAsync();
 
-        var product = await _db.Products
-            .Include(p => p.User)
-            .FirstOrDefaultAsync(p => p.ProductID == request.ProductID);
-        if (product == null || product.Status != "Active")
-            return BadRequest(new { message = "商品不可下单" });
+        // 商品校验、条件扣减库存与建单全部在存储过程内完成；
+        // 库存归零后由 TRG_Product_StockLock 自动把商品置为 Locked
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
+        var transactionId = OracleProcedure.OutInt32("p_transaction_id");
+        var productTitle = OracleProcedure.OutText("p_product_title");
+        var sellerId = OracleProcedure.OutInt32("p_seller_id");
 
-        if (product.UserID == userId)
-            return BadRequest(new { message = "不能购买自己发布的商品" });
+        await OracleProcedure.CallAsync(_db, "sp_create_order",
+            OracleProcedure.InInt32("p_buyer_id", userId),
+            OracleProcedure.InInt32("p_product_id", request.ProductID),
+            code,
+            message,
+            transactionId,
+            OracleProcedure.OutDecimal("p_amount"),
+            productTitle,
+            sellerId);
 
-        var affected = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Product""
-            SET ""stock"" = ""stock"" - 1,
-                ""status"" = CASE WHEN ""stock"" - 1 <= 0 THEN 'Locked' ELSE ""status"" END
-            WHERE ""productId"" = {request.ProductID}
-              AND ""stock"" > 0
-              AND ""status"" = 'Active'");
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "商品不可下单" });
 
-        if (affected != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "库存不足或商品已锁定" });
-        }
+        var orderId = OracleProcedure.ReadInt32(transactionId);
+        var title = OracleProcedure.ReadText(productTitle) ?? "";
 
-        await _db.Entry(product).ReloadAsync();
-
-        var order = new Transaction
-        {
-            TransactionAmount = product.Price ?? 0,
-            TransactionStatus = "Pending",
-            CreateTime = DateTime.Now,
-            UserID = userId,
-            ProductID = request.ProductID
-        };
-
-        _db.Transactions.Add(order);
-        await _db.SaveChangesAsync();
-
-        await CreateNotificationAsync(userId, "订单已创建", $"你已锁定商品：{product.Title}", order.TransactionID);
-        if (product.UserID.HasValue)
-            await CreateNotificationAsync(product.UserID.Value, "商品被下单", $"商品 {product.Title} 已被买家锁定", order.TransactionID);
+        await CreateNotificationAsync(userId, "订单已创建", $"你已锁定商品：{title}", orderId);
+        var seller = OracleProcedure.ReadInt32OrNull(sellerId);
+        if (seller.HasValue)
+            await CreateNotificationAsync(seller.Value, "商品被下单", $"商品 {title} 已被买家锁定", orderId);
 
         await _db.SaveChangesAsync();
-
         await dbTransaction.CommitAsync();
 
-        order.Product = product;
-        order.User = await _db.Users.FindAsync(userId);
+        var order = await _db.Transactions
+            .Include(t => t.Product)
+            .ThenInclude(p => p!.User)
+            .Include(t => t.User)
+            .AsNoTracking()
+            .FirstAsync(t => t.TransactionID == orderId);
+
         return Ok(MapTransaction(order));
     }
 
@@ -179,52 +172,41 @@ public class TransactionsController : ControllerBase
         var order = await FindOwnedOrderAsync(id);
         if (order == null)
             return NotFound();
-        if (order.TransactionStatus != "Pending")
-            return BadRequest(new { message = "当前订单不可支付" });
-        if (order.Product?.UserID == null)
-            return BadRequest(new { message = "商品卖家不存在" });
 
         await using var dbTransaction = await _db.Database.BeginTransactionAsync();
-        var buyerWallet = await GetOrCreateWalletAsync(order.UserID!.Value);
+
+        // 余额条件扣款与 Pending → Paid 的状态机在存储过程内原子完成
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
+        var balance = OracleProcedure.OutDecimal("p_balance");
+        var sellerId = OracleProcedure.OutInt32("p_seller_id");
+
+        await OracleProcedure.CallAsync(_db, "sp_pay_order",
+            OracleProcedure.InInt32("p_transaction_id", id),
+            OracleProcedure.InInt32("p_buyer_id", order.UserID),
+            code,
+            message,
+            balance,
+            OracleProcedure.OutDecimal("p_amount"),
+            sellerId);
+
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "当前订单不可支付" });
+
+        await CreateNotificationAsync(order.UserID!.Value, "支付成功", $"订单 {id} 已支付，等待确认收货", id);
+        var seller = OracleProcedure.ReadInt32OrNull(sellerId);
+        if (seller.HasValue)
+            await CreateNotificationAsync(seller.Value, "买家已支付", $"订单 {id} 已支付", id);
+
         await _db.SaveChangesAsync();
-
-        var amount = order.TransactionAmount ?? 0;
-        var debited = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Wallet""
-            SET ""balance"" = ""balance"" - {amount}
-            WHERE ""walletId"" = {buyerWallet.WalletID}
-              AND ""balance"" >= {amount}");
-
-        if (debited != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "钱包余额不足" });
-        }
-
-        var payTime = DateTime.Now;
-        var paid = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Transaction""
-            SET ""transactionStatus"" = 'Paid',
-                ""payTime"" = {payTime}
-            WHERE ""transactionId"" = {id}
-              AND ""transactionStatus"" = 'Pending'");
-
-        if (paid != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "当前订单不可支付" });
-        }
-
-        order.TransactionStatus = "Paid";
-        order.PayTime = payTime;
-        await CreateNotificationAsync(order.UserID.Value, "支付成功", $"订单 {id} 已支付，等待确认收货", id);
-        if (order.Product?.UserID.HasValue == true)
-            await CreateNotificationAsync(order.Product.UserID.Value, "买家已支付", $"订单 {id} 已支付", id);
-        await _db.SaveChangesAsync();
-        await _db.Entry(buyerWallet).ReloadAsync();
         await dbTransaction.CommitAsync();
 
-        return Ok(new { message = "支付成功，资金已进入担保账户", status = order.TransactionStatus, walletBalance = buyerWallet.Balance ?? 0 });
+        return Ok(new
+        {
+            message = "支付成功，资金已进入担保账户",
+            status = "Paid",
+            walletBalance = OracleProcedure.ReadDecimal(balance)
+        });
     }
 
     [HttpPost("{id}/confirm-receipt")]
@@ -233,46 +215,35 @@ public class TransactionsController : ControllerBase
         var order = await FindOwnedOrderAsync(id);
         if (order == null)
             return NotFound();
-        if (order.TransactionStatus != "Paid")
-            return BadRequest(new { message = "当前订单不可确认收货" });
-        if (order.Product?.UserID == null)
-            return BadRequest(new { message = "商品卖家不存在" });
 
         await using var dbTransaction = await _db.Database.BeginTransactionAsync();
-        var sellerWallet = await GetOrCreateWalletAsync(order.Product.UserID.Value);
-        await _db.SaveChangesAsync();
 
-        var completed = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Transaction""
-            SET ""transactionStatus"" = 'Completed'
-            WHERE ""transactionId"" = {id}
-              AND ""transactionStatus"" = 'Paid'");
+        // Paid → Completed、卖家钱包结算、售罄转 Sold 都在存储过程内完成；
+        // 留言板归档由 TRG_Transaction_ArchiveMsg 自动处理
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
+        var sellerId = OracleProcedure.OutInt32("p_seller_id");
 
-        if (completed != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "当前订单不可确认收货" });
-        }
+        await OracleProcedure.CallAsync(_db, "sp_confirm_receipt",
+            OracleProcedure.InInt32("p_transaction_id", id),
+            code,
+            message,
+            OracleProcedure.OutDecimal("p_amount"),
+            sellerId,
+            OracleProcedure.OutDecimal("p_seller_balance"));
 
-        var amount = order.TransactionAmount ?? 0;
-        await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Wallet""
-            SET ""balance"" = ""balance"" + {amount}
-            WHERE ""walletId"" = {sellerWallet.WalletID}");
-
-        order.TransactionStatus = "Completed";
-        if (order.Product != null && (order.Product.Stock ?? 0) <= 0)
-            order.Product.Status = "Sold";
-        await ArchiveOrderMessagesAsync(id);
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "当前订单不可确认收货" });
 
         await CreateNotificationAsync(order.UserID!.Value, "交易完成", $"订单 {id} 已完成", id);
-        if (order.Product?.UserID.HasValue == true)
-            await CreateNotificationAsync(order.Product.UserID.Value, "交易完成", $"订单 {id} 已完成，可结算资金", id);
+        var seller = OracleProcedure.ReadInt32OrNull(sellerId);
+        if (seller.HasValue)
+            await CreateNotificationAsync(seller.Value, "交易完成", $"订单 {id} 已完成，可结算资金", id);
 
         await _db.SaveChangesAsync();
-        await _db.Entry(sellerWallet).ReloadAsync();
         await dbTransaction.CommitAsync();
-        return Ok(new { message = "确认收货成功，资金已结算给卖家", status = order.TransactionStatus });
+
+        return Ok(new { message = "确认收货成功，资金已结算给卖家", status = "Completed" });
     }
 
     [HttpPost("{id}/cancel")]
@@ -281,36 +252,24 @@ public class TransactionsController : ControllerBase
         var order = await FindOwnedOrderAsync(id);
         if (order == null)
             return NotFound();
-        if (order.TransactionStatus != "Pending")
-            return BadRequest(new { message = "只有待支付订单可以取消" });
 
         await using var dbTransaction = await _db.Database.BeginTransactionAsync();
-        var cancelled = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE ""Transaction""
-            SET ""transactionStatus"" = 'Cancelled'
-            WHERE ""transactionId"" = {id}
-              AND ""transactionStatus"" = 'Pending'");
 
-        if (cancelled != 1)
-        {
-            await dbTransaction.RollbackAsync();
-            return BadRequest(new { message = "只有待支付订单可以取消" });
-        }
+        // Pending → Cancelled 与库存回补在存储过程内原子完成
+        var code = OracleProcedure.OutInt32("p_code");
+        var message = OracleProcedure.OutText("p_message");
 
-        order.TransactionStatus = "Cancelled";
-        if (order.ProductID.HasValue)
-        {
-            await _db.Database.ExecuteSqlInterpolatedAsync($@"
-                UPDATE ""Product""
-                SET ""stock"" = ""stock"" + 1,
-                    ""status"" = 'Active'
-                WHERE ""productId"" = {order.ProductID.Value}");
-        }
-        await ArchiveOrderMessagesAsync(id);
-        await _db.SaveChangesAsync();
+        await OracleProcedure.CallAsync(_db, "sp_cancel_order",
+            OracleProcedure.InInt32("p_transaction_id", id),
+            code,
+            message);
+
+        if (OracleProcedure.ReadInt32(code) != OracleProcedure.Success)
+            return BadRequest(new { message = OracleProcedure.ReadText(message) ?? "只有待支付订单可以取消" });
+
         await dbTransaction.CommitAsync();
 
-        return Ok(new { message = "订单已取消", status = order.TransactionStatus });
+        return Ok(new { message = "订单已取消", status = "Cancelled" });
     }
 
     [HttpGet("{id}/messages")]
@@ -393,31 +352,6 @@ public class TransactionsController : ControllerBase
             Link = $"/products",
             EventKey = $"transaction:{transactionId}:{userId}:{title}"
         });
-    }
-
-    private async Task ArchiveOrderMessagesAsync(int transactionId)
-    {
-        var messages = await _db.OrderMessages
-            .Where(m => m.TransactionID == transactionId && m.IsArchived != "1")
-            .ToListAsync();
-
-        foreach (var message in messages)
-            message.IsArchived = "1";
-    }
-
-    private async Task<Wallet> GetOrCreateWalletAsync(int userId)
-    {
-        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserID == userId);
-        if (wallet != null)
-            return wallet;
-
-        wallet = new Wallet
-        {
-            UserID = userId,
-            Balance = 0
-        };
-        _db.Wallets.Add(wallet);
-        return wallet;
     }
 
     private static TransactionResponse MapTransaction(Transaction transaction)

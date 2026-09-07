@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Backend.Controllers;
@@ -22,8 +21,20 @@ public class PostsController : ControllerBase
     private readonly ICreditService _creditService;
     private readonly IMediaStorageService _mediaStorageService;
     private readonly INotificationService _notificationService;
-    private static readonly string[] SensitiveWords = ["违禁", "敏感词", "spam"];
-    private const string OwnerType = "Post";
+
+    // 帖子状态动作 → 通知文案（用于给帖子作者发状态变化通知）
+    private static readonly Dictionary<string, string> StatusActionMessages = new(StringComparer.Ordinal)
+    {
+        ["pin"] = "被置顶",
+        ["unpin"] = "已被取消置顶",
+        ["elite"] = "被设为精华",
+        ["unelite"] = "已被取消精华",
+        ["ban"] = "已被封禁",
+        ["restore"] = "已被恢复",
+        ["delete"] = "已被删除",
+        ["approve"] = "已通过审核",
+        ["reject"] = "审核未通过"
+    };
 
     public PostsController(AppDbContext db, ICreditService creditService, IMediaStorageService mediaStorageService, INotificationService notificationService)
     {
@@ -37,36 +48,24 @@ public class PostsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<List<PostListItemResponse>>> GetAll(
         [FromQuery] int? forumId,
+        [FromQuery] int? authorId,
         [FromQuery] string? keyword,
-        [FromQuery] string? tag,
-        [FromQuery] string? tags,
-        [FromQuery] string? tagOp,
         [FromQuery] string? status,
         [FromQuery] string? sort = "latest",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null,
-        [FromQuery] int? minHeat = null,
-        [FromQuery] int? maxHeat = null)
+        [FromQuery] DateTime? to = null)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 50);
         var normalizedSort = (sort ?? "latest").Trim().ToLowerInvariant();
-        var normalizedTagOp = (tagOp ?? "and").Trim().ToLowerInvariant();
 
-        if (normalizedSort is not "latest" and not "hot")
+        if (normalizedSort != "latest")
             return BadRequest(new { message = "排序参数不合法" });
-
-        if (normalizedTagOp is not "and" and not "or")
-            return BadRequest(new { message = "标签组合方式不合法" });
 
         if (from.HasValue && to.HasValue && from.Value > to.Value)
             return BadRequest(new { message = "时间范围不合法" });
-
-        if (minHeat < 0 || maxHeat < 0 ||
-            (minHeat.HasValue && maxHeat.HasValue && minHeat.Value > maxHeat.Value))
-            return BadRequest(new { message = "热度范围不合法" });
 
         var query = _db.Posts
             .Include(p => p.User)
@@ -75,6 +74,9 @@ public class PostsController : ControllerBase
 
         if (forumId.HasValue)
             query = query.Where(p => p.ForumID == forumId.Value);
+
+        if (authorId.HasValue)
+            query = query.Where(p => p.UserID == authorId.Value);
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -90,7 +92,9 @@ public class PostsController : ControllerBase
             if (normalizedStatus == null)
                 return BadRequest(new { message = "帖子状态不合法" });
 
-            if (!IsPublicPostStatus(normalizedStatus) && !CanViewModerationStatus())
+            // 版块管理人员（版主/管理员/创建者）可在自己版块内按审核状态筛选帖子
+            if (!IsPublicPostStatus(normalizedStatus) && !CanViewModerationStatus() &&
+                !await CanModerateForumPostsAsync(forumId))
                 return Forbid();
 
             query = query.Where(p => p.Status == normalizedStatus);
@@ -106,60 +110,13 @@ public class PostsController : ControllerBase
         if (to.HasValue)
             query = query.Where(p => p.CreateTime <= to);
 
-        var normalizedTags = ParseTags(tag, tags);
-        if (normalizedTags.Count > 0)
-        {
-            var tagSet = normalizedTags;
-            if (normalizedTagOp == "or")
-            {
-                query = query.Where(p => _db.TagPosts.Any(tp =>
-                    tp.PostID == p.PostID &&
-                    tp.Tag != null &&
-                    tp.Tag.TagName != null &&
-                    tagSet.Contains(tp.Tag.TagName.ToLower())));
-            }
-            else
-            {
-                query = query.Where(p => _db.TagPosts
-                    .Where(tp => tp.PostID == p.PostID &&
-                                 tp.Tag != null &&
-                                 tp.Tag.TagName != null &&
-                                 tagSet.Contains(tp.Tag.TagName.ToLower()))
-                    .Select(tp => tp.TagID)
-                    .Distinct()
-                    .Count() == tagSet.Count);
-            }
-        }
-
-        var requiresHeatFilter = normalizedSort == "hot" || minHeat.HasValue || maxHeat.HasValue;
-        List<Post> posts;
-        int totalCount;
-
-        if (requiresHeatFilter)
-        {
-            var candidates = await query.ToListAsync();
-            await RefreshHeatScoresAsync(candidates);
-            totalCount = candidates.Count(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat));
-
-            posts = candidates
-                .Where(p => IsInHeatRange(p.HeatScore ?? 0, minHeat, maxHeat))
-                .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
-                .ThenByDescending(p => p.HeatScore)
-                .ThenByDescending(p => p.CreateTime)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-        }
-        else
-        {
-            totalCount = await query.CountAsync();
-            posts = await query
-                .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
-                .ThenByDescending(p => p.CreateTime)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-        }
+        var totalCount = await query.CountAsync();
+        var posts = await query
+            .OrderByDescending(p => p.Status == "Pinned" ? 1 : 0)
+            .ThenByDescending(p => p.CreateTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
         Response.Headers["X-Total-Count"] = totalCount.ToString();
         return Ok(await MapPostListAsync(posts));
@@ -187,7 +144,7 @@ public class PostsController : ControllerBase
             return BadRequest(ModelState);
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        if (!User.IsInRole("Admin") && !HasPermission("posts.create"))
+        if (!User.IsInRole("Manager") && !HasPermission("posts.create"))
             return Forbid();
 
         if (!await _creditService.CanPerformAsync(userId, "post"))
@@ -201,43 +158,30 @@ public class PostsController : ControllerBase
         if (!forumExists)
             return BadRequest(new { message = "论坛不存在或不可用" });
 
-        var hitWord = FindSensitiveWord(request.Title, request.Content);
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         var post = new Post
         {
             ForumID = request.ForumID,
             Title = request.Title.Trim(),
             Content = request.Content,
-            ImageUrls = SerializeImageUrls(normalizedImageUrls),
             UserID = userId,
             CreateTime = DateTime.Now,
             UpdateTime = DateTime.Now,
-            Status = hitWord == null ? "Active" : "PendingReview",
+            // 命中敏感词时由 TRG_Post_SensitiveStatus 改写为 PendingReview
+            Status = "Active",
             LikeCount = 0,
-            ViewCount = 0,
-            HeatScore = 0
+            ViewCount = 0
         };
 
         _db.Posts.Add(post);
         await _db.SaveChangesAsync();
-        await ReplaceMediaForOwnerAsync(post.PostID, userId, normalizedImageUrls);
+        await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
-        await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Post",
-                TargetID = post.PostID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
+        // 审核记录由 TRG_Post_SensitiveAudit 写入，这里重新加载以拿到触发器改写后的状态
+        await _db.Entry(post).ReloadAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = post.PostID }, await MapPostDetailAsync(post));
     }
@@ -254,37 +198,23 @@ public class PostsController : ControllerBase
             return NotFound();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var isModerator = User.IsInRole("Admin") || User.IsInRole("Moderator") || HasPermission("posts.delete");
+        var isModerator = User.IsInRole("Manager") || User.IsInRole("Moderator") || HasPermission("posts.delete");
 
         if (post.UserID != userId && !isModerator)
             return Forbid();
 
-        var hitWord = FindSensitiveWord(request.Title, request.Content);
         var normalizedImageUrls = NormalizeImageUrls(request.ImageUrls);
         post.Title = request.Title.Trim();
         post.Content = request.Content;
-        post.ImageUrls = SerializeImageUrls(normalizedImageUrls);
         post.UpdateTime = DateTime.Now;
-        post.Status = hitWord == null ? post.Status : "PendingReview";
-        await ReplaceMediaForOwnerAsync(post.PostID, userId, normalizedImageUrls);
+        await ReplacePostMediaAsync(post.PostID, userId, normalizedImageUrls);
 
         await _db.SaveChangesAsync();
-        await ReplacePostTagsAsync(post.PostID, request.TagNames);
-        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums");
+        await CreateMentionNotificationsAsync(userId, request.Content, "帖子提及", $"在帖子《{post.Title}》中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
         await _db.SaveChangesAsync();
 
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Post",
-                TargetID = post.PostID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
+        // 敏感词命中后的 PendingReview 状态与审核记录都由触发器负责
+        await _db.Entry(post).ReloadAsync();
 
         return Ok(await MapPostDetailAsync(post));
     }
@@ -298,10 +228,11 @@ public class PostsController : ControllerBase
             return NotFound();
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var canDelete = User.IsInRole("Admin") ||
+        var canDelete = User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             HasPermission("posts.delete") ||
-            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0;
+            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId);
 
         if (post.UserID != userId && !canDelete)
             return Forbid();
@@ -325,9 +256,10 @@ public class PostsController : ControllerBase
         if (action is not "pin" and not "unpin" and not "elite" and not "unelite" and not "ban" and not "restore" and not "delete" and not "approve" and not "reject")
             return BadRequest(new { message = "状态动作不合法" });
 
-        var canModerate = User.IsInRole("Admin") ||
+        var canModerate = User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId) ||
             CanRunPostStatusAction(action);
 
         var ownerAction = post.UserID == userId && action is "delete" or "restore";
@@ -348,6 +280,24 @@ public class PostsController : ControllerBase
             _ => post.Status
         };
         post.UpdateTime = DateTime.Now;
+
+        // 状态变化通知：操作人≠帖子作者时通知作者（恢复/封禁/加精/置顶/审核等）
+        if (post.UserID.HasValue && post.UserID.Value != userId &&
+            StatusActionMessages.TryGetValue(action, out var statusMessage))
+        {
+            await _notificationService.CreateAsync(new CreateNotificationOptions
+            {
+                UserID = post.UserID.Value,
+                Type = "Moderation",
+                Title = "帖子状态更新",
+                Content = $"你的帖子《{post.Title}》{statusMessage}",
+                TargetType = "Post",
+                TargetID = post.PostID,
+                Link = $"/forums/post/{post.PostID}",
+                EventKey = $"post:status:{post.PostID}:{action}"
+            });
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "状态已更新", status = post.Status });
@@ -375,11 +325,41 @@ public class PostsController : ControllerBase
     private bool CanViewModerationStatus()
     {
         return User.Identity?.IsAuthenticated == true &&
-            (User.IsInRole("Admin") ||
+            (User.IsInRole("Manager") ||
              User.IsInRole("Moderator") ||
              HasPermission("posts.moderate") ||
              HasPermission("posts.delete") ||
              HasPermission("posts.edit"));
+    }
+
+    /// <summary>
+    /// 版块创建者是默认版主，对该版块帖子拥有与版主一致的管理权限。
+    /// </summary>
+    private async Task<bool> IsForumCreatorAsync(int? forumId, int userId)
+    {
+        if (!forumId.HasValue)
+            return false;
+
+        return await _db.Forums.CountAsync(f =>
+            f.ForumID == forumId.Value && f.CreatorID == userId) > 0;
+    }
+
+    /// <summary>
+    /// 当前用户是否是指定版块的管理人员（版主/管理员/创建者），
+    /// 用于允许版块管理人员按待审核、已封禁等状态筛选本版块帖子。
+    /// </summary>
+    private async Task<bool> CanModerateForumPostsAsync(int? forumId)
+    {
+        if (!forumId.HasValue)
+            return false;
+
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+            return false;
+
+        return await _db.ForumManagers.CountAsync(fm =>
+                fm.ForumID == forumId.Value && fm.UserID == userId.Value) > 0 ||
+            await IsForumCreatorAsync(forumId.Value, userId.Value);
     }
 
     private async Task<bool> CanViewRestrictedPostAsync(Post post)
@@ -390,7 +370,8 @@ public class PostsController : ControllerBase
 
         return post.UserID == userId.Value ||
             CanViewModerationStatus() ||
-            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId.Value) > 0;
+            await _db.ForumManagers.CountAsync(fm => fm.ForumID == post.ForumID && fm.UserID == userId.Value) > 0 ||
+            await IsForumCreatorAsync(post.ForumID, userId.Value);
     }
 
     private static bool IsPublicPostStatus(string? status)
@@ -413,39 +394,6 @@ public class PostsController : ControllerBase
         };
     }
 
-    private static List<string> ParseTags(string? tag, string? tags)
-    {
-        var candidates = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(tag))
-            candidates.Add(tag.Trim());
-
-        if (!string.IsNullOrWhiteSpace(tags))
-        {
-            candidates.AddRange(tags
-                .Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(t => t.Trim())
-                .Where(t => t.Length > 0));
-        }
-
-        return candidates
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(t => t.ToLowerInvariant())
-            .Take(8)
-            .ToList();
-    }
-
-    private static bool IsInHeatRange(int heatScore, int? minHeat, int? maxHeat)
-    {
-        if (minHeat.HasValue && heatScore < minHeat.Value)
-            return false;
-
-        if (maxHeat.HasValue && heatScore > maxHeat.Value)
-            return false;
-
-        return true;
-    }
-
     [HttpPost("{id}/like")]
     [Authorize]
     public async Task<ActionResult> Like(int id)
@@ -460,10 +408,28 @@ public class PostsController : ControllerBase
         var exists = await _db.PostLikes.CountAsync(l => l.PostID == id && l.UserID == userId) > 0;
         if (!exists)
         {
+            // likeCount 由 TRG_PostLike_Count 原子维护
             _db.PostLikes.Add(new PostLike { PostID = id, UserID = userId, CreateTime = DateTime.Now });
-            post.LikeCount = (post.LikeCount ?? 0) + 1;
-            post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == id && c.Status != "Deleted"));
+
+            // 点赞通知：点赞人≠帖子作者时通知作者；EventKey 持久去重，取消后再点赞不会重复通知
+            if (post.UserID.HasValue && post.UserID.Value != userId)
+            {
+                var liker = await _db.Users.FindAsync(userId);
+                await _notificationService.CreateAsync(new CreateNotificationOptions
+                {
+                    UserID = post.UserID.Value,
+                    Type = "Like",
+                    Title = "收到点赞",
+                    Content = $"{liker?.Username ?? "有人"} 赞了你的帖子《{post.Title}》",
+                    TargetType = "Post",
+                    TargetID = post.PostID,
+                    Link = $"/forums/post/{post.PostID}",
+                    EventKey = $"like:post:{post.PostID}:{userId}"
+                });
+            }
+
             await _db.SaveChangesAsync();
+            await _db.Entry(post).ReloadAsync();
         }
 
         return Ok(new { liked = true, likeCount = post.LikeCount ?? 0 });
@@ -482,9 +448,8 @@ public class PostsController : ControllerBase
         if (like != null)
         {
             _db.PostLikes.Remove(like);
-            post.LikeCount = Math.Max(0, (post.LikeCount ?? 0) - 1);
-            post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == id && c.Status != "Deleted"));
             await _db.SaveChangesAsync();
+            await _db.Entry(post).ReloadAsync();
         }
 
         return Ok(new { liked = false, likeCount = post.LikeCount ?? 0 });
@@ -534,7 +499,10 @@ public class PostsController : ControllerBase
             .OrderBy(c => c.CreateTime)
             .ToListAsync();
 
-        return Ok(BuildCommentTree(comments, canViewRestrictedComments, userId));
+        return Ok(BuildCommentTree(comments, canViewRestrictedComments, userId,
+            await GetUserAvatarUrlsAsync(comments
+                .Where(c => c.UserID.HasValue)
+                .Select(c => c.UserID!.Value))));
     }
 
     [HttpPost("{postId}/comments")]
@@ -564,35 +532,23 @@ public class PostsController : ControllerBase
                 return BadRequest(new { message = "父评论不存在" });
         }
 
-        var hitWord = FindSensitiveWord("", request.Content);
         var comment = new PostComment
         {
             PostID = postId,
             UserID = userId,
             ParentCommentID = request.ParentCommentID,
             Content = request.Content,
-            Status = hitWord == null ? "Active" : "PendingReview",
+            // 命中敏感词时由 TRG_PostComment_SensitiveStatus 改写为 PendingReview
+            Status = "Active",
             CreateTime = DateTime.Now
         };
 
         _db.PostComments.Add(comment);
-        post.HeatScore = CalculateHeatScore(post, await _db.PostComments.CountAsync(c => c.PostID == postId && c.Status != "Deleted") + 1);
         await _db.SaveChangesAsync();
 
-        if (hitWord != null)
-        {
-            _db.AuditRecords.Add(new AuditRecord
-            {
-                TargetType = "Comment",
-                TargetID = comment.CommentID,
-                TriggerWord = hitWord,
-                Status = "Pending",
-                CreateTime = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
-        }
+        var user = await _db.Users.FindAsync(userId);
 
-        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums");
+        await CreateMentionNotificationsAsync(userId, request.Content, "评论提及", $"在帖子《{post.Title}》的评论中提到了你", "Post", post.PostID, $"/forums/post/{post.PostID}");
 
         // 评论回复通知：两个独立判断
         // 1. 只要评论者不是帖子作者 → 通知帖子作者
@@ -603,10 +559,10 @@ public class PostsController : ControllerBase
                 UserID = post.UserID.Value,
                 Type = "Reply",
                 Title = "帖子新评论",
-                Content = $"有人在帖子《{post.Title}》中发表了评论",
+                Content = $"{user?.Username ?? "有人"} 评论了你的帖子《{post.Title}》",
                 TargetType = "Post",
                 TargetID = post.PostID,
-                Link = $"/forums",
+                Link = $"/forums/post/{post.PostID}",
                 EventKey = $"reply:post:{comment.CommentID}:{post.UserID.Value}"
             });
         }
@@ -624,18 +580,19 @@ public class PostsController : ControllerBase
                     UserID = parentComment.UserID.Value,
                     Type = "Reply",
                     Title = "评论回复",
-                    Content = $"有人在帖子《{post.Title}》中回复了你的评论",
+                    Content = $"{user?.Username ?? "有人"} 回复了你在帖子《{post.Title}》中的评论",
                     TargetType = "Comment",
                     TargetID = parentComment.CommentID,
-                    Link = $"/forums",
+                    Link = $"/forums/post/{post.PostID}",
                     EventKey = $"reply:comment:{comment.CommentID}:{parentComment.UserID.Value}"
                 });
             }
         }
 
         await _db.SaveChangesAsync();
+        await _db.Entry(comment).ReloadAsync();
 
-        var user = await _db.Users.FindAsync(userId);
+        var commenterAvatar = await GetUserAvatarUrlsAsync(new[] { userId });
         return Ok(new CommentResponse
         {
             CommentID = comment.CommentID,
@@ -644,6 +601,7 @@ public class PostsController : ControllerBase
             CreateTime = comment.CreateTime,
             UserID = comment.UserID,
             Username = user?.Username ?? "",
+            AvatarUrl = commenterAvatar.TryGetValue(userId, out var avatar) ? avatar : "",
             ParentCommentID = comment.ParentCommentID
         });
     }
@@ -660,7 +618,7 @@ public class PostsController : ControllerBase
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         var canDelete = comment.UserID == userId ||
-            User.IsInRole("Admin") ||
+            User.IsInRole("Manager") ||
             User.IsInRole("Moderator") ||
             HasPermission("posts.delete") ||
             await _db.ForumManagers.CountAsync(fm =>
@@ -672,15 +630,6 @@ public class PostsController : ControllerBase
             return Forbid();
 
         comment.Status = "Deleted";
-        if (comment.Post != null)
-        {
-            var commentCount = await _db.PostComments.CountAsync(c =>
-                c.PostID == comment.PostID &&
-                c.Status != "Deleted" &&
-                c.CommentID != commentId);
-            comment.Post.HeatScore = CalculateHeatScore(comment.Post, commentCount);
-        }
-
         await _db.SaveChangesAsync();
         return Ok(new { message = "评论已删除" });
     }
@@ -700,20 +649,41 @@ public class PostsController : ControllerBase
         return Ok(await MapPostListAsync(posts));
     }
 
+    [HttpGet("me/comments")]
+    [Authorize]
+    public async Task<ActionResult<List<MyCommentResponse>>> GetMyComments()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var comments = await _db.PostComments
+            .Include(c => c.Post)
+            .ThenInclude(p => p!.Forum)
+            .Where(c => c.UserID == userId && c.Status != "Deleted" && c.Post != null && c.Post.Status != "Deleted")
+            .OrderByDescending(c => c.CreateTime)
+            .ToListAsync();
+
+        return Ok(comments.Select(c => new MyCommentResponse
+        {
+            CommentID = c.CommentID,
+            Content = c.Content ?? "",
+            Status = c.Status ?? "",
+            CreateTime = c.CreateTime,
+            ParentCommentID = c.ParentCommentID,
+            PostID = c.PostID,
+            PostTitle = c.Post!.Title ?? "",
+            ForumID = c.Post.ForumID,
+            ForumName = c.Post.Forum?.ForumName ?? ""
+        }).ToList());
+    }
+
     private async Task<List<PostListItemResponse>> MapPostListAsync(IEnumerable<Post> posts)
     {
         var postList = posts.ToList();
         var postIds = postList.Select(p => p.PostID).ToList();
-        var tagRows = await _db.TagPosts
-            .Include(tp => tp.Tag)
-            .Where(tp => postIds.Contains(tp.PostID))
-            .ToListAsync();
-        var mediaRows = await _db.MediaFiles
-            .Where(m => m.OwnerType == OwnerType &&
-                        m.OwnerID.HasValue &&
-                        postIds.Contains(m.OwnerID.Value))
-            .OrderBy(m => m.DisplayOrder ?? int.MaxValue)
-            .ThenBy(m => m.MediaID)
+        var mediaRows = await _db.PostMedia
+            .Include(x => x.Media)
+            .Where(x => postIds.Contains(x.PostID))
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.MediaID)
             .ToListAsync();
         var commentCounts = await _db.PostComments
             .Where(c => c.PostID.HasValue && postIds.Contains(c.PostID.Value) && c.Status != "Deleted")
@@ -740,18 +710,20 @@ public class PostsController : ControllerBase
         var favoritedPostIds = favoritedPostIdList.ToHashSet();
 
         var mediaByPost = mediaRows
-            .Where(m => m.OwnerID.HasValue)
-            .GroupBy(m => m.OwnerID!.Value)
+            .GroupBy(x => x.PostID)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(m => m.Url).Where(HasUrl).Select(url => url!).ToList());
+                g => g.Select(x => x.Media?.Url).Where(HasUrl).Select(url => url!).ToList());
+
+        var avatarByUser = await GetUserAvatarUrlsAsync(postList
+            .Where(p => p.UserID.HasValue)
+            .Select(p => p.UserID!.Value));
 
         return postList.Select(p => new PostListItemResponse
         {
             PostID = p.PostID,
             Title = p.Title ?? "",
             ContentPreview = BuildPreview(p.Content),
-            HeatScore = p.HeatScore ?? 0,
             LikeCount = p.LikeCount ?? 0,
             ViewCount = p.ViewCount ?? 0,
             CommentCount = commentCounts.TryGetValue(p.PostID, out var count) ? count : 0,
@@ -760,12 +732,9 @@ public class PostsController : ControllerBase
             UpdateTime = p.UpdateTime,
             UserID = p.UserID,
             Username = p.User?.Username ?? "",
+            AvatarUrl = p.UserID.HasValue && avatarByUser.TryGetValue(p.UserID.Value, out var authorAvatar) ? authorAvatar : "",
             ForumID = p.ForumID,
             ForumName = p.Forum?.ForumName ?? "",
-            Tags = tagRows
-                .Where(t => t.PostID == p.PostID && t.Tag?.TagName != null)
-                .Select(t => t.Tag!.TagName!)
-                .ToList(),
             ImageUrls = ResolveImageUrls(mediaByPost, p),
             IsLiked = likedPostIds.Contains(p.PostID),
             IsFavorited = favoritedPostIds.Contains(p.PostID)
@@ -781,18 +750,18 @@ public class PostsController : ControllerBase
             return mediaImageUrls.Take(6).ToList();
         }
 
-        return DeserializeImageUrls(post.ImageUrls);
+        return new List<string>();
     }
 
     private async Task<PostDetailResponse> MapPostDetailAsync(Post post, bool incrementView = false)
     {
         if (incrementView)
         {
-            post.ViewCount = (post.ViewCount ?? 0) + 1;
-            post.HeatScore = CalculateHeatScore(
-                post,
-                await _db.PostComments.CountAsync(c => c.PostID == post.PostID && c.Status != "Deleted"));
-            await _db.SaveChangesAsync();
+            // 浏览量原子自增交给存储过程，避免并发下的丢更新
+            await OracleProcedure.CallAsync(_db, "sp_post_view",
+                OracleProcedure.InInt32("p_post_id", post.PostID),
+                OracleProcedure.OutInt32("p_view_count"));
+            await _db.Entry(post).ReloadAsync();
         }
 
         var listItem = (await MapPostListAsync(new[] { post })).Single();
@@ -802,7 +771,6 @@ public class PostsController : ControllerBase
             Title = listItem.Title,
             ContentPreview = listItem.ContentPreview,
             Content = post.Content ?? "",
-            HeatScore = listItem.HeatScore,
             LikeCount = listItem.LikeCount,
             ViewCount = listItem.ViewCount,
             CommentCount = listItem.CommentCount,
@@ -811,70 +779,13 @@ public class PostsController : ControllerBase
             UpdateTime = listItem.UpdateTime,
             UserID = listItem.UserID,
             Username = listItem.Username,
+            AvatarUrl = listItem.AvatarUrl,
             ForumID = listItem.ForumID,
             ForumName = listItem.ForumName,
-            Tags = listItem.Tags,
             ImageUrls = listItem.ImageUrls,
             IsLiked = listItem.IsLiked,
             IsFavorited = listItem.IsFavorited
         };
-    }
-
-    private async Task RefreshHeatScoresAsync(List<Post> posts)
-    {
-        if (posts.Count == 0)
-            return;
-
-        var postIds = posts.Select(p => p.PostID).ToList();
-        var commentCounts = await _db.PostComments
-            .Where(c => c.PostID.HasValue && postIds.Contains(c.PostID.Value) && c.Status != "Deleted")
-            .GroupBy(c => c.PostID!.Value)
-            .Select(g => new { PostID = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.PostID, x => x.Count);
-
-        var changed = false;
-        foreach (var post in posts)
-        {
-            var nextScore = CalculateHeatScore(
-                post,
-                commentCounts.TryGetValue(post.PostID, out var count) ? count : 0);
-            if (post.HeatScore != nextScore)
-            {
-                post.HeatScore = nextScore;
-                changed = true;
-            }
-        }
-
-        if (changed)
-            await _db.SaveChangesAsync();
-    }
-
-    private async Task ReplacePostTagsAsync(int postId, IEnumerable<string> tagNames)
-    {
-        var normalized = tagNames
-            .Select(t => t.Trim())
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(8)
-            .ToList();
-
-        var oldTags = await _db.TagPosts.Where(tp => tp.PostID == postId).ToListAsync();
-        _db.TagPosts.RemoveRange(oldTags);
-
-        foreach (var name in normalized)
-        {
-            var tag = await _db.PostTags.FirstOrDefaultAsync(t => t.TagName == name);
-            if (tag == null)
-            {
-                tag = new PostTag { TagName = name, CreateTime = DateTime.Now };
-                _db.PostTags.Add(tag);
-                await _db.SaveChangesAsync();
-            }
-
-            _db.TagPosts.Add(new TagPost { PostID = postId, TagID = tag.TagID });
-        }
-
-        await _db.SaveChangesAsync();
     }
 
     private int? TryGetCurrentUserId()
@@ -889,18 +800,6 @@ public class PostsController : ControllerBase
             return "";
 
         return content.Length <= 120 ? content : content[..120] + "...";
-    }
-
-    private static string? FindSensitiveWord(string title, string content)
-    {
-        var text = $"{title}\n{content}";
-        return SensitiveWords.FirstOrDefault(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string SerializeImageUrls(IEnumerable<string> urls)
-    {
-        var normalized = NormalizeImageUrls(urls);
-        return JsonSerializer.Serialize(normalized.Take(6).ToList());
     }
 
     private static List<string> NormalizeImageUrls(IEnumerable<string>? urls)
@@ -932,75 +831,43 @@ public class PostsController : ControllerBase
         return !string.IsNullOrWhiteSpace(url);
     }
 
-    private async Task ReplaceMediaForOwnerAsync(int ownerId, int? uploadedByUserId, IEnumerable<string> imageUrls)
+    private async Task ReplacePostMediaAsync(int postId, int? uploadedByUserId, IEnumerable<string> imageUrls)
     {
         var normalized = NormalizeImageUrls(imageUrls);
 
-        var existing = await _db.MediaFiles
-            .Where(m => m.OwnerType == OwnerType && m.OwnerID == ownerId)
+        var existingLinks = await _db.PostMedia
+            .Include(x => x.Media)
+            .Where(x => x.PostID == postId)
             .ToListAsync();
-
-        var existingLookup = existing
-            .Where(x => !string.IsNullOrWhiteSpace(x.Url))
-            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+        var existingLookup = existingLinks
+            .Where(x => !string.IsNullOrWhiteSpace(x.Media?.Url))
+            .ToDictionary(x => x.Media!.Url!, x => x.Media!, StringComparer.OrdinalIgnoreCase);
 
         var incomingSet = normalized.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var removed in existing.Where(m => !incomingSet.Contains(m.Url ?? ""))
-            .ToList())
+        foreach (var removed in existingLinks.Where(x => !incomingSet.Contains(x.Media?.Url ?? "")))
         {
-            await _mediaStorageService.DeleteByUrlAsync(removed.Url);
-            _db.MediaFiles.Remove(removed);
+            await _mediaStorageService.DeleteByUrlAsync(removed.Media?.Url);
+            if (removed.Media != null)
+                _db.MediaFiles.Remove(removed.Media);
         }
-
-        var existingRetained = existing
-            .Where(m => incomingSet.Contains(m.Url ?? ""))
-            .ToDictionary(x => x.Url!, x => x, StringComparer.OrdinalIgnoreCase);
+        _db.PostMedia.RemoveRange(existingLinks);
 
         for (var i = 0; i < normalized.Count; i++)
         {
             var url = normalized[i];
-            if (existingRetained.TryGetValue(url, out var matched))
+            if (!existingLookup.TryGetValue(url, out var media))
             {
-                matched.DisplayOrder = i;
-                matched.UploadTime = DateTime.UtcNow;
-                continue;
+                media = new MediaFile
+                {
+                    StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
+                    Url = url,
+                    UploadedByUserID = uploadedByUserId,
+                    UploadTime = DateTime.UtcNow
+                };
+                _db.MediaFiles.Add(media);
             }
-
-            var item = existingLookup.GetValueOrDefault(url);
-            if (item != null)
-            {
-                item.OwnerID = ownerId;
-                item.DisplayOrder = i;
-                item.UploadTime = DateTime.UtcNow;
-                continue;
-            }
-
-            _db.MediaFiles.Add(new MediaFile
-            {
-                OwnerType = OwnerType,
-                OwnerID = ownerId,
-                StorageProvider = url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ? "s3" : "external",
-                Url = url,
-                UploadedByUserID = uploadedByUserId,
-                DisplayOrder = i,
-                UploadTime = DateTime.UtcNow
-            });
-        }
-    }
-
-    private static List<string> DeserializeImageUrls(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return new List<string>();
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(value) ?? new List<string>();
-        }
-        catch
-        {
-            return new List<string>();
+            _db.PostMedia.Add(new PostMedia { PostID = postId, Media = media, DisplayOrder = i });
         }
     }
 
@@ -1061,21 +928,22 @@ public class PostsController : ControllerBase
             .Select(value => value!.Trim().ToLowerInvariant())
             .Any(lowerTokens.Contains);
     }
-    private static int CalculateHeatScore(Post post, int commentCount)
+    /// <summary>
+    /// 批量查询用户头像：一次 IN 查询，返回 userId → 头像 URL 映射，避免 N+1。
+    /// </summary>
+    private async Task<Dictionary<int, string>> GetUserAvatarUrlsAsync(IEnumerable<int> userIds)
     {
-        var ageHours = Math.Max(0, (DateTime.Now - (post.CreateTime ?? DateTime.Now)).TotalHours);
-        var decay = (int)Math.Floor(ageHours / 24);
-        var bonus = post.Status switch
-        {
-            "Pinned" => 1000,
-            "Elite" => 200,
-            _ => 0
-        };
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+            return new Dictionary<int, string>();
 
-        return Math.Max(0, (post.ViewCount ?? 0) + (post.LikeCount ?? 0) * 5 + commentCount * 8 + bonus - decay);
+        return await _db.UserAvatars
+            .Include(x => x.Media)
+            .Where(x => idList.Contains(x.UserID) && x.Media != null && x.Media.Url != null && x.Media.Url != "")
+            .ToDictionaryAsync(x => x.UserID, x => x.Media!.Url!);
     }
 
-    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId)
+    private static List<CommentResponse> BuildCommentTree(List<PostComment> comments, bool canViewRestricted, int? userId, Dictionary<int, string> avatarByUser)
     {
         var nodes = comments.ToDictionary(c => c.CommentID, c => new CommentResponse
         {
@@ -1085,6 +953,7 @@ public class PostsController : ControllerBase
             CreateTime = c.CreateTime,
             UserID = c.UserID,
             Username = c.User?.Username ?? "",
+            AvatarUrl = c.UserID.HasValue && avatarByUser.TryGetValue(c.UserID.Value, out var commenterAvatar) ? commenterAvatar : "",
             ParentCommentID = c.ParentCommentID
         });
 

@@ -65,7 +65,7 @@ export const useAuthStore = defineStore('auth', {
         return this.isAuthenticated
       }
 
-      if (this.hasRole('Admin')) {
+      if (this.hasRole('Manager')) {
         return true
       }
 

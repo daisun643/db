@@ -29,19 +29,21 @@ export const getCurrentUser = () => api.get('/auth/me')
 export const checkRouteAccess = (path) => api.post('/auth/check-route-access', { path })
 
 export const getUsers = () => api.get('/users')
+export const searchUsers = (keyword) => api.get('/users/search', { params: { keyword } })
 export const getUser = (id) => api.get(`/users/${id}`)
 export const createUser = (data) => api.post('/users', data)
 export const getProfile = () => api.get('/user/profile')
+export const getUserPublicProfile = (userId) => api.get(`/user/${userId}/public-profile`)
 export const getCreditAdjustments = () => api.get('/user/credit-adjustments')
 export const getUserCreditAdjustments = (userId) => api.get(`/user/${userId}/credit-adjustments`)
 export const adjustCredit = (data) => api.post('/user/credit/add', data)
 export const updateProfile = (data) => api.put('/user/profile', data)
 export const uploadAvatar = (file) => {
   const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/user/avatar', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  formData.append('file', file, file.name)
+  // 让 Axios 自动生成带 boundary 的 multipart Content-Type，避免浏览器上传时
+  // 手动设置请求头导致 ASP.NET Core 无法解析 IFormFile。
+  return api.post('/user/avatar', formData)
 }
 export const uploadImages = (files, bucket = 'posts') => {
   const formData = new FormData()
@@ -54,25 +56,24 @@ export const uploadImages = (files, bucket = 'posts') => {
   })
 }
 export const changePassword = (data) => api.post('/user/password', data)
-export const getRoles = () => api.get('/rbac/roles')
-export const createRole = (data) => api.post('/rbac/roles', data)
-export const updateRole = (id, data) => api.put(`/rbac/roles/${id}`, data)
-export const deleteRole = (id) => api.delete(`/rbac/roles/${id}`)
-export const getPermissions = () => api.get('/rbac/permissions')
-export const createPermission = (data) => api.post('/rbac/permissions', data)
-export const deletePermission = (id) => api.delete(`/rbac/permissions/${id}`)
-export const assignPermissionsToRole = (roleId, permissionIds) =>
-  api.post(`/rbac/roles/${roleId}/permissions`, { permissionIds })
-export const getUserRoles = (userId) => api.get(`/rbac/users/${userId}/roles`)
-export const assignRolesToUser = (userId, roleIds) =>
-  api.post(`/rbac/users/${userId}/roles`, { roleIds })
-
 export const getForums = () => api.get('/forums')
+export const getMyForums = () => api.get('/forums/mine')
+export const getJoinedForums = () => api.get('/forums/joined')
 export const getForum = (id) => api.get(`/forums/${id}`)
 export const createForum = (data) => api.post('/forums', data)
 export const updateForum = (id, data) => api.put(`/forums/${id}`, data)
-export const assignForumManager = (forumId, userID) => api.post(`/forums/${forumId}/managers`, { userID })
+export const uploadForumAvatar = (forumId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post(`/forums/${forumId}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+export const removeForumAvatar = (forumId) => api.delete(`/forums/${forumId}/avatar`)
+export const assignForumManager = (forumId, userID, role = 'Moderator') => api.post(`/forums/${forumId}/managers`, { userID, role })
 export const removeForumManager = (forumId, userId) => api.delete(`/forums/${forumId}/managers/${userId}`)
+export const joinForum = (forumId) => api.post(`/forums/${forumId}/join`)
+export const leaveForum = (forumId) => api.delete(`/forums/${forumId}/join`)
 
 export const getPosts = (params = {}) => api.get('/posts', { params })
 export const getPost = (id) => api.get(`/posts/${id}`)
@@ -86,9 +87,7 @@ export const getPostComments = (postId) => api.get(`/posts/${postId}/comments`)
 export const createComment = (postId, data) => api.post(`/posts/${postId}/comments`, data)
 export const deleteComment = (commentId) => api.delete(`/comments/${commentId}`)
 export const getMyPosts = () => api.get('/posts/me')
-export const getTags = (keyword = '') => api.get('/tags', { params: { keyword } })
-export const suggestTags = (data) => api.post('/tags/suggest', data)
-export const getTagStats = (top = 10) => api.get('/tags/stats', { params: { top } })
+export const getMyComments = () => api.get('/posts/me/comments')
 export const getFavoriteFolders = () => api.get('/favorite-folders')
 export const createFavoriteFolder = (data) => api.post('/favorite-folders', data)
 export const updateFavoriteFolder = (folderId, data) => api.put(`/favorite-folders/${folderId}`, data)
@@ -121,10 +120,13 @@ export const sendOrderMessage = (transactionId, data) => api.post(`/transactions
 export const getDisputes = () => api.get('/disputes')
 export const createDispute = (transactionId, data) => api.post(`/disputes/transactions/${transactionId}`, data)
 export const resolveDispute = (id, data) => api.post(`/disputes/${id}/resolve`, data)
+export const getFinanceFlows = () => api.get('/finance/flows')
+export const getFinanceSummary = () => api.get('/finance/summary')
 export const getReports = (params = {}) => api.get('/reports', { params })
 export const createReport = (data) => api.post('/reports', data)
 export const reviewReport = (id, data) => api.post(`/reports/${id}/review`, data)
 export const getFriends = () => api.get('/friends')
+export const getFriendRelation = (userId) => api.get(`/friends/relation/${userId}`)
 export const getFriendRequests = () => api.get('/friends/requests')
 export const getSentFriendRequests = () => api.get('/friends/sent')
 export const createFriendRequest = (data) => api.post('/friends', data)
@@ -143,6 +145,7 @@ export const markNotificationRead = (id) => api.post('/notifications/' + id + '/
 export const markAllNotificationsRead = () => api.post('/notifications/read-all')
 export const createSystemNotification = (data) => api.post('/notifications/system', data)
 export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
+export const getAnnouncements = (params = {}) => api.get('/notifications/announcements', { params })
 
 export const getHealth = () => api.get('/health')
 
