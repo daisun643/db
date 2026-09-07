@@ -11,7 +11,11 @@ SQL_FILE="$REPO_ROOT/database/07_seed_user_avatars.sql"
 
 MINIO_CONTAINER="${MINIO_CONTAINER:-minio}"
 ORACLE_CONTAINER="${ORACLE_CONTAINER:-oracle-db}"
-MINIO_ENDPOINT="http://minioadmin:minioadmin@127.0.0.1:9000"
+MINIO_ROOT_USER="${MINIO_ROOT_USER:?请在 .env 中设置 MINIO_ROOT_USER}"
+MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:?请在 .env 中设置 MINIO_ROOT_PASSWORD}"
+APP_USER="${APP_USER:?请在 .env 中设置 APP_USER}"
+APP_USER_PASSWORD="${APP_USER_PASSWORD:?请在 .env 中设置 APP_USER_PASSWORD}"
+MINIO_ENDPOINT="http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000"
 MINIO_BUCKET="local/forum-media/avatars"
 
 echo "==> 上传头像图片到 MinIO ($MINIO_BUCKET/)"
@@ -26,24 +30,24 @@ done
 
 # 重置数据卷后 MinIO 是全新实例，后端建桶可能尚未完成，这里幂等地确保桶存在
 echo "==> 确保 forum-media 存储桶存在"
-docker exec "$MINIO_CONTAINER" sh -c "
-    MC_HOST_local=$MINIO_ENDPOINT mc mb --ignore-existing local/forum-media"
+docker exec -e "MC_HOST_local=$MINIO_ENDPOINT" "$MINIO_CONTAINER" \
+    mc mb --ignore-existing local/forum-media
 
-docker exec "$MINIO_CONTAINER" sh -c "
-    MC_HOST_local=$MINIO_ENDPOINT mc cp /tmp/user-avatar-1.png /tmp/user-avatar-2.png /tmp/user-avatar-3.png /tmp/user-avatar-4.png $MINIO_BUCKET/ \
-    && rm /tmp/user-avatar-*.png"
+docker exec -e "MC_HOST_local=$MINIO_ENDPOINT" "$MINIO_CONTAINER" \
+    mc cp /tmp/user-avatar-1.png /tmp/user-avatar-2.png /tmp/user-avatar-3.png /tmp/user-avatar-4.png "$MINIO_BUCKET/"
+docker exec "$MINIO_CONTAINER" rm -f /tmp/user-avatar-1.png /tmp/user-avatar-2.png /tmp/user-avatar-3.png /tmp/user-avatar-4.png
 
 echo "==> 执行 $SQL_FILE"
-docker exec -i "$ORACLE_CONTAINER" \
-    sqlplus -s appuser/AppUserPass123!@localhost:1521/XEPDB1 \
+docker exec -i -e "APP_USER=$APP_USER" -e "APP_USER_PASSWORD=$APP_USER_PASSWORD" "$ORACLE_CONTAINER" \
+    sh -c 'sqlplus -s "$APP_USER/$APP_USER_PASSWORD@localhost:1521/XEPDB1"' \
     < "$SQL_FILE"
 
 echo "==> 校验头像关联记录"
-docker exec "$ORACLE_CONTAINER" sh -c "echo \"
+docker exec -e "APP_USER=$APP_USER" -e "APP_USER_PASSWORD=$APP_USER_PASSWORD" "$ORACLE_CONTAINER" sh -c "echo \"
 SET LINESIZE 120
 SELECT u.\\\"email\\\", m.\\\"url\\\" FROM \\\"UserAvatar\\\" ua
 JOIN \\\"User\\\" u ON u.\\\"userId\\\" = ua.\\\"userId\\\"
 JOIN \\\"MediaFile\\\" m ON m.\\\"mediaId\\\" = ua.\\\"mediaId\\\"
-ORDER BY u.\\\"email\\\";\" | sqlplus -s appuser/AppUserPass123!@localhost:1521/XEPDB1"
+ORDER BY u.\\\"email\\\";\" | sqlplus -s \"\$APP_USER/\$APP_USER_PASSWORD@localhost:1521/XEPDB1\""
 
-echo "完成。可通过 http://localhost:8080/uploads/avatars/user-avatar-1.png 验证图片访问。"
+echo "完成。可通过 Nginx 的 /uploads/avatars/user-avatar-1.png 路径验证图片访问。"

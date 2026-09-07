@@ -4,11 +4,8 @@ services:
     container_name: minio
     command: server /data --address ":9000" --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -24,19 +21,18 @@ services:
     image: gvenzl/oracle-xe:18-slim
     container_name: oracle-db
     environment:
-      ORACLE_PASSWORD: OracleSysPass123!
-      APP_USER: appuser
-      APP_USER_PASSWORD: AppUserPass123!
-    ports:
-      - "1522:1521"
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
+      APP_USER: ${APP_USER:?Set APP_USER in .env}
+      APP_USER_PASSWORD: ${APP_USER_PASSWORD:?Set APP_USER_PASSWORD in .env}
     volumes:
       - oracle_data:/opt/oracle/oradata
       - ./database:/container-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "echo 'SELECT 1 FROM dual;' | sqlplus -s appuser/AppUserPass123!@localhost:1521/XEPDB1 || exit 1"]
+      test: ["CMD-SHELL", "echo 'SELECT 1 FROM dual;' | sqlplus -s \"$${APP_USER}/$${APP_USER_PASSWORD}@localhost:1521/XEPDB1\" || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 20
+      start_period: 60s
     networks:
       - app-network
 
@@ -46,48 +42,54 @@ services:
       dockerfile: Dockerfile
     container_name: backend-api
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       MediaStorage__Provider: s3
       MediaStorage__S3__Endpoint: minio:9000
       MediaStorage__S3__Bucket: forum-media
-      MediaStorage__S3__AccessKey: minioadmin
-      MediaStorage__S3__SecretKey: minioadmin
+      MediaStorage__S3__AccessKey: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MediaStorage__S3__SecretKey: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
       MediaStorage__S3__UseSsl: "false"
-      ConnectionStrings__Oracle: "User Id=appuser;Password=AppUserPass123!;Data Source=oracle-db:1521/XEPDB1"
+      ConnectionStrings__Oracle: "User Id=${APP_USER:?Set APP_USER in .env};Password=${APP_USER_PASSWORD:?Set APP_USER_PASSWORD in .env};Data Source=oracle-db:1521/XEPDB1"
+      Cors__Origins__0: https://${DOMAIN:?Set DOMAIN in .env}
+      EmailSettings__SenderEmail: ${EMAIL_SENDER_EMAIL:?Set EMAIL_SENDER_EMAIL in .env}
+      EmailSettings__SenderPassword: ${EMAIL_SENDER_PASSWORD:?Set EMAIL_SENDER_PASSWORD in .env}
     depends_on:
       oracle-db:
         condition: service_healthy
       minio:
         condition: service_healthy
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
-      - ./backend:/app/src
       - backend_data_protection:/root/.aspnet/DataProtection-Keys
     networks:
       - app-network
 
-  frontend-web:
+  # Builds the Vue dist directory and serves it from the same Nginx container
+  # that terminates TLS and proxies the API.
+  nginx:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend-web
+      context: .
+      dockerfile: nginx/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: nginx
     environment:
-      VITE_API_BASE_URL: http://localhost:8080
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
     depends_on:
-      - backend-api
+      backend-api:
+        condition: service_started
     ports:
-      - "5173:5173"
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - app-network
 
 volumes:
   oracle_data:
-  frontend_node_modules:
   minio_data:
   backend_data_protection:
 

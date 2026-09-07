@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+!.env.example
+nginx/ssl
+**/node_modules
+**/dist
+**/bin
+**/obj

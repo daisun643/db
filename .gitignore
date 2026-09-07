@@ -15,3 +15,4 @@ AGENTS.md
 !.gitignore
 !.gitattributes
 !.dockerignore
+!.env.example

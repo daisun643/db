@@ -10,7 +10,7 @@ usage() {
   cat <<'EOF'
 用法: ./scripts/restart.sh [选项]
 
-重启 Docker Compose 开发环境。默认保留数据库和对象存储数据。
+重启 Docker Compose 生产环境。默认保留数据库和对象存储数据。
 
 选项:
   --reset-data  删除 Compose 数据卷后重建（不可恢复）
@@ -39,12 +39,26 @@ docker compose version >/dev/null
 
 cd "$PROJECT_ROOT"
 
+if [[ ! -f "$PROJECT_ROOT/.env" ]]; then
+  echo "错误: 未找到 .env，请先执行 cp .env.example .env 并填写生产配置。" >&2
+  exit 1
+fi
+
+# Compose reads .env itself; exporting it also lets the optional avatar import
+# step use the same credentials after an explicit data reset.
+set -a
+# shellcheck disable=SC1091
+. "$PROJECT_ROOT/.env"
+set +a
+
+compose=(docker compose --env-file "$PROJECT_ROOT/.env" -f "$PROJECT_ROOT/docker-compose.yml")
+
 down_args=(down --remove-orphans)
 if [[ "$RESET_DATA" == true ]]; then
-  echo "警告: 将删除数据库、MinIO 和前端依赖数据卷。" >&2
+  echo "警告: 将删除数据库、MinIO 和 ASP.NET Data Protection 数据卷。" >&2
   down_args+=(--volumes)
 fi
-docker compose "${down_args[@]}"
+"${compose[@]}" "${down_args[@]}"
 
 up_args=(up --detach)
 if [[ "$BUILD" == true ]]; then
@@ -53,7 +67,7 @@ fi
 if [[ "$WAIT" == true ]]; then
   up_args+=(--wait)
 fi
-docker compose "${up_args[@]}"
+"${compose[@]}" "${up_args[@]}"
 
 # 重置数据后，数据库种子脚本会由 Oracle 容器自动执行（含 07_seed_user_avatars.sql），
 # 但 MinIO 中的头像图片随数据卷被删除，需重新导入，否则 /uploads/avatars/* 返回 404。
@@ -62,7 +76,7 @@ if [[ "$RESET_DATA" == true ]]; then
   for i in $(seq 1 120); do
     minio_ok=false
     oracle_ok=false
-    docker exec minio sh -c 'MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 mc ready local --quiet' >/dev/null 2>&1 && minio_ok=true
+    docker exec -e "MC_HOST_local=http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000" minio mc ready local --quiet >/dev/null 2>&1 && minio_ok=true
     [[ "$(docker inspect -f '{{.State.Health.Status}}' oracle-db 2>/dev/null)" == "healthy" ]] && oracle_ok=true
     if [[ "$minio_ok" == true && "$oracle_ok" == true ]]; then
       break
@@ -72,4 +86,4 @@ if [[ "$RESET_DATA" == true ]]; then
   "$PROJECT_ROOT/scripts/import_user_avatars.sh"
 fi
 
-docker compose ps
+"${compose[@]}" ps

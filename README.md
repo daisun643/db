@@ -1,27 +1,24 @@
 # 同济论坛
 
-Vue 3 + ASP.NET Core 8 + Oracle 18c 的论坛与校园闲置交易系统，开发环境由 Docker Compose 管理。
+Vue 3 + ASP.NET Core 8 + Oracle 18c 的论坛与校园闲置交易系统，由 Docker Compose 管理。
 
 ## 快速开始
 
 要求：Docker（含 Compose 插件）；运行接口测试还需要 `uv`。
 
 ```bash
+cp .env.example .env
+# 编辑 .env，填写 DOMAIN 和各项生产凭据
 ./scripts/restart.sh --wait
 ```
 
-默认保留数据库和 MinIO 数据。仅在确定需要完全重建开发数据时执行：
+默认保留数据库和 MinIO 数据。仅在确定需要完全重建数据时执行：
 
 ```bash
 ./scripts/restart.sh --reset-data --wait
 ```
 
-访问地址：
-
-- 前端：http://localhost:5173
-- API：http://localhost:8080
-- Swagger：http://localhost:8080/swagger
-- MinIO 控制台：http://localhost:9001
+访问地址由 `.env` 中的 `DOMAIN` 决定：`https://<DOMAIN>`。API、Oracle 和 MinIO 只在 Docker 内部网络提供服务。
 
 ## 常用命令
 

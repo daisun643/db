@@ -1,7 +1,9 @@
 ﻿import axios from 'axios'
 
 const api = axios.create({
-  baseURL: '/api',
+  // Vite injects this at build/start time. Production uses the same-origin
+  // reverse-proxy path; development may point directly at localhost:8080.
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 10000,
   withCredentials: true,
 })
