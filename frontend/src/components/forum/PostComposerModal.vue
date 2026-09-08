@@ -25,7 +25,14 @@
           </div>
           <label class="composer-field">
             <span>标题</span>
-            <input v-model="postForm.title" type="text" placeholder="用一句话概括你想讨论的内容" required />
+            <input
+              v-model="postForm.title"
+              type="text"
+              minlength="2"
+              maxlength="200"
+              placeholder="用一句话概括你想讨论的内容"
+              required
+            />
           </label>
           <div class="composer-field">
             <div class="composer-field-head">
@@ -46,6 +53,7 @@
             <textarea
               v-if="!showPreview"
               v-model="postForm.content"
+              maxlength="4000"
               placeholder="补充背景、细节或你的看法…"
               required
               autofocus
@@ -204,6 +212,18 @@ const handleCreatePost = async () => {
     showPreview.value = false
     return
   }
+
+  const title = postForm.value.title.trim()
+  const content = postForm.value.content.trim()
+  if (title.length < 2) {
+    emit('error', '标题至少需要 2 个字符')
+    return
+  }
+  if (!content) {
+    emit('error', '正文不能为空')
+    return
+  }
+
   try {
     submitting.value = true
     const uploaded = createImageFiles.value.length > 0
@@ -213,6 +233,7 @@ const handleCreatePost = async () => {
 
     const res = await createPost({
       ...postForm.value,
+      title,
       imageUrls,
     })
     const result = res.data
@@ -220,7 +241,11 @@ const handleCreatePost = async () => {
     emit('close')
     emit('created', result)
   } catch (e) {
-    emit('error', '发布失败: ' + (e.response?.data?.message || e.message))
+    const responseData = e.response?.data
+    const validationMessage = responseData?.errors
+      ? Object.values(responseData.errors).flat().find(Boolean)
+      : null
+    emit('error', '发布失败: ' + (responseData?.message || validationMessage || e.message))
   } finally {
     submitting.value = false
   }
