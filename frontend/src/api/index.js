@@ -50,11 +50,10 @@ export const uploadAvatar = (file) => {
 export const uploadImages = (files, bucket = 'posts') => {
   const formData = new FormData()
   files.forEach(file => {
-    formData.append('files', file)
+    formData.append('files', file, file.name)
   })
   return api.post('/media/images', formData, {
     params: { bucket },
-    headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 export const changePassword = (data) => api.post('/user/password', data)
@@ -66,10 +65,8 @@ export const createForum = (data) => api.post('/forums', data)
 export const updateForum = (id, data) => api.put(`/forums/${id}`, data)
 export const uploadForumAvatar = (forumId, file) => {
   const formData = new FormData()
-  formData.append('file', file)
-  return api.post(`/forums/${forumId}/avatar`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  formData.append('file', file, file.name)
+  return api.post(`/forums/${forumId}/avatar`, formData)
 }
 export const removeForumAvatar = (forumId) => api.delete(`/forums/${forumId}/avatar`)
 export const assignForumManager = (forumId, userID, role = 'Moderator') => api.post(`/forums/${forumId}/managers`, { userID, role })
