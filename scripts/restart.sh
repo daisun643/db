@@ -72,18 +72,54 @@ fi
 # 重置数据后，数据库种子脚本会由 Oracle 容器自动执行（含 07_seed_user_avatars.sql），
 # 但 MinIO 中的头像图片随数据卷被删除，需重新导入，否则 /uploads/avatars/* 返回 404。
 if [[ "$RESET_DATA" == true ]]; then
-  echo "==> 等待 MinIO 和 Oracle 就绪后重新导入用户头像..."
+  echo "==> 等待 MinIO 和 Oracle XEPDB1 就绪后重新导入用户头像..."
+
+  ready=false
+
   for i in $(seq 1 120); do
     minio_ok=false
     oracle_ok=false
-    docker exec -e "MC_HOST_local=http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000" minio mc ready local --quiet >/dev/null 2>&1 && minio_ok=true
-    [[ "$(docker inspect -f '{{.State.Health.Status}}' oracle-db 2>/dev/null)" == "healthy" ]] && oracle_ok=true
+
+    # 1. MinIO 必须真正可访问
+    if docker exec \
+      -e "MC_HOST_local=http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000" \
+      minio \
+      mc ready local --quiet >/dev/null 2>&1; then
+      minio_ok=true
+    fi
+
+    # 2. Oracle 容器必须 healthy
+    if [[ "$(docker inspect -f '{{.State.Health.Status}}' oracle-db 2>/dev/null)" == "healthy" ]]; then
+
+      # 3. APP_USER 必须真正能连接 XEPDB1
+      if docker exec \
+        -e "APP_USER=$APP_USER" \
+        -e "APP_USER_PASSWORD=$APP_USER_PASSWORD" \
+        oracle-db \
+        sh -c '
+          echo "SELECT 1 FROM DUAL;" |
+          sqlplus -L -s "$APP_USER/$APP_USER_PASSWORD@//127.0.0.1:1521/XEPDB1"
+        ' 2>/dev/null | grep -q "1"; then
+        oracle_ok=true
+      fi
+    fi
+
     if [[ "$minio_ok" == true && "$oracle_ok" == true ]]; then
+      ready=true
       break
     fi
+
     sleep 3
   done
-  "$PROJECT_ROOT/scripts/import_user_avatars.sh"
+
+  if [[ "$ready" != true ]]; then
+    echo "错误: MinIO 或 Oracle XEPDB1 未能正常就绪。" >&2
+    echo "==> Oracle Listener 状态：" >&2
+    docker exec oracle-db lsnrctl status || true
+    exit 1
+  fi
+
+  bash "$PROJECT_ROOT/scripts/import_user_avatars.sh"
 fi
 
 "${compose[@]}" ps
