@@ -42,13 +42,13 @@ WHERE u."email" = '1@tongji.edu.cn' AND r."roleName" = 'Manager';
 INSERT INTO "UserRole" ("userId", "roleId", "assignTime")
 SELECT u."userId", r."roleId", SYSTIMESTAMP
 FROM "User" u, "Role" r
-WHERE u."email" = '2@tongji.edu.cn' AND r."roleName" = 'Manager';
+WHERE u."email" = '2@tongji.edu.cn' AND r."roleName" = 'User';
 
 -- 用户3 分配 Moderator 角色
 INSERT INTO "UserRole" ("userId", "roleId", "assignTime")
 SELECT u."userId", r."roleId", SYSTIMESTAMP
 FROM "User" u, "Role" r
-WHERE u."email" = '3@tongji.edu.cn' AND r."roleName" = 'Moderator';
+WHERE u."email" = '3@tongji.edu.cn' AND r."roleName" = 'User';
 
 -- 用户4 分配 User 角色
 INSERT INTO "UserRole" ("userId", "roleId", "assignTime")
