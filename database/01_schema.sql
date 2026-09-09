@@ -7,6 +7,7 @@
 -- 切换到 appuser 用户执行
 ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
+ALTER SESSION SET DDL_LOCK_TIMEOUT = 60;
 
 -- 第一步：建所有主表（无外键依赖）
 -- ============================================================

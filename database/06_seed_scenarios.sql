@@ -29,22 +29,22 @@ AND NOT EXISTS (SELECT 1 FROM "Wallet" w WHERE w."userId" = u."userId");
 -- 更多帖子，覆盖活动、学习、求职和公告板块
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '本周五四平路校区夜跑活动报名', '周五晚七点在一二九操场集合，按五公里和十公里分组，欢迎第一次参加夜跑的同学。请自备饮用水。', 0, 96, SYSTIMESTAMP - INTERVAL '18' HOUR, SYSTIMESTAMP - INTERVAL '18' HOUR, 'Active', u."userId", f."forumId"
-FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '校园活动'
+FROM "User" u, "Forum" f WHERE u."email" = '2@tongji.edu.cn' AND f."forumName" = '校园活动'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '本周五四平路校区夜跑活动报名');
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '高等数学期末复习资料索引', '整理了历年题、知识点清单和常见易错题。建议先按章节查漏补缺，再用两套模拟卷控制答题时间。资料链接请在评论区按需交流。', 0, 183, SYSTIMESTAMP - INTERVAL '2' DAY, SYSTIMESTAMP - INTERVAL '1' DAY, 'Active', u."userId", f."forumId"
-FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '学习交流'
+FROM "User" u, "Forum" f WHERE u."email" = '2@tongji.edu.cn' AND f."forumName" = '学习交流'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '高等数学期末复习资料索引');
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '暑期实习简历互助修改', '准备互联网和制造业暑期实习的同学可以在楼内说明目标岗位，大家互相检查项目描述、量化结果和排版。请勿公开手机号等敏感信息。', 0, 127, SYSTIMESTAMP - INTERVAL '3' DAY, SYSTIMESTAMP - INTERVAL '2' DAY, 'Active', u."userId", f."forumId"
-FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '求职求助'
+FROM "User" u, "Forum" f WHERE u."email" = '2@tongji.edu.cn' AND f."forumName" = '求职求助'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '暑期实习简历互助修改');
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '校园二手交易安全提醒', '请优先选择校内当面验货，不要脱离平台沟通付款；贵重物品应核对序列号和购买凭证，发现异常及时发起举报或纠纷。', 0, 268, SYSTIMESTAMP - INTERVAL '7' DAY, SYSTIMESTAMP - INTERVAL '7' DAY, 'Active', u."userId", f."forumId"
-FROM "User" u, "Forum" f WHERE u."email" = '1@tongji.edu.cn' AND f."forumName" = '校园公告'
+FROM "User" u, "Forum" f WHERE u."email" = '2@tongji.edu.cn' AND f."forumName" = '校园公告'
 AND NOT EXISTS (SELECT 1 FROM "Post" WHERE "title" = '校园二手交易安全提醒');
 
 -- 帖子图片：使用外部演示图片，并通过 MediaFile/PostMedia 维护顺序与归属。
@@ -206,15 +206,15 @@ WHERE f."userId" = u."userId" AND u."email" = '4@tongji.edu.cn' AND f."folderNam
 -- 更多规范化商品
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '宜家 LERSTA 落地灯', '暖白光落地灯，灯杆和开关完好，适合宿舍阅读角，自提。', c."categoryId", q."conditionId", 45, 1, 'Active', SYSTIMESTAMP - INTERVAL '10' HOUR, u."userId"
-FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '1@tongji.edu.cn' AND c."categoryName" = '生活用品' AND q."conditionName" = '良好'
+FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '2@tongji.edu.cn' AND c."categoryName" = '生活用品' AND q."conditionName" = '良好'
 AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '宜家 LERSTA 落地灯');
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '羽毛球拍双拍套装', '两支入门羽毛球拍，含拍包和三只训练球，仅使用两次。', c."categoryId", q."conditionId", 90, 1, 'Active', SYSTIMESTAMP - INTERVAL '16' HOUR, u."userId"
-FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '1@tongji.edu.cn' AND c."categoryName" = '运动户外' AND q."conditionName" = '几乎全新'
+FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '2@tongji.edu.cn' AND c."categoryName" = '运动户外' AND q."conditionName" = '几乎全新'
 AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '羽毛球拍双拍套装');
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT 'USB-C 七合一扩展坞', '支持 HDMI、千兆网口、SD 卡和 PD 充电，适合笔记本日常使用。', c."categoryId", q."conditionId", 75, 2, 'Active', SYSTIMESTAMP - INTERVAL '30' HOUR, u."userId"
-FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '1@tongji.edu.cn' AND c."categoryName" = '数码设备' AND q."conditionName" = '良好'
+FROM "User" u, "ProductCategory" c, "ProductCondition" q WHERE u."email" = '2@tongji.edu.cn' AND c."categoryName" = '数码设备' AND q."conditionName" = '良好'
 AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = 'USB-C 七合一扩展坞');
 
 -- 商品图片：文件元数据与商品归属分别保存，通过真实外键关联。

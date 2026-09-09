@@ -73,15 +73,15 @@ AND NOT EXISTS (SELECT 1 FROM "Forum" WHERE "forumName" = '失物招领');
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '图书馆自习攻略：哪个楼层人最少？', '最近在准备期末考试，发现图书馆每天都爆满。经过一周的蹲点观察，我总结了以下规律：' || CHR(10) || CHR(10) || '1. 三楼东侧上午人最少，靠窗位置充足' || CHR(10) || '2. 五楼研究生区全天都比较安静' || CHR(10) || '3. 一楼咖啡吧附近适合小组讨论，但不适合自习' || CHR(10) || '4. 周末早上8点之前去基本随便坐' || CHR(10) || CHR(10) || '大家还有什么好的自习地点推荐吗？', 15, 230, SYSTIMESTAMP - INTERVAL '5' DAY, SYSTIMESTAMP - INTERVAL '5' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '校园生活' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '食堂新出的菜品测评来了！', '上周食堂二楼新开了一家档口，主打川菜。我连着吃了三天，给大家做个测评：' || CHR(10) || CHR(10) || '水煮鱼：★★★★☆ 鱼肉嫩滑，辣度适中，就是油有点多' || CHR(10) || '宫保鸡丁：★★★☆☆ 味道一般，花生不够脆' || CHR(10) || '麻婆豆腐：★★★★★ 强烈推荐！麻辣鲜香，配饭绝了' || CHR(10) || CHR(10) || '价格：每份15-25元，性价比不错。' || CHR(10) || '大家有去尝过吗？', 28, 410, SYSTIMESTAMP - INTERVAL '3' DAY, SYSTIMESTAMP - INTERVAL '3' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '校园生活' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '社团招新季到了，大家推荐几个社团', '大一新生马上要来了，各社团也开始准备招新了。作为大三老学姐/学长，推荐几个我觉得体验最好的社团：' || CHR(10) || CHR(10) || '1. 机器人社 - 参加过两次RoboMaster，收获满满' || CHR(10) || '2. 摄影社 - 有专业老师指导，还能借用器材' || CHR(10) || '3. 辩论队 - 锻炼逻辑思维，比赛氛围超棒' || CHR(10) || '4. 志愿者协会 - 周末去社区服务，很有意义' || CHR(10) || CHR(10) || '当然最重要的是找到自己喜欢的方向，不要盲目跟风~', 12, 180, SYSTIMESTAMP - INTERVAL '2' DAY, SYSTIMESTAMP - INTERVAL '2' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '校园生活' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 -- ============================================================
 -- 3. 帖子 — 技术讨论板块
@@ -89,15 +89,15 @@ FROM "User" WHERE "email" = '1@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT 'C# 异步编程踩坑记录', '最近在做一个 Web API 项目，踩了不少异步编程的坑，记录一下：' || CHR(10) || CHR(10) || '1. 不要在异步方法中使用 lock，应该用 SemaphoreSlim' || CHR(10) || '2. 避免 async void，除了事件处理程序' || CHR(10) || '3. ConfigureAwait(false) 在库代码中很有用' || CHR(10) || '4. 注意 DbContext 的生命周期，不要在多线程中共享' || CHR(10) || CHR(10) || '希望对大家有帮助！', 35, 520, SYSTIMESTAMP - INTERVAL '4' DAY, SYSTIMESTAMP - INTERVAL '4' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '技术讨论' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '求助：Oracle 数据库连接超时问题', '在本地开发环境连接 Oracle XE 数据库时，偶尔会出现连接超时的问题。' || CHR(10) || CHR(10) || '环境配置：' || CHR(10) || '- Oracle 18c XE (Docker)' || CHR(10) || '- .NET 6 + Oracle.ManagedDataAccess.Core' || CHR(10) || '- 连接池大小设置为 10' || CHR(10) || CHR(10) || '已尝试：' || CHR(10) || '1. 增大连接池 - 问题减缓但没根治' || CHR(10) || '2. 检查 Docker 资源限制 - CPU/内存都正常' || CHR(10) || '3. 添加 Validate Connection=true - 报错频率降低' || CHR(10) || CHR(10) || '有没有大佬遇到过类似问题？求指教！', 8, 340, SYSTIMESTAMP - INTERVAL '1' DAY, SYSTIMESTAMP - INTERVAL '1' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '技术讨论' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT 'Vue 3 + TypeScript 项目搭建教程', '分享一个从零搭建 Vue 3 + TypeScript 项目的完整流程：' || CHR(10) || CHR(10) || '1. 使用 Vite 创建项目：npm create vite@latest my-app -- --template vue-ts' || CHR(10) || '2. 安装常用依赖：Pinia, Vue Router, Axios' || CHR(10) || '3. 配置 ESLint + Prettier 统一代码风格' || CHR(10) || '4. 设置路径别名 @/ 指向 src/' || CHR(10) || '5. 封装 Axios 请求拦截器' || CHR(10) || CHR(10) || '项目结构推荐：src/api、src/components、src/views、src/stores、src/utils' || CHR(10) || CHR(10) || '完整代码已上传到 GitHub，链接在评论区~', 45, 680, SYSTIMESTAMP - INTERVAL '6' DAY, SYSTIMESTAMP - INTERVAL '6' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '技术讨论' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 -- ============================================================
 -- 4. 帖子 — 二手交易板块
@@ -105,11 +105,11 @@ FROM "User" WHERE "email" = '1@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '毕业清仓：教材、考研资料、电子设备', '即将毕业，清理一波闲置，以下是待出物品：' || CHR(10) || CHR(10) || '1. 《数据结构（C语言版）》严蔚敏 - 20元' || CHR(10) || '2. 《计算机网络（第7版）》谢希仁 - 25元' || CHR(10) || '3. 考研数学全书 + 张宇1000题 - 40元（打包）' || CHR(10) || '4. 罗技 K380 蓝牙键盘 - 80元（九成新）' || CHR(10) || '5. 小米充电宝 10000mAh - 50元' || CHR(10) || CHR(10) || '可面交（校内）或快递（运费自理）。' || CHR(10) || '感兴趣的私信我~', 22, 390, SYSTIMESTAMP - INTERVAL '2' DAY, SYSTIMESTAMP - INTERVAL '2' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '二手交易' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 INSERT INTO "Post" ("title", "content", "likeCount", "viewCount", "createTime", "updateTime", "status", "userId", "forumId")
 SELECT '求购：二手显示器，24寸以上', '最近写代码需要一个外接显示器，预算 200-400 元。' || CHR(10) || CHR(10) || '要求：' || CHR(10) || '- 尺寸 24 寸及以上' || CHR(10) || '- 分辨率 1080p 以上' || CHR(10) || '- 有 HDMI 接口' || CHR(10) || '- 屏幕无明显坏点' || CHR(10) || CHR(10) || '有闲置的同学联系我，可以先看看实物。谢谢！', 5, 120, SYSTIMESTAMP - INTERVAL '1' DAY, SYSTIMESTAMP - INTERVAL '1' DAY, 'Active', "userId", (SELECT "forumId" FROM "Forum" WHERE "forumName" = '二手交易' AND ROWNUM = 1)
-FROM "User" WHERE "email" = '1@tongji.edu.cn';
+FROM "User" WHERE "email" = '2@tongji.edu.cn';
 
 -- ============================================================
 -- 5. 评论
@@ -156,27 +156,27 @@ INSERT INTO "PostLike" ("postId", "userId", "createTime") SELECT p."postId", u."
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '机械键盘 Cherry MX 青轴', 'Cherry G80-3000 机械键盘，青轴手感，使用约半年。键帽已更换为 PBT 热升华键帽。功能完全正常，无任何暗病。附赠拔键器和备用键帽。原价 599 元，现价 280 元出。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '数码设备'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 280, 1, 'Active', SYSTIMESTAMP - INTERVAL '3' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '机械键盘 Cherry MX 青轴');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '机械键盘 Cherry MX 青轴');
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '《算法导论》第四版', '全新未拆封的《算法导论（原书第4版）》，中文版。买重了一本，多出来的这本转让。原价 198 元，现价 120 元。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '教材资料'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '全新'), 120, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '《算法导论》第四版');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '《算法导论》第四版');
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '二手自行车 捷安特 ATX', '捷安特 ATX 660 山地自行车，骑行约 2000 公里。车况良好，变速器和刹车正常，轮胎今年换过。适合校内通勤，毕业带不走了。自提，价格可小刀。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '交通出行'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 350, 1, 'Active', SYSTIMESTAMP - INTERVAL '4' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '二手自行车 捷安特 ATX');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '二手自行车 捷安特 ATX');
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '考研政治全套资料', '包含：肖秀荣精讲精练 + 1000题 + 肖四肖八 + 徐涛核心考案。大部分只翻阅了一两遍，保存良好。打包出售，不拆卖。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '教材资料'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '有使用痕迹'), 65, 1, 'Active', SYSTIMESTAMP - INTERVAL '1' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '考研政治全套资料');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '考研政治全套资料');
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '小米台灯 Pro', '小米智能台灯 Pro，支持色温和亮度无级调节。使用约一年，外观无划痕，功能正常。附带原装电源适配器。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '生活用品'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '良好'), 80, 1, 'Active', SYSTIMESTAMP - INTERVAL '5' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '小米台灯 Pro');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '小米台灯 Pro');
 
 INSERT INTO "Product" ("title", "description", "categoryId", "conditionId", "price", "stock", "status", "publishTime", "userId")
 SELECT '罗技 G502 鼠标', '罗技 G502 Hero 游戏鼠标，有线版。使用一年半，微动正常无双击问题。附赠额外配重块和原装包装盒。', (SELECT "categoryId" FROM "ProductCategory" WHERE "categoryName" = '数码设备'), (SELECT "conditionId" FROM "ProductCondition" WHERE "conditionName" = '有使用痕迹'), 150, 1, 'Active', SYSTIMESTAMP - INTERVAL '2' DAY, "userId"
-FROM "User" WHERE "email" = '1@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '罗技 G502 鼠标');
+FROM "User" WHERE "email" = '2@tongji.edu.cn' AND NOT EXISTS (SELECT 1 FROM "Product" WHERE "title" = '罗技 G502 鼠标');
 
 -- ============================================================
 -- 8. 论坛管理员（role：Moderator=版主，Admin=管理员）
