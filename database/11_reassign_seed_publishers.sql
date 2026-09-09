@@ -1,6 +1,6 @@
 -- ============================================================
 -- 11_reassign_seed_publishers.sql
--- 将已存在的演示帖子和商品统一归属到 1@tongji.edu.cn。
+-- 将已存在的演示帖子和商品统一归属到 2@tongji.edu.cn。
 -- 该脚本用于兼容已经执行过旧版种子脚本的数据卷；对全新数据卷
 -- 05/06 中的插入语句本身也已使用同一发布方。
 -- ============================================================
@@ -9,7 +9,7 @@ ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = APPUSER;
 
 UPDATE "Post"
-SET "userId" = (SELECT "userId" FROM "User" WHERE "email" = '1@tongji.edu.cn')
+SET "userId" = (SELECT "userId" FROM "User" WHERE "email" = '2@tongji.edu.cn')
 WHERE "title" IN (
     '图书馆自习攻略：哪个楼层人最少？',
     '食堂新出的菜品测评来了！',
@@ -26,7 +26,7 @@ WHERE "title" IN (
 );
 
 UPDATE "Product"
-SET "userId" = (SELECT "userId" FROM "User" WHERE "email" = '1@tongji.edu.cn')
+SET "userId" = (SELECT "userId" FROM "User" WHERE "email" = '2@tongji.edu.cn')
 WHERE "title" IN (
     '机械键盘 Cherry MX 青轴',
     '《算法导论》第四版',
