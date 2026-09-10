@@ -522,6 +522,8 @@ public class ReportTicket
     public int? TargetID { get; set; }
     [MaxLength(500)]
     public string? Reason { get; set; }
+    [MaxLength(1000)]
+    public string? Description { get; set; }
     [MaxLength(20)]
     public string? Status { get; set; }
     public DateTime? CreateTime { get; set; }

@@ -50,6 +50,7 @@
       :open="!!reportTarget"
       :target="reportTarget"
       v-model:reason="reportReason"
+      v-model:description="reportDescription"
       @close="reportTarget = null"
       @submit="handleCreateReport"
     />
@@ -97,6 +98,7 @@ const {
   handleEditorSaved,
   reportTarget,
   reportReason,
+  reportDescription,
   handleCreateReport,
 } = useForum()
 

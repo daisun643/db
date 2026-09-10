@@ -40,6 +40,7 @@ const composerOpen = ref(false)
 const editingPost = ref(null)
 const reportTarget = ref(null)
 const reportReason = ref('')
+const reportDescription = ref('')
 const forumCreatorOpen = ref(false)
 const creatingForum = ref(false)
 const forumForm = ref({
@@ -277,6 +278,7 @@ const openReport = (post) => {
     title: post.title,
   }
   reportReason.value = ''
+  reportDescription.value = ''
 }
 
 const openCommentReport = (comment) => {
@@ -287,6 +289,19 @@ const openCommentReport = (comment) => {
     title: comment.content || '评论内容',
   }
   reportReason.value = ''
+  reportDescription.value = ''
+}
+
+const openUserReport = (post) => {
+  if (!post?.userID) return
+  reportTarget.value = {
+    targetType: 'User',
+    typeLabel: '用户',
+    id: post.userID,
+    title: post.username || `用户 #${post.userID}`,
+  }
+  reportReason.value = ''
+  reportDescription.value = ''
 }
 
 const handleCreateReport = async () => {
@@ -298,9 +313,11 @@ const handleCreateReport = async () => {
       targetType: reportTarget.value.targetType,
       targetID: reportTarget.value.id,
       reason: reportReason.value,
+      description: reportDescription.value || undefined,
     })
     reportTarget.value = null
     reportReason.value = ''
+    reportDescription.value = ''
     notice.value = '举报已提交，我们会尽快核实处理。'
   } catch (e) {
     error.value = '举报失败: ' + (e.response?.data?.message || e.message)
@@ -446,8 +463,10 @@ export function useForum() {
     // 举报
     reportTarget,
     reportReason,
+    reportDescription,
     openReport,
     openCommentReport,
+    openUserReport,
     handleCreateReport,
 
     // 详情与评论（详情页使用）

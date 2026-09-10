@@ -12,6 +12,13 @@
         placeholder="描述违规原因"
         required
       ></textarea>
+      <textarea
+        :value="description"
+        @input="$emit('update:description', $event.target.value)"
+        placeholder="补充说明（可选，最多 1000 字）"
+        rows="2"
+        class="report-desc-input"
+      ></textarea>
       <button class="btn btn-primary" type="submit">提交举报</button>
     </form>
   </div>
@@ -22,9 +29,10 @@ defineProps({
   open: { type: Boolean, required: true },
   target: { type: Object, default: null },
   reason: { type: String, default: '' },
+  description: { type: String, default: '' },
 })
 
-defineEmits(['close', 'submit', 'update:reason'])
+defineEmits(['close', 'submit', 'update:reason', 'update:description'])
 </script>
 
 <style scoped>
@@ -99,6 +107,10 @@ defineEmits(['close', 'submit', 'update:reason'])
   min-height: 96px;
   padding: 0.75rem 1rem;
   resize: vertical;
+}
+
+.report-desc-input {
+  min-height: 64px;
 }
 
 .btn {

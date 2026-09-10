@@ -30,6 +30,7 @@
       :open="!!reportTarget"
       :target="reportTarget"
       v-model:reason="reportReason"
+      v-model:description="reportDescription"
       @close="closeReport"
       @submit="handleCreateReport"
     />
@@ -84,6 +85,7 @@ const {
   // 举报
   reportTarget,
   reportReason,
+  reportDescription,
   openReport,
   closeReport,
   handleCreateReport,

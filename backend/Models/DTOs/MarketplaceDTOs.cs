@@ -155,6 +155,7 @@ public class ReportTicketResponse
     public string TargetType { get; set; } = string.Empty;
     public int? TargetID { get; set; }
     public string Reason { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? CreateTime { get; set; }
     public DateTime? ReviewTime { get; set; }
@@ -162,6 +163,20 @@ public class ReportTicketResponse
     public int? ReporterID { get; set; }
     public string ReporterName { get; set; } = string.Empty;
     public int? ReviewerID { get; set; }
+    public string? ReviewerName { get; set; }
+    /// <summary>被举报内容的快照（详情接口返回，含标题/内容/状态等）</summary>
+    public ReportTargetSnapshot? Target { get; set; }
+}
+
+public class ReportTargetSnapshot
+{
+    public int TargetID { get; set; }
+    public string? Title { get; set; }
+    public string? Content { get; set; }
+    public string? Status { get; set; }
+    public int? OwnerID { get; set; }
+    public string? OwnerName { get; set; }
+    public int? OwnerCredit { get; set; }
 }
 
 public class CreateReportRequest
@@ -175,6 +190,9 @@ public class CreateReportRequest
     [Required]
     [StringLength(500, MinimumLength = 2)]
     public string Reason { get; set; } = string.Empty;
+
+    [StringLength(1000)]
+    public string? Description { get; set; }
 }
 
 public class ReviewReportRequest

@@ -397,6 +397,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.TargetType).HasColumnName("targetType").IsUnicode(false);
             e.Property(x => x.TargetID).HasColumnName("targetId");
             e.Property(x => x.Reason).HasColumnName("reason");
+            e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.Status).HasColumnName("status");
             e.Property(x => x.CreateTime).HasColumnName("createTime");
             e.Property(x => x.ReviewTime).HasColumnName("reviewTime");
